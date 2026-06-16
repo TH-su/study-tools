@@ -1,0 +1,1935 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>素因数分解ジェネレーター</title>
+<style>
+:root {
+  --pri: #c2185b; --pri-d: #880e4f; --pri-l: #fce4ec;
+  --ok: #2f9e44;  --ok-l: #ebfbee;  --ok-b: #b2f2bb;
+  --ng: #c92a2a;  --ng-l: #fff5f5;  --ng-b: #ffa8a8;
+  --warn: #e67700; --warn-l: #fff9db;
+  --g0: #fff8fb; --g1: #fdf0f5; --g2: #f5d7e7; --g3: #ebbed4;
+  --g5: #a0687a; --g7: #5c2d3d; --g9: #2a0f1c;
+  --r: 12px; --sh: 0 2px 8px rgba(194,24,91,.09); --sh-h: 0 4px 16px rgba(194,24,91,.18);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Meiryo',sans-serif;
+       background: var(--g0); color: var(--g9); min-height: 100vh; }
+
+/* ===== HEADER ===== */
+.hdr {
+  background: linear-gradient(135deg,#880e4f 0%,#c2185b 60%,#e91e63 100%);
+  color:#fff; padding:22px 64px 18px; text-align:center;
+  box-shadow:0 3px 12px rgba(136,14,79,.22); position:relative;
+}
+.hdr h1 { font-size:clamp(1.2rem,4vw,1.75rem); font-weight:700; letter-spacing:.03em; margin-bottom:5px; }
+.hdr p  { font-size:.82rem; opacity:.82; }
+.btn-settings {
+  position:absolute; top:50%; right:18px; transform:translateY(-50%);
+  background:rgba(255,255,255,.18); border:1.5px solid rgba(255,255,255,.35);
+  color:#fff; width:40px; height:40px; border-radius:50%;
+  font-size:1.1rem; cursor:pointer; transition:background .15s,transform .15s;
+  display:flex; align-items:center; justify-content:center;
+}
+.btn-settings:hover { background:rgba(255,255,255,.32); transform:translateY(-50%) rotate(30deg); }
+
+/* 同期ドット */
+.sync-dot {
+  position:absolute; top:4px; right:4px;
+  width:9px; height:9px; border-radius:50%;
+  border:1.5px solid rgba(136,14,79,.4);
+  background:var(--g5); transition:background .3s; pointer-events:none;
+}
+.sync-dot.ok      { background:var(--ok); }
+.sync-dot.syncing { background:var(--warn); animation:blink .8s infinite; }
+.sync-dot.error   { background:var(--ng); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* ===== STATS BAR ===== */
+.stats-bar { background:#fff; border-bottom:1px solid var(--g2); }
+.stats-row { display:flex; align-items:stretch; border-bottom:1px solid var(--g2); }
+.stats-row:last-child { border-bottom:none; }
+.stats-period {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:6px 14px; min-width:64px; background:var(--g1);
+  border-right:1px solid var(--g2); gap:2px; flex-shrink:0;
+}
+.stats-period-name { font-size:.72rem; font-weight:800; color:var(--g7); letter-spacing:.05em; }
+.stats-period-date { font-size:.6rem; color:var(--g5); white-space:nowrap; }
+.stats-cells { display:flex; flex:1; align-items:stretch; }
+.stat-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+             padding:8px 6px; gap:1px; border-right:1px solid var(--g2); }
+.stat-item:last-child { border-right:none; }
+.stat-val   { font-size:1.25rem; font-weight:800; line-height:1; color:var(--g9); }
+.stat-item.ok   .stat-val { color:var(--ok); }
+.stat-item.ng   .stat-val { color:var(--ng); }
+.stat-item.rate .stat-val { color:var(--pri); font-size:1.1rem; }
+.stat-label { font-size:.62rem; color:var(--g5); font-weight:600; letter-spacing:.04em; }
+@media(max-width:480px){ .stats-period{min-width:52px;padding:6px 8px} .stat-val{font-size:1rem} }
+
+/* ===== CONTROL ===== */
+.ctrl {
+  display:flex; align-items:center; justify-content:center;
+  gap:12px; padding:16px 20px; background:var(--g1);
+  border-bottom:1px solid var(--g2); flex-wrap:wrap;
+}
+.ctrl-group {
+  display:flex; align-items:center; gap:8px;
+  background:#fff; border:1.5px solid var(--g3); border-radius:10px; padding:7px 12px;
+}
+.ctrl-group label { font-size:.85rem; font-weight:600; color:var(--g7); white-space:nowrap; }
+.ctrl-group input[type=number] {
+  width:66px; padding:4px 6px; font-size:1rem; font-weight:700;
+  border:1.5px solid var(--g3); border-radius:7px; text-align:center;
+  background:#fff; color:var(--pri); outline:none; transition:border-color .15s;
+}
+.ctrl-group input[type=number]:focus { border-color:var(--pri); }
+.btn {
+  padding:9px 20px; font-size:.9rem; font-weight:700; border:none; border-radius:10px;
+  cursor:pointer; transition:transform .12s,box-shadow .12s,opacity .12s;
+  letter-spacing:.03em; white-space:nowrap;
+}
+.btn:hover  { transform:translateY(-1px); }
+.btn:active { transform:translateY(0); opacity:.85; }
+.btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.btn-pri { background:linear-gradient(135deg,var(--pri),#e91e63); color:#fff;
+           box-shadow:0 3px 10px rgba(194,24,91,.28); }
+.btn-pri:hover { box-shadow:0 5px 16px rgba(194,24,91,.38); }
+.btn-wrong { background:var(--warn-l); color:var(--warn); border:1.5px solid #ffe066;
+             display:flex; align-items:center; gap:6px; }
+.wrong-count-badge {
+  background:var(--warn); color:#fff; font-size:.68rem; font-weight:800;
+  padding:1px 6px; border-radius:20px; min-width:20px; text-align:center;
+}
+
+/* ===== CUSTOM NUMBER INPUT ===== */
+.custom-input-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:10px; padding:11px 20px 10px;
+  background:#fff; border-bottom:2px solid var(--g2); flex-wrap:wrap;
+}
+.custom-input-label {
+  font-size:.82rem; font-weight:700; color:var(--g7);
+  white-space:nowrap; flex-shrink:0;
+}
+.custom-num-input {
+  flex:1; min-width:120px; max-width:200px;
+  padding:7px 11px; font-size:1rem; font-weight:700;
+  border:1.5px solid var(--g3); border-radius:9px;
+  text-align:center; color:var(--pri); outline:none;
+  transition:border-color .15s,background .12s;
+  font-family:'Menlo','Consolas',monospace; letter-spacing:.04em;
+}
+.custom-num-input:focus  { border-color:var(--pri); }
+.custom-num-input.invalid{ border-color:var(--ng); background:var(--ng-l); }
+.btn-custom {
+  background:linear-gradient(135deg,var(--pri-d),var(--pri));
+  color:#fff; box-shadow:0 2px 8px rgba(194,24,91,.22);
+}
+.btn-custom:hover { box-shadow:0 4px 12px rgba(194,24,91,.32); }
+.custom-input-err {
+  font-size:.74rem; color:var(--ng); font-weight:700;
+  display:none; width:100%; text-align:center; padding:2px 0;
+}
+.custom-input-err.visible { display:block; }
+/* カスタムカードのバッジを視覚的に区別 */
+.card.custom-card .card-num {
+  background:linear-gradient(135deg,var(--pri-d),var(--pri));
+  color:#fff;
+}
+
+/* ===== MODE LABEL ===== */
+.mode-label { display:none; align-items:center; gap:8px;
+              max-width:1200px; margin:16px auto 0; padding:0 20px;
+              font-size:.85rem; font-weight:700; color:var(--warn); }
+.mode-label.visible { display:flex; }
+.mode-label span { background:var(--warn-l); border:1px solid #ffe066; border-radius:6px; padding:3px 10px; }
+
+/* ===== GRID ===== */
+.grid-wrap { padding:20px 20px 56px; max-width:1200px; margin:0 auto; }
+.result-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+@media(max-width:960px){ .result-grid{grid-template-columns:repeat(3,1fr)} }
+@media(max-width:640px){ .result-grid{grid-template-columns:repeat(2,1fr);gap:10px} }
+@media(max-width:360px){ .result-grid{grid-template-columns:1fr} }
+
+/* ===== CARD ===== */
+.card {
+  background:#fff; border-radius:var(--r); box-shadow:var(--sh);
+  padding:14px 13px 14px; border:2px solid var(--g2);
+  display:flex; flex-direction:column;
+  opacity:0; transform:translateY(12px);
+  animation:fadeUp .32s ease forwards;
+  transition:box-shadow .18s,transform .18s,border-color .2s,background .2s;
+}
+.card:not([data-state="judged-correct"]):not([data-state="judged-incorrect"]):hover {
+  box-shadow:var(--sh-h); transform:translateY(-2px);
+}
+.card[data-state="judged-correct"]   { border-color:var(--ok-b); background:var(--ok-l); }
+.card[data-state="judged-incorrect"] { border-color:var(--ng-b); background:var(--ng-l); }
+@keyframes fadeUp { to{opacity:1;transform:translateY(0)} }
+.card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.card-num { background:var(--pri-l); color:var(--pri); font-size:.7rem; font-weight:700;
+            padding:2px 8px; border-radius:20px; letter-spacing:.04em; }
+.card-result { font-size:.72rem; font-weight:800; padding:2px 9px; border-radius:20px; display:none; }
+.card[data-state="judged-correct"]   .card-result { display:inline-block; background:var(--ok); color:#fff; }
+.card[data-state="judged-incorrect"] .card-result { display:inline-block; background:var(--ng); color:#fff; }
+.card-value  { font-size:clamp(.9rem,2.4vw,1.15rem); font-weight:800; color:var(--g9);
+               word-break:break-all; margin-bottom:10px; line-height:1.3; }
+.card-divider{ border:none; border-top:1px solid var(--g2); margin-bottom:10px; }
+.card-answer { display:none; margin-bottom:10px; }
+.card[data-state="revealed"]         .card-answer,
+.card[data-state="judged-correct"]   .card-answer,
+.card[data-state="judged-incorrect"] .card-answer { display:block; }
+.card-formula { font-size:clamp(.78rem,1.9vw,.92rem); color:var(--pri-d); font-weight:600;
+                word-break:break-all; line-height:1.6; }
+.card-formula sup { font-size:.65em; vertical-align:super; line-height:0; }
+.badge-prime { display:inline-block; margin-top:6px; background:var(--ok-l); color:var(--ok);
+               font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:20px;
+               border:1px solid var(--ok-b); }
+.card-hidden { display:flex; align-items:center; justify-content:center;
+               margin-bottom:10px; padding:6px 0; color:var(--g5); font-size:.8rem; letter-spacing:.1em; }
+.card[data-state="revealed"]         .card-hidden,
+.card[data-state="judged-correct"]   .card-hidden,
+.card[data-state="judged-incorrect"] .card-hidden { display:none; }
+.card-actions { margin-top:auto; display:flex; flex-direction:column; gap:6px; }
+.btn-reveal {
+  width:100%; padding:7px; font-size:.82rem; font-weight:700;
+  background:var(--pri-l); color:var(--pri); border:1.5px solid #f8bbd9;
+  border-radius:8px; cursor:pointer; transition:background .12s,transform .1s; letter-spacing:.03em;
+}
+.btn-reveal:hover { background:#f8d7ea; transform:translateY(-1px); }
+.card[data-state!="unanswered"] .btn-reveal { display:none; }
+.judge-row { display:none; gap:6px; }
+.card[data-state="revealed"] .judge-row { display:flex; }
+.btn-judge { flex:1; padding:7px 4px; font-size:.82rem; font-weight:700;
+             border:none; border-radius:8px; cursor:pointer;
+             transition:transform .1s,opacity .1s; letter-spacing:.02em; }
+.btn-judge:hover  { transform:translateY(-1px); }
+.btn-judge:active { opacity:.8; }
+.btn-judge.ok { background:var(--ok); color:#fff; }
+.btn-judge.ng { background:var(--ng); color:#fff; }
+.card[data-state="judged-correct"]   .card-actions,
+.card[data-state="judged-incorrect"] .card-actions { display:none; }
+.btn-correct-answer {
+  display:none; margin-top:6px; background:none; border:none;
+  color:var(--g5); font-size:.72rem; cursor:pointer;
+  text-decoration:underline; padding:2px 0; text-align:center; width:100%; transition:color .12s;
+}
+.btn-correct-answer:hover { color:var(--warn); }
+.card[data-state="judged-correct"]   .btn-correct-answer,
+.card[data-state="judged-incorrect"] .btn-correct-answer { display:block; }
+
+/* ===== EMPTY STATE ===== */
+.empty { text-align:center; padding:56px 20px; color:var(--g5); grid-column:1/-1; }
+.empty-icon { font-size:2.8rem; margin-bottom:12px; opacity:.45; }
+.empty p { font-size:.92rem; }
+
+/* ===== SETTINGS OVERLAY ===== */
+.settings-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; }
+.settings-overlay.open { display:block; animation:fadeBg .2s ease; }
+@keyframes fadeBg { from{opacity:0} to{opacity:1} }
+
+/* ===== SETTINGS PANEL ===== */
+.settings-panel {
+  position:fixed; top:0; right:0; bottom:0; width:min(400px,100vw);
+  background:#fff; z-index:201; box-shadow:-6px 0 24px rgba(0,0,0,.16);
+  transform:translateX(100%); transition:transform .28s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.settings-panel.open { transform:translateX(0); }
+.settings-hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 20px 16px;
+  background:linear-gradient(135deg,#880e4f,#c2185b); color:#fff; flex-shrink:0;
+}
+.settings-hdr h2 { font-size:1.05rem; font-weight:700; letter-spacing:.04em; }
+.btn-close-settings {
+  background:rgba(255,255,255,.18); border:none; color:#fff;
+  width:32px; height:32px; border-radius:50%; font-size:1rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;
+}
+.btn-close-settings:hover { background:rgba(255,255,255,.32); }
+.settings-body { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:20px; }
+.settings-section h3 {
+  font-size:.75rem; font-weight:700; color:var(--g5); letter-spacing:.08em; text-transform:uppercase;
+  margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--g2);
+}
+.settings-item { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
+.settings-item:last-child { margin-bottom:0; }
+.settings-item-label { font-size:.88rem; font-weight:700; color:var(--g9); }
+.settings-item-desc  { font-size:.75rem; color:var(--g5); line-height:1.45; margin-bottom:2px; }
+.btn-setting-action {
+  padding:10px 16px; font-size:.88rem; font-weight:700; border-radius:9px;
+  cursor:pointer; border:none; transition:opacity .12s,transform .12s; text-align:left; letter-spacing:.02em;
+}
+.btn-setting-action:hover  { opacity:.85; transform:translateY(-1px); }
+.btn-setting-action:active { transform:translateY(0); }
+.btn-warn        { background:var(--warn-l); color:var(--warn); border:1.5px solid #ffe066; }
+.btn-danger      { background:var(--ng-l);   color:var(--ng);   border:1.5px solid var(--ng-b); }
+.btn-full-danger { background:var(--ng);     color:#fff; border:none; }
+.settings-divider{ border:none; border-top:1px solid var(--g2); margin:4px 0; }
+
+/* ===== CLOUD SYNC UI ===== */
+/* 保存済みURLの表示ボックス */
+.saved-url-box {
+  background:var(--g1); border:1.5px solid var(--g2); border-radius:9px;
+  padding:10px 12px; margin-bottom:10px;
+}
+.saved-url-box-label {
+  font-size:.63rem; font-weight:800; color:var(--g5);
+  letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:4px;
+}
+.saved-url-box-value {
+  font-size:.72rem; font-family:'Menlo','Consolas',monospace;
+  word-break:break-all; line-height:1.45;
+}
+.saved-url-box-value.is-set   { color:var(--ok); font-weight:600; }
+.saved-url-box-value.is-empty { color:var(--g5); font-style:italic; }
+
+/* URL入力フォーム */
+.gas-url-form { display:flex; flex-direction:column; gap:6px; }
+.gas-url-input {
+  width:100%; padding:9px 10px; font-size:.78rem;
+  border:1.5px solid var(--g3); border-radius:8px; outline:none;
+  font-family:'Menlo','Consolas',monospace; transition:border-color .15s; color:var(--g7);
+  word-break:break-all;
+}
+.gas-url-input:focus { border-color:var(--pri); }
+.gas-url-input.invalid { border-color:var(--ng); background:var(--ng-l); }
+
+/* 保存ボタン */
+.btn-url-save {
+  padding:10px; font-size:.9rem; font-weight:700; border-radius:9px;
+  cursor:pointer; border:none; background:var(--pri); color:#fff;
+  transition:opacity .15s,transform .1s; width:100%; letter-spacing:.03em;
+  box-shadow:0 2px 8px rgba(194,24,91,.25);
+}
+.btn-url-save:hover  { opacity:.88; transform:translateY(-1px); }
+.btn-url-save:active { transform:translateY(0); }
+
+/* URLクリアボタン */
+.btn-url-clear {
+  background:none; border:none; color:var(--ng); font-size:.73rem;
+  cursor:pointer; text-decoration:underline; padding:2px 0; align-self:flex-start;
+  display:none;
+}
+.btn-url-clear.visible { display:inline-block; }
+.btn-url-clear:hover { opacity:.75; }
+
+/* 保存結果バナー（保存成功/失敗を独立表示） */
+.url-save-result {
+  padding:8px 10px; border-radius:8px; font-size:.78rem; font-weight:700;
+  line-height:1.4; display:none;
+}
+.url-save-result.visible { display:block; }
+.url-save-result.ok    { background:var(--ok-l);   color:var(--ok); border:1px solid var(--ok-b); }
+.url-save-result.error { background:var(--ng-l);   color:var(--ng); border:1px solid var(--ng-b); }
+
+/* 区切り線 */
+.sync-section-divider {
+  border:none; border-top:1px dashed var(--g3); margin:6px 0;
+}
+/* 同期ボタン行 */
+.gas-sync-row { display:flex; gap:8px; }
+.btn-cloud {
+  flex:1; padding:9px 8px; font-size:.84rem; font-weight:700; border-radius:8px;
+  cursor:pointer; border:none; transition:opacity .12s,transform .12s; letter-spacing:.02em;
+  white-space:nowrap;
+}
+.btn-cloud:hover   { opacity:.88; transform:translateY(-1px); }
+.btn-cloud:active  { transform:translateY(0); }
+.btn-cloud:disabled{ opacity:.35; cursor:not-allowed; transform:none; }
+.btn-cloud-push { background:var(--ok-l);   color:var(--ok);  border:1.5px solid var(--ok-b); }
+.btn-cloud-pull { background:var(--pri-l);  color:var(--pri); border:1.5px solid #f8bbd9; }
+.btn-cloud-sync { background:linear-gradient(135deg,var(--pri),#e91e63); color:#fff; border:none; }
+
+/* 同期結果バナー（保存結果とは独立） */
+.sync-result-row {
+  padding:8px 10px; border-radius:8px; font-size:.78rem; font-weight:600;
+  line-height:1.4; display:none;
+}
+.sync-result-row.visible { display:block; }
+.sync-result-row.ok      { background:var(--ok-l);   color:var(--ok); }
+.sync-result-row.error   { background:var(--ng-l);   color:var(--ng); }
+.sync-result-row.syncing { background:var(--warn-l); color:var(--warn); }
+
+/* 使い方ヒント */
+.sync-hint-box {
+  background:var(--pri-l); border:1px solid #f8bbd9; border-radius:8px;
+  padding:9px 12px; font-size:.73rem; color:var(--pri-d); line-height:1.6;
+}
+.sync-hint-box strong { font-weight:700; display:block; margin-bottom:2px; }
+
+/* ===== CALENDAR BUTTON (header) ===== */
+.btn-calendar {
+  position:absolute; top:50%; left:18px; transform:translateY(-50%);
+  background:rgba(255,255,255,.18); border:1.5px solid rgba(255,255,255,.35);
+  color:#fff; width:40px; height:40px; border-radius:50%;
+  font-size:1rem; cursor:pointer; transition:background .15s,transform .15s;
+  display:flex; align-items:center; justify-content:center;
+}
+.btn-calendar:hover { background:rgba(255,255,255,.32); transform:translateY(-50%) scale(1.08); }
+
+/* ===== CALENDAR OVERLAY ===== */
+.cal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.52); z-index:300; }
+.cal-overlay.open { display:block; animation:fadeBg .2s ease; }
+
+/* ===== CALENDAR MODAL ===== */
+.cal-modal {
+  display:none; position:fixed; top:50%; left:50%;
+  transform:translate(-50%,-50%) scale(.95);
+  width:min(500px,96vw); max-height:90vh; background:#fff; border-radius:16px;
+  box-shadow:0 8px 40px rgba(0,0,0,.24); z-index:301;
+  flex-direction:column; overflow:hidden;
+}
+.cal-modal.open { display:flex; animation:calIn .22s ease forwards; }
+@keyframes calIn {
+  from { opacity:0; transform:translate(-50%,-50%) scale(.93); }
+  to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+}
+.cal-hdr {
+  display:flex; align-items:center; padding:14px 48px 12px 12px;
+  background:linear-gradient(135deg,#880e4f,#c2185b); color:#fff;
+  flex-shrink:0; position:relative; gap:8px;
+}
+.cal-title { flex:1; text-align:center; font-size:1rem; font-weight:700; letter-spacing:.04em; }
+.cal-nav-btn {
+  background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35);
+  color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer;
+  font-size:1.1rem; display:flex; align-items:center; justify-content:center;
+  transition:background .12s; padding:0; flex-shrink:0; line-height:1;
+}
+.cal-nav-btn:hover { background:rgba(255,255,255,.38); }
+.cal-close-btn {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:rgba(255,255,255,.18); border:none; color:#fff;
+  width:30px; height:30px; border-radius:50%; font-size:.85rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;
+}
+.cal-close-btn:hover { background:rgba(255,255,255,.35); }
+.cal-body { flex:1; overflow-y:auto; padding:12px 12px 16px; }
+
+/* 曜日ヘッダー */
+.cal-weekdays {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:4px;
+}
+.cal-weekdays > div {
+  text-align:center; font-size:.65rem; font-weight:700;
+  color:var(--g5); letter-spacing:.04em; padding:3px 0;
+}
+.cal-weekdays > div:first-child { color:#e03131; }
+.cal-weekdays > div:last-child  { color:#1971c2; }
+
+/* セルグリッド */
+.cal-grid {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:10px;
+}
+.cal-cell {
+  border-radius:7px; padding:4px 3px;
+  display:flex; flex-direction:column; align-items:center;
+  cursor:default; border:1.5px solid transparent;
+  transition:border-color .12s,background .12s;
+  min-height:52px;
+}
+.cal-cell-empty { background:transparent; pointer-events:none; }
+.cal-cell:not(.cal-cell-empty) { background:var(--g1); cursor:pointer; }
+.cal-cell:not(.cal-cell-empty):not(.cal-today):hover { border-color:var(--g3); background:var(--g2); }
+.cal-cell.cal-has-data { background:#fce4ec; }
+.cal-cell.cal-today { border-color:var(--pri) !important; background:#fce4ec; }
+.cal-cell.cal-selected {
+  border-color:var(--pri); background:#f8bbd9;
+  box-shadow:0 0 0 2px rgba(194,24,91,.22);
+}
+.cal-day-num {
+  font-size:.82rem; font-weight:700; color:var(--g7); line-height:1.1; margin-top:2px;
+}
+.cal-cell.dow-0 .cal-day-num { color:#e03131; }
+.cal-cell.dow-6 .cal-day-num { color:#1971c2; }
+.cal-cell.cal-today .cal-day-num { color:var(--pri) !important; font-weight:800; }
+.cal-day-stats {
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+  margin-top:3px; width:100%;
+}
+.cal-day-total { font-size:.56rem; color:var(--g7); font-weight:600; white-space:nowrap; }
+.cal-day-rate {
+  font-size:.62rem; font-weight:800; padding:1px 5px; border-radius:4px; white-space:nowrap;
+}
+.cal-day-rate.hi  { color:var(--ok);   background:var(--ok-l); }
+.cal-day-rate.mid { color:var(--warn); background:var(--warn-l); }
+.cal-day-rate.lo  { color:var(--ng);   background:var(--ng-l); }
+
+/* 日別詳細パネル */
+.cal-detail { min-height:76px; }
+.cal-detail-empty {
+  text-align:center; color:var(--g5); font-size:.82rem; padding:20px 0;
+}
+.cal-detail-box {
+  background:var(--g1); border-radius:10px;
+  padding:12px 14px; border:1.5px solid var(--g2);
+}
+.cal-detail-title {
+  font-size:.8rem; font-weight:700; color:var(--g7);
+  margin-bottom:10px; text-align:center;
+}
+.cal-detail-stats {
+  display:flex; border:1px solid var(--g2); border-radius:8px;
+  overflow:hidden; background:#fff;
+}
+.cal-detail-stat {
+  flex:1; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; padding:10px 4px; gap:2px;
+  border-right:1px solid var(--g2);
+}
+.cal-detail-stat:last-child { border-right:none; }
+.cal-detail-val { font-size:1.15rem; font-weight:800; color:var(--g9); }
+.cal-detail-stat.ok   .cal-detail-val { color:var(--ok); }
+.cal-detail-stat.ng   .cal-detail-val { color:var(--ng); }
+.cal-detail-stat.rate .cal-detail-val { color:var(--pri); font-size:1rem; }
+.cal-detail-lbl { font-size:.6rem; color:var(--g5); font-weight:600; letter-spacing:.04em; }
+
+/* モバイル調整 */
+@media(max-width:400px) {
+  .cal-cell { min-height:46px; }
+  .cal-day-num { font-size:.75rem; }
+  .cal-day-total { font-size:.5rem; }
+  .cal-day-rate { font-size:.56rem; }
+}
+/* ===== MODE TABS（モード切替） ===== */
+.mode-tabs { display:flex; background:var(--pri-d); }
+.mode-tab {
+  flex:1; padding:11px 8px; border:none; cursor:pointer;
+  background:transparent; color:rgba(255,255,255,.72);
+  font-size:.92rem; font-weight:700; letter-spacing:.03em;
+  border-bottom:3px solid transparent;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.mode-tab:hover  { background:rgba(255,255,255,.08); color:#fff; }
+.mode-tab.active { color:#fff; background:rgba(255,255,255,.14); border-bottom-color:#fff; }
+@media(max-width:380px){ .mode-tab{ font-size:.8rem; padding:10px 4px; } }
+
+/* モード別の表示切替（data-mode は body に付与） */
+body[data-mode="mul"] .pf-only  { display:none !important; }
+body[data-mode="pf"]  .mul-only { display:none !important; }
+
+/* ===== 掛け算カードの解説 ===== */
+.mul-product { font-size:1.2rem; font-weight:800; color:var(--pri-d); }
+.mul-explain { margin-top:9px; display:flex; flex-direction:column; gap:8px; }
+.explain-block {
+  background:var(--g1); border:1px solid var(--g2);
+  border-radius:8px; padding:7px 9px;
+}
+.explain-title {
+  display:block; font-size:.7rem; font-weight:800; color:var(--pri);
+  margin-bottom:4px; letter-spacing:.02em;
+}
+.explain-body { font-size:.78rem; color:var(--g7); line-height:1.7; word-break:break-word; }
+.explain-body b { color:var(--g9); font-weight:800; }
+.vedic-step { display:block; }
+.vedic-assemble { display:block; margin-top:3px; font-weight:700; color:var(--pri-d); }
+/* 掛け算カードのバッジを区別 */
+.card.mul-card .card-num {
+  background:var(--pri-d); color:#fff;
+}
+</style>
+</head>
+<body data-mode="pf">
+
+<header class="hdr">
+  <button class="btn-calendar" onclick="openCalendar()" title="学習カレンダー">📅</button>
+  <h1 id="appTitle">素因数分解ジェネレーター</h1>
+  <p id="appSubtitle">自分で解いて、正解・不正解を記録しましょう</p>
+  <button class="btn-settings" onclick="openSettings()" title="設定" style="position:relative;">
+    ⚙
+    <span class="sync-dot" id="syncDot"></span>
+  </button>
+</header>
+
+<!-- モード切替タブ -->
+<div class="mode-tabs">
+  <button class="mode-tab active" data-mode="pf"  onclick="switchMode('pf')">🔢 素因数分解</button>
+  <button class="mode-tab"        data-mode="mul" onclick="switchMode('mul')">✖️ 二桁の掛け算</button>
+</div>
+
+<!-- Stats: 本日 / 全期間 -->
+<div class="stats-bar">
+  <div class="stats-row">
+    <div class="stats-period">
+      <span class="stats-period-name">本日</span>
+      <span class="stats-period-date" id="todayDateLabel"></span>
+    </div>
+    <div class="stats-cells">
+      <div class="stat-item"><span class="stat-val" id="todayTotal">0</span><span class="stat-label">出題</span></div>
+      <div class="stat-item ok"><span class="stat-val" id="todayCorrect">0</span><span class="stat-label">正解</span></div>
+      <div class="stat-item ng"><span class="stat-val" id="todayIncorrect">0</span><span class="stat-label">不正解</span></div>
+      <div class="stat-item rate"><span class="stat-val" id="todayRate">—</span><span class="stat-label">正答率</span></div>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="stats-period">
+      <span class="stats-period-name">全期間</span>
+      <span class="stats-period-date">累計</span>
+    </div>
+    <div class="stats-cells">
+      <div class="stat-item"><span class="stat-val" id="allTotal">0</span><span class="stat-label">出題</span></div>
+      <div class="stat-item ok"><span class="stat-val" id="allCorrect">0</span><span class="stat-label">正解</span></div>
+      <div class="stat-item ng"><span class="stat-val" id="allIncorrect">0</span><span class="stat-label">不正解</span></div>
+      <div class="stat-item rate"><span class="stat-val" id="allRate">—</span><span class="stat-label">正答率</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="ctrl">
+  <div class="ctrl-group pf-only">
+    <label for="digits">桁数</label>
+    <input type="number" id="digits" value="4" min="1" max="15">
+    <span style="font-size:.78rem;color:var(--g5);">桁（1〜15）</span>
+  </div>
+  <button class="btn btn-pri pf-only"  id="genBtn"    onclick="generate()">生成する</button>
+  <button class="btn btn-pri mul-only" id="genBtnMul" onclick="generateMul()">生成する</button>
+  <button class="btn btn-wrong" id="wrongBtn" onclick="showWrongProblems()" disabled>
+    不正解問題を表示
+    <span class="wrong-count-badge" id="wrongCount">0</span>
+  </button>
+</div>
+
+<!-- 指定した数を分解（素因数分解モード専用） -->
+<div class="custom-input-row pf-only">
+  <span class="custom-input-label">🔢 指定した数を分解</span>
+  <input type="text" id="customNumInput" class="custom-num-input"
+         placeholder="数字を入力（最大15桁）"
+         inputmode="numeric" maxlength="15"
+         oninput="onCustomNumInput()"
+         onkeydown="if(event.key==='Enter')analyzeCustomNum()">
+  <button class="btn btn-custom" onclick="analyzeCustomNum()">分解する</button>
+  <div class="custom-input-err" id="customInputErr"></div>
+</div>
+
+<div class="mode-label" id="modeLabel"><span id="modeLabelText"></span></div>
+
+<div class="grid-wrap">
+  <div class="result-grid" id="grid">
+    <div class="empty">
+      <div class="empty-icon">🔢</div>
+      <p>「生成する」ボタンを押してください</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CALENDAR MODAL ===== -->
+<div class="cal-overlay" id="calOverlay" onclick="closeCalendar()"></div>
+<div class="cal-modal" id="calModal">
+  <div class="cal-hdr">
+    <button class="cal-nav-btn" id="calPrev" onclick="calPrevMonth()" title="前の月">‹</button>
+    <span class="cal-title" id="calTitle"></span>
+    <button class="cal-nav-btn" id="calNext" onclick="calNextMonth()" title="次の月">›</button>
+    <button class="cal-close-btn" onclick="closeCalendar()" title="閉じる">✕</button>
+  </div>
+  <div class="cal-body">
+    <div class="cal-weekdays">
+      <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-detail" id="calDetail">
+      <div class="cal-detail-empty">日付をタップすると詳細を表示します</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SETTINGS PANEL ===== -->
+<div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
+<div class="settings-panel" id="settingsPanel">
+  <div class="settings-hdr">
+    <h2>⚙ 設定</h2>
+    <button class="btn-close-settings" onclick="closeSettings()">✕</button>
+  </div>
+  <div class="settings-body">
+
+    <!-- ☁ クラウド同期 -->
+    <div class="settings-section">
+      <h3>☁ クラウド同期</h3>
+      <div class="settings-item">
+
+        <!-- 保存済みURL表示（常に表示 — localStorageの実値を反映） -->
+        <div class="saved-url-box" id="savedUrlBox">
+          <span class="saved-url-box-label">現在保存されているURL</span>
+          <span class="saved-url-box-value is-empty" id="savedUrlDisplay">（未設定）</span>
+        </div>
+
+        <!-- URL入力 & 保存フォーム -->
+        <div class="gas-url-form">
+          <span class="settings-item-desc">
+            Google Apps Script のウェブアプリURLを入力して「保存する」を押してください。<br>
+            保存とデータ同期は独立しています。
+          </span>
+          <input type="url" id="gasUrlInput" class="gas-url-input"
+                 placeholder="https://script.google.com/macros/s/…/exec"
+                 oninput="onUrlInput()">
+          <button class="btn-url-save" onclick="saveGasUrl()">💾 URLを保存する</button>
+          <button class="btn-url-clear" id="btnUrlClear" onclick="clearGasUrl()">URLを削除して同期を無効にする</button>
+          <!-- 保存結果（同期とは独立して表示） -->
+          <div class="url-save-result" id="urlSaveResult"></div>
+        </div>
+
+        <hr class="sync-section-divider">
+
+        <!-- データ同期操作（URLが保存済みの場合のみ有効） -->
+        <div class="gas-sync-row">
+          <button class="btn-cloud btn-cloud-sync" id="btnSync"
+                  onclick="syncCloud(true)" disabled>↕ 同期する</button>
+        </div>
+        <div class="sync-result-row" id="syncResultRow"></div>
+
+        <div class="sync-hint-box">
+          <strong>使い方</strong>
+          初回（1台目）：URLを保存 → 「同期する」でデータを登録<br>
+          2台目以降：URLを保存 → 「同期する」でデータを引き継ぎ<br>
+          以降は回答するたびに自動でクラウドに送信されます
+        </div>
+      </div>
+    </div>
+
+    <hr class="settings-divider">
+
+    <!-- 成績リセット -->
+    <div class="settings-section">
+      <h3>成績のリセット</h3>
+      <div class="settings-item">
+        <span class="settings-item-label">本日の成績をリセット</span>
+        <span class="settings-item-desc">今日の出題数・正解数をゼロに戻します。不正解リストは変わりません。</span>
+        <button class="btn-setting-action btn-warn" onclick="settingsResetToday()">
+          本日（<span id="settingsTodayLabel"></span>）をリセット
+        </button>
+      </div>
+      <div class="settings-item">
+        <span class="settings-item-label">全期間の成績をリセット</span>
+        <span class="settings-item-desc">累計の出題数・正解数をゼロに戻します。不正解リストは変わりません。</span>
+        <button class="btn-setting-action btn-danger" onclick="settingsResetAllTime()">全期間の成績をリセット</button>
+      </div>
+    </div>
+
+    <hr class="settings-divider">
+
+    <!-- 完全削除 -->
+    <div class="settings-section">
+      <h3>データの完全削除</h3>
+      <div class="settings-item">
+        <span class="settings-item-label">完全リセット</span>
+        <span class="settings-item-desc">本日の成績・全期間の成績・不正解リストをすべて削除します。クラウド同期のURLは保持されます。この操作は元に戻せません。</span>
+        <button class="btn-setting-action btn-full-danger" onclick="settingsResetComplete()">すべてのデータを削除する</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ================================================================
+   STORAGE — モード別データ管理
+     pf  = 素因数分解   （キー接頭辞 pf_）
+     mul = 二桁の掛け算 （キー接頭辞 mul_）
+   設定キー (pfcfg_ 接頭辞) はモード共通・完全リセットでも保持
+================================================================ */
+const STAT_KEYS = {
+  pf:  { today:'pf_today_',  all:'pf_alltime',  wrong:'pf_wrong_v2', idx:'pf_daily_index'  },
+  mul: { today:'mul_today_', all:'mul_alltime', wrong:'mul_wrong',   idx:'mul_daily_index' }
+};
+const MODE_KEY    = 'pfcfg_mode';      // 現在のモード（pfcfg_ → 完全リセットでも保持）
+const GAS_URL_KEY = 'pfcfg_gas_url';
+
+// 現在のアクティブモード（'pf' | 'mul'）
+let appMode = 'pf';
+
+function getMode() {
+  try { return (localStorage.getItem(MODE_KEY) === 'mul') ? 'mul' : 'pf'; }
+  catch(e) { return 'pf'; }
+}
+function setMode(mode) {
+  appMode = (mode === 'mul') ? 'mul' : 'pf';
+  try { localStorage.setItem(MODE_KEY, appMode); } catch(e) {}
+  return appMode;
+}
+function modeName(mode) { return (mode || appMode) === 'mul' ? '二桁の掛け算' : '素因数分解'; }
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/** 成績オブジェクトを正規化（破損データ対策） */
+function _normStat(d) {
+  if (typeof d !== 'object' || d === null) return { total:0, correct:0 };
+  return {
+    total:   (typeof d.total   === 'number' && d.total   >= 0) ? Math.round(d.total)   : 0,
+    correct: (typeof d.correct === 'number' && d.correct >= 0) ? Math.round(d.correct) : 0
+  };
+}
+
+/* ================================================================
+   モード明示版アクセサ（同期処理は両モードを直接操作するため必須）
+================================================================ */
+
+/* ---- デイリーインデックス ---- */
+function loadDailyIndexFor(mode) {
+  try {
+    const raw = localStorage.getItem(STAT_KEYS[mode].idx);
+    if (!raw) return [];
+    const idx = JSON.parse(raw);
+    return Array.isArray(idx) ? idx.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)) : [];
+  } catch { return []; }
+}
+function saveDailyIndexFor(mode, arr) {
+  try { localStorage.setItem(STAT_KEYS[mode].idx, JSON.stringify(Array.isArray(arr) ? arr : [])); }
+  catch(e) { console.error('[Storage] saveDailyIndex 書き込みエラー:', e); }
+}
+function registerDateInIndexFor(mode, dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+  const idx = loadDailyIndexFor(mode);
+  if (!idx.includes(dateStr)) { idx.push(dateStr); idx.sort(); saveDailyIndexFor(mode, idx); }
+}
+/** 既存の {prefix}YYYY-MM-DD キーを全走査してインデックスを再構築 */
+function rebuildDailyIndexFor(mode) {
+  const prefix = STAT_KEYS[mode].today;
+  const dates = Object.keys(localStorage)
+    .filter(k => k.startsWith(prefix) && /^\d{4}-\d{2}-\d{2}$/.test(k.slice(prefix.length)))
+    .map(k => k.slice(prefix.length))
+    .sort();
+  saveDailyIndexFor(mode, dates);
+  return dates;
+}
+
+/* ---- 不正解リスト ---- */
+function loadWrongFor(mode) {
+  try {
+    const raw = localStorage.getItem(STAT_KEYS[mode].wrong);
+    if (!raw) return [];
+    const d = JSON.parse(raw);
+    return Array.isArray(d) ? d : [];
+  } catch(e) {
+    console.error('[Storage] loadWrong パースエラー:', e);
+    return [];
+  }
+}
+function saveWrongFor(mode, a) {
+  try { localStorage.setItem(STAT_KEYS[mode].wrong, JSON.stringify(Array.isArray(a) ? a : [])); }
+  catch(e) { console.error('[Storage] saveWrong 書き込みエラー:', e); }
+}
+
+/* ---- 当日／指定日の成績 ---- */
+function loadTodayFor(mode, dateStr) {
+  const key = STAT_KEYS[mode].today + (dateStr || getTodayStr());
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return { total:0, correct:0 };
+    return _normStat(JSON.parse(raw));
+  } catch(e) {
+    console.error('[Storage] loadToday パースエラー:', e);
+    return { total:0, correct:0 };
+  }
+}
+function saveTodayFor(mode, s, dateStr) {
+  const date = dateStr || getTodayStr();
+  const key  = STAT_KEYS[mode].today + date;
+  const norm = _normStat(s);
+  const data = JSON.stringify(norm);
+  try {
+    localStorage.setItem(key, data);
+    // 書き込み検証（容量不足等でサイレントに失敗しないか確認）
+    if (localStorage.getItem(key) !== data) {
+      console.error('[Storage] saveToday 検証失敗: 書き込み内容が一致しません');
+    }
+    if (norm.total > 0) registerDateInIndexFor(mode, date);
+  } catch(e) {
+    console.error('[Storage] saveToday 書き込みエラー:', e);
+  }
+}
+
+/* ---- 累計成績 ---- */
+function loadAllTimeFor(mode) {
+  try {
+    const raw = localStorage.getItem(STAT_KEYS[mode].all);
+    if (!raw) return { total:0, correct:0 };
+    return _normStat(JSON.parse(raw));
+  } catch(e) {
+    console.error('[Storage] loadAllTime パースエラー:', e);
+    return { total:0, correct:0 };
+  }
+}
+function saveAllTimeFor(mode, s) {
+  try { localStorage.setItem(STAT_KEYS[mode].all, JSON.stringify(_normStat(s))); }
+  catch(e) { console.error('[Storage] saveAllTime 書き込みエラー:', e); }
+}
+
+/* ================================================================
+   アクティブモード版（既存コードが呼ぶ薄いラッパー）
+================================================================ */
+function getTodayKey()                { return STAT_KEYS[appMode].today + getTodayStr(); }
+function loadDailyIndex()             { return loadDailyIndexFor(appMode); }
+function registerDateInIndex(dateStr) { return registerDateInIndexFor(appMode, dateStr); }
+function loadWrong()                  { return loadWrongFor(appMode); }
+function saveWrong(a)                 { return saveWrongFor(appMode, a); }
+function loadToday()                  { return loadTodayFor(appMode); }
+function saveToday(s)                 { return saveTodayFor(appMode, s); }
+function loadAllTime()                { return loadAllTimeFor(appMode); }
+function saveAllTime(s)               { return saveAllTimeFor(appMode, s); }
+
+/* ---- GAS URL 読み書き（三重ストレージで保存信頼性を確保） ----
+ *
+ *  保存先:
+ *    [1] localStorage  メインキー  pfcfg_gas_url     ← 通常利用
+ *    [2] localStorage  バックアップ pfcfg_gas_url_bk  ← [1] 書き込み失敗時の復元用
+ *    [3] sessionStorage             pfcfg_gas_url     ← セッション内即時復元用
+ *
+ *  読み取り: [1] → [2] → [3] の順でフォールバック
+ *  削除:     _removeGasUrl() が全3か所を同時削除
+ */
+const GAS_URL_KEY_BK = 'pfcfg_gas_url_bk'; // バックアップキー（pfcfg_ 管理下）
+
+function getGasUrl() {
+  try {
+    return localStorage.getItem(GAS_URL_KEY)
+        || localStorage.getItem(GAS_URL_KEY_BK)
+        || sessionStorage.getItem(GAS_URL_KEY)
+        || '';
+  } catch(e) { return ''; }
+}
+
+function setGasUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) {
+    console.warn('[GasUrl] 空のURLは保存しません。削除は clearGasUrl() を使用してください。');
+    return false;
+  }
+  const val = url.trim();
+  let savedCount = 0;
+
+  // [1] メインキー（localStorage）— 書き込み後に読み返して検証
+  try {
+    localStorage.setItem(GAS_URL_KEY, val);
+    if (localStorage.getItem(GAS_URL_KEY) === val) {
+      savedCount++;
+    } else {
+      console.error('[GasUrl] メインキー書き込み検証失敗: 値が一致しません');
+    }
+  } catch(e) { console.error('[GasUrl] メインキー書き込みエラー:', e); }
+
+  // [2] バックアップキー（localStorage 別キー）
+  try {
+    localStorage.setItem(GAS_URL_KEY_BK, val);
+    savedCount++;
+  } catch(e) { console.warn('[GasUrl] バックアップキー書き込みエラー:', e); }
+
+  // [3] sessionStorage（ページ滞在中の即時復元用）
+  try {
+    sessionStorage.setItem(GAS_URL_KEY, val);
+    savedCount++;
+  } catch(e) { console.warn('[GasUrl] sessionStorage 書き込みエラー:', e); }
+
+  if (savedCount === 0) {
+    console.error('[GasUrl] 全ストレージへの書き込みに失敗。ブラウザ設定を確認してください。');
+    return false;
+  }
+  console.info(`[GasUrl] URL保存完了 (${savedCount}/3 ストレージに書き込み成功)`);
+  return true;
+}
+
+/** 全3か所のストレージからURLを削除する（内部専用） */
+function _removeGasUrl() {
+  try { localStorage.removeItem(GAS_URL_KEY);    } catch(e) {}
+  try { localStorage.removeItem(GAS_URL_KEY_BK); } catch(e) {}
+  try { sessionStorage.removeItem(GAS_URL_KEY);  } catch(e) {}
+}
+
+/* ---- 旧キー (pf_gas_url) からの移行 ---- */
+function migrateGasUrl() {
+  const OLD_KEY = 'pf_gas_url';
+  try {
+    const old = localStorage.getItem(OLD_KEY);
+    if (old && old.trim() && !getGasUrl()) {
+      setGasUrl(old.trim()); // 三重ストレージへ書き込み
+      console.info('[GasUrl] 旧キー pf_gas_url から移行しました。');
+    }
+    if (old) localStorage.removeItem(OLD_KEY);
+  } catch(e) { console.warn('[GasUrl] migrateGasUrl エラー:', e); }
+}
+
+/**
+ * 起動時に3か所のストレージを照合し、欠損を補完する
+ * ブラウザ環境によって一部のストレージが欠損していても自動復元する
+ */
+function consolidateGasUrl() {
+  let fromMain, fromBk, fromSession;
+  try { fromMain    = localStorage.getItem(GAS_URL_KEY)    || ''; } catch(e) { fromMain    = ''; }
+  try { fromBk      = localStorage.getItem(GAS_URL_KEY_BK) || ''; } catch(e) { fromBk      = ''; }
+  try { fromSession = sessionStorage.getItem(GAS_URL_KEY)  || ''; } catch(e) { fromSession = ''; }
+
+  const canonical = fromMain || fromBk || fromSession;
+  if (!canonical) return; // URLが存在しないなら何もしない
+
+  // 欠損している保存先にのみ補完書き込み（正常な場所は上書きしない）
+  if (!fromMain)    { try { localStorage.setItem(GAS_URL_KEY, canonical);    } catch(e) {} }
+  if (!fromBk)      { try { localStorage.setItem(GAS_URL_KEY_BK, canonical); } catch(e) {} }
+  if (!fromSession) { try { sessionStorage.setItem(GAS_URL_KEY, canonical);  } catch(e) {} }
+
+  if (!fromMain || !fromBk || !fromSession) {
+    console.info(`[GasUrl] consolidateGasUrl: 欠損ストレージを補完しました (main:${!!fromMain} bk:${!!fromBk} session:${!!fromSession})`);
+  }
+}
+
+/* ---- 不正解リスト操作 ---- */
+function addWrong(prob) {
+  if (!prob || prob.num == null) return;
+  const arr = loadWrong();
+  if (!arr.find(p => p.num === prob.num)) arr.push(prob);
+  saveWrong(arr);
+  updateWrongBtn();
+}
+function removeWrong(num) {
+  saveWrong(loadWrong().filter(p => p.num !== num));
+  updateWrongBtn();
+}
+function updateWrongBtn() {
+  const n = loadWrong().length;
+  document.getElementById('wrongCount').textContent = n;
+  document.getElementById('wrongBtn').disabled = n === 0;
+}
+
+/* ================================================================
+   STATS DISPLAY
+================================================================ */
+function fmtRate(t, c) { return t > 0 ? Math.round(c / t * 100) + '%' : '—'; }
+function updateStats() {
+  const t = loadToday(), a = loadAllTime();
+  document.getElementById('todayTotal').textContent     = t.total;
+  document.getElementById('todayCorrect').textContent   = t.correct;
+  document.getElementById('todayIncorrect').textContent = t.total - t.correct;
+  document.getElementById('todayRate').textContent      = fmtRate(t.total, t.correct);
+  document.getElementById('allTotal').textContent       = a.total;
+  document.getElementById('allCorrect').textContent     = a.correct;
+  document.getElementById('allIncorrect').textContent   = a.total - a.correct;
+  document.getElementById('allRate').textContent        = fmtRate(a.total, a.correct);
+}
+
+/* ================================================================
+   CLOUD SYNC
+================================================================ */
+function setSyncDot(state) {
+  const dot = document.getElementById('syncDot');
+  if (dot) dot.className = 'sync-dot ' + (state || '');
+}
+
+/* 保存結果バナー（URL保存 専用 — 同期結果とは独立） */
+function setUrlSaveResult(state, msg) {
+  const el = document.getElementById('urlSaveResult');
+  if (!el) return;
+  if (!state) { el.className = 'url-save-result'; return; }
+  el.className = 'url-save-result visible ' + state;
+  el.textContent = msg;
+}
+
+/* 同期結果バナー（同期専用 — URL保存結果とは独立） */
+function setSyncResult(state, msg) {
+  const el = document.getElementById('syncResultRow');
+  if (!el) return;
+  if (!state) { el.className = 'sync-result-row'; return; }
+  el.className = 'sync-result-row visible ' + state;
+  el.textContent = msg;
+}
+
+/* ---- 同期ペイロード構築（pf=既存フィールド / mul=新フィールド） ---- */
+
+/** 指定モードの全デイリーデータをマップで取得 {date:{total,correct}} */
+function buildDailyMap(mode) {
+  const map = {};
+  const dates = new Set(loadDailyIndexFor(mode));
+  dates.add(getTodayStr());
+  dates.forEach(dateStr => {
+    const d = loadTodayFor(mode, dateStr);
+    if (d && d.total > 0) map[dateStr] = d;
+  });
+  return map;
+}
+
+/** 両モードの全データを含む送信ペイロード */
+function buildSyncPayload() {
+  return {
+    action:     'write',
+    // 素因数分解（既存フィールド — 後方互換）
+    wrong:      loadWrongFor('pf'),
+    alltime:    loadAllTimeFor('pf'),
+    daily:      buildDailyMap('pf'),
+    // 二桁の掛け算（新フィールド）
+    mulWrong:   loadWrongFor('mul'),
+    mulAlltime: loadAllTimeFor('mul'),
+    mulDaily:   buildDailyMap('mul')
+  };
+}
+
+/** クラウド応答に有意なデータがあるか（両モード） */
+function cloudHasAnyData(data) {
+  const has = (w, a, dly) =>
+    (Array.isArray(w) && w.length > 0) ||
+    (a && a.total > 0) ||
+    (dly && typeof dly === 'object' && Object.keys(dly).length > 0);
+  return has(data.wrong, data.alltime, data.daily)
+      || has(data.mulWrong, data.mulAlltime, data.mulDaily);
+}
+
+/**
+ * クラウド応答の1モード分をローカルにマージ（非破壊）
+ *   累計/日別: total が多い方を採用 ／ 不正解: union（クラウド優先）
+ */
+function mergeCloudMode(mode, cWrong, cAll, cDaily) {
+  // 累計
+  const localAll = loadAllTimeFor(mode);
+  const cloudAll = _normStat(cAll);
+  if (cloudAll.total > localAll.total) saveAllTimeFor(mode, cloudAll);
+
+  // 不正解リスト（num で重複排除、クラウド優先の union）
+  const localWrong = loadWrongFor(mode);
+  const cloudWrong = (Array.isArray(cWrong) ? cWrong : []).filter(p => p && p.num != null);
+  const cNums = new Set(cloudWrong.map(p => p.num));
+  const localOnly = localWrong.filter(p => p && p.num != null && !cNums.has(p.num));
+  saveWrongFor(mode, [...cloudWrong, ...localOnly]);
+
+  // 日別成績（日付ごと total が多い方）
+  const cloudDaily = (cDaily && typeof cDaily === 'object') ? cDaily : {};
+  Object.keys(cloudDaily).forEach(dateStr => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+    const c = _normStat(cloudDaily[dateStr]);
+    const l = loadTodayFor(mode, dateStr);
+    if (c.total > l.total) saveTodayFor(mode, c, dateStr);
+  });
+}
+
+/**
+ * クラウドからデータを取得してローカルにマージする
+ * @param {boolean} manual - true: 手動操作 / false: 自動（クラウドが空ならスキップ）
+ */
+async function pullFromCloud(manual = false) {
+  const url = getGasUrl();
+  if (!url) return;
+  if (manual) setSyncResult('syncing', '⏳ クラウドからデータを取得中…');
+  setSyncDot('syncing');
+  try {
+    const res  = await fetch(url + '?action=read', { redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    // 自動取得かつクラウドが空ならスキップ（ローカルデータを保護）
+    if (!manual && !cloudHasAnyData(data)) { setSyncDot('ok'); return; }
+
+    mergeCloudMode('pf',  data.wrong,    data.alltime,    data.daily);
+    mergeCloudMode('mul', data.mulWrong, data.mulAlltime, data.mulDaily);
+    updateStats();
+    updateWrongBtn();
+
+    const ts = new Date().toLocaleTimeString('ja-JP');
+    if (manual) setSyncResult('ok', `✓ クラウドから取得しました（${ts}）`);
+    setSyncDot('ok');
+  } catch(e) {
+    if (manual) setSyncResult('error', '✕ 取得エラー: ' + e.message);
+    setSyncDot('error');
+    console.error('[Sync] pullFromCloud error:', e);
+  }
+}
+
+/**
+ * 両モードの全データをクラウドへ送信する
+ * @param {boolean} manual - true: 手動 / false: 自動（バックグラウンド送信）
+ */
+async function pushToCloud(manual = false) {
+  const url = getGasUrl();
+  if (!url) return;
+  if (manual) setSyncResult('syncing', '⏳ クラウドに送信中…');
+  setSyncDot('syncing');
+  try {
+    const res = await fetch(url, {
+      method:   'POST',
+      headers:  { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body:     JSON.stringify(buildSyncPayload()),
+      redirect: 'follow'
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const ts = new Date().toLocaleTimeString('ja-JP');
+    if (manual) setSyncResult('ok', `✓ クラウドに送信しました（${ts}）`);
+    setSyncDot('ok');
+  } catch(e) {
+    if (manual) setSyncResult('error', '✕ 送信エラー: ' + e.message);
+    setSyncDot('error');
+    console.error('[Sync] pushToCloud error:', e);
+  }
+}
+
+/**
+ * 双方向同期: クラウド取得 → 両モードを非破壊マージ → 送信
+ * @param {boolean} manual - true: 手動操作 / false: 自動（バックグラウンド）
+ */
+async function syncCloud(manual = false) {
+  const url = getGasUrl();
+  if (!url) return;
+  if (manual) setSyncResult('syncing', '⏳ 同期中…');
+  setSyncDot('syncing');
+  try {
+    /* ---- 1. クラウドから取得 ---- */
+    const res = await fetch(url + '?action=read', { redirect: 'follow' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const cloud = await res.json();
+
+    /* ---- 2. 両モードをマージ（非破壊） ---- */
+    mergeCloudMode('pf',  cloud.wrong,    cloud.alltime,    cloud.daily);
+    mergeCloudMode('mul', cloud.mulWrong, cloud.mulAlltime, cloud.mulDaily);
+    updateStats();
+    updateWrongBtn();
+
+    /* ---- 3. マージ結果を送信 ---- */
+    const pushRes = await fetch(url, {
+      method:   'POST',
+      headers:  { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body:     JSON.stringify(buildSyncPayload()),
+      redirect: 'follow'
+    });
+    if (!pushRes.ok) throw new Error('送信エラー HTTP ' + pushRes.status);
+
+    const ts = new Date().toLocaleTimeString('ja-JP');
+    if (manual) setSyncResult('ok', `✓ 同期しました（${ts}）`);
+    setSyncDot('ok');
+  } catch(e) {
+    if (manual) setSyncResult('error', '✕ 同期エラー: ' + e.message);
+    setSyncDot('error');
+    console.error('[Sync] syncCloud error:', e);
+  }
+}
+
+/* ================================================================
+   CALENDAR
+================================================================ */
+let _calYear  = null;  // 表示中の年（0-indexed月は _calMonth）
+let _calMonth = null;  // 0〜11
+
+function openCalendar() {
+  const today = new Date();
+  _calYear  = today.getFullYear();
+  _calMonth = today.getMonth();
+  _renderCalendar();
+  document.getElementById('calOverlay').classList.add('open');
+  document.getElementById('calModal').classList.add('open');
+}
+
+function closeCalendar() {
+  document.getElementById('calOverlay').classList.remove('open');
+  document.getElementById('calModal').classList.remove('open');
+}
+
+function calPrevMonth() {
+  _calMonth--;
+  if (_calMonth < 0) { _calMonth = 11; _calYear--; }
+  _renderCalendar();
+}
+function calNextMonth() {
+  _calMonth++;
+  if (_calMonth > 11) { _calMonth = 0; _calYear++; }
+  _renderCalendar();
+}
+
+/**
+ * 指定日付の成績データを取得する
+ * @param {string} dateStr - "YYYY-MM-DD"
+ * @returns {{total:number,correct:number}|null} データなし or total=0 なら null
+ */
+function _getDayData(dateStr) {
+  try {
+    const raw = localStorage.getItem(STAT_KEYS[appMode].today + dateStr);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return null;
+    const total   = (typeof d.total   === 'number' && d.total   > 0) ? d.total   : 0;
+    const correct = (typeof d.correct === 'number' && d.correct >= 0) ? d.correct : 0;
+    if (total === 0) return null;
+    return { total, correct };
+  } catch { return null; }
+}
+
+/** カレンダーグリッドを描画する */
+function _renderCalendar() {
+  const todayStr = getTodayStr();
+  const year = _calYear, month = _calMonth;
+
+  // タイトル更新
+  document.getElementById('calTitle').textContent = `${year}年${month + 1}月 ・ ${modeName()}`;
+
+  // 「次の月」ボタン：未来月は表示しない（データがないため）
+  const today = new Date();
+  const isFutureMonth = (year > today.getFullYear()) ||
+                        (year === today.getFullYear() && month > today.getMonth());
+  document.getElementById('calNext').disabled = isFutureMonth;
+  document.getElementById('calNext').style.opacity = isFutureMonth ? '.35' : '';
+
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+
+  const firstDow   = new Date(year, month, 1).getDay(); // 0=日 〜 6=土
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // 月初の空白セル
+  for (let i = 0; i < firstDow; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'cal-cell cal-cell-empty';
+    grid.appendChild(empty);
+  }
+
+  // 日付セル
+  for (let d = 1; d <= daysInMonth; d++) {
+    const mm      = String(month + 1).padStart(2, '0');
+    const dd      = String(d).padStart(2, '0');
+    const dateStr = `${year}-${mm}-${dd}`;
+    const dow     = new Date(year, month, d).getDay();
+    const data    = _getDayData(dateStr);
+    const isToday = dateStr === todayStr;
+
+    const cell = document.createElement('div');
+    cell.className = [
+      'cal-cell',
+      `dow-${dow}`,
+      isToday     ? 'cal-today'    : '',
+      data        ? 'cal-has-data' : ''
+    ].filter(Boolean).join(' ');
+    cell.dataset.date = dateStr;
+
+    // 日付番号
+    const numEl = document.createElement('div');
+    numEl.className   = 'cal-day-num';
+    numEl.textContent = d;
+    cell.appendChild(numEl);
+
+    // データがある日は小さくサマリ表示
+    if (data) {
+      const rate     = Math.round(data.correct / data.total * 100);
+      const rateClass = rate >= 80 ? 'hi' : rate >= 50 ? 'mid' : 'lo';
+      const statsEl  = document.createElement('div');
+      statsEl.className = 'cal-day-stats';
+      statsEl.innerHTML =
+        `<span class="cal-day-total">${data.total}問</span>` +
+        `<span class="cal-day-rate ${rateClass}">${rate}%</span>`;
+      cell.appendChild(statsEl);
+    }
+
+    cell.addEventListener('click', () => _showDayDetail(dateStr));
+    grid.appendChild(cell);
+  }
+
+  // 詳細パネルリセット
+  document.getElementById('calDetail').innerHTML =
+    '<div class="cal-detail-empty">日付をタップすると詳細を表示します</div>';
+}
+
+/** 日付をクリックしたときの詳細パネル表示 */
+function _showDayDetail(dateStr) {
+  // 選択状態の更新
+  document.querySelectorAll('#calGrid .cal-cell.cal-selected')
+    .forEach(c => c.classList.remove('cal-selected'));
+  const cell = document.querySelector(`#calGrid .cal-cell[data-date="${dateStr}"]`);
+  if (cell) cell.classList.add('cal-selected');
+
+  const data    = _getDayData(dateStr);
+  const detail  = document.getElementById('calDetail');
+  const [y, m, d] = dateStr.split('-');
+  const label   = dateStr === getTodayStr() ? `本日（${parseInt(m)}月${parseInt(d)}日）`
+                                             : `${parseInt(m)}月${parseInt(d)}日（${y}年）`;
+
+  if (!data) {
+    detail.innerHTML = `<div class="cal-detail-empty">${label} のデータはありません</div>`;
+    return;
+  }
+
+  const incorrect = data.total - data.correct;
+  const rate      = Math.round(data.correct / data.total * 100);
+
+  detail.innerHTML = `
+    <div class="cal-detail-box">
+      <div class="cal-detail-title">📊 ${label}</div>
+      <div class="cal-detail-stats">
+        <div class="cal-detail-stat">
+          <span class="cal-detail-val">${data.total}</span>
+          <span class="cal-detail-lbl">出題数</span>
+        </div>
+        <div class="cal-detail-stat ok">
+          <span class="cal-detail-val">${data.correct}</span>
+          <span class="cal-detail-lbl">正解</span>
+        </div>
+        <div class="cal-detail-stat ng">
+          <span class="cal-detail-val">${incorrect}</span>
+          <span class="cal-detail-lbl">誤答</span>
+        </div>
+        <div class="cal-detail-stat rate">
+          <span class="cal-detail-val">${rate}%</span>
+          <span class="cal-detail-lbl">正答率</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ================================================================
+   SETTINGS — URL管理
+================================================================ */
+
+/** 設定画面を開くたびに localStorage の実値を読んで表示する */
+function refreshSavedUrlDisplay() {
+  const url  = getGasUrl();
+  const disp = document.getElementById('savedUrlDisplay');
+  const clrBtn = document.getElementById('btnUrlClear');
+  if (url) {
+    disp.textContent = url;
+    disp.className   = 'saved-url-box-value is-set';
+    if (clrBtn) clrBtn.classList.add('visible');
+  } else {
+    disp.textContent = '（未設定）';
+    disp.className   = 'saved-url-box-value is-empty';
+    if (clrBtn) clrBtn.classList.remove('visible');
+  }
+  const hasSrc = !!url;
+  document.getElementById('btnSync').disabled = !hasSrc;
+}
+
+/** 入力欄の変化を検知してバリデーション状態を更新 */
+function onUrlInput() {
+  const input = document.getElementById('gasUrlInput');
+  const val   = input.value.trim();
+  if (val && !val.startsWith('https://script.google.com/macros/s/')) {
+    input.classList.add('invalid');
+  } else {
+    input.classList.remove('invalid');
+  }
+  setUrlSaveResult(''); // 入力中は保存結果をクリア
+}
+
+/** URLを保存する（保存と同期は完全に独立） */
+function saveGasUrl() {
+  const input = document.getElementById('gasUrlInput');
+  const raw   = input.value.trim();
+
+  // バリデーション
+  if (!raw) {
+    setUrlSaveResult('error', '✕ URLを入力してください。削除する場合は「URLを削除して同期を無効にする」を使用してください。');
+    return;
+  }
+  if (!raw.startsWith('https://script.google.com/macros/s/')) {
+    setUrlSaveResult('error', '✕ URLの形式が正しくありません。\n「https://script.google.com/macros/s/」で始まるURLを入力してください。');
+    input.classList.add('invalid');
+    return;
+  }
+  input.classList.remove('invalid');
+
+  // localStorage に書き込み（ここで必ず保存される）
+  const ok = setGasUrl(raw);
+  if (!ok) {
+    setUrlSaveResult('error', '✕ 保存に失敗しました。ブラウザのプライベートモードまたは設定でストレージが無効になっている可能性があります。');
+    return;
+  }
+
+  // 保存成功を即時表示（ネットワーク結果とは独立）
+  setUrlSaveResult('ok', '✓ URLを保存しました。「同期する」ボタンで同期してください。');
+
+  // 保存済みURL表示を更新
+  refreshSavedUrlDisplay();
+}
+
+/** URLを削除する（確認ダイアログ付き） */
+function clearGasUrl() {
+  if (!confirm('クラウド同期URLを削除しますか？\n削除後は同期が無効になります。（成績データは削除されません）')) return;
+  _removeGasUrl(); // 全3ストレージから削除
+  document.getElementById('gasUrlInput').value = '';
+  setUrlSaveResult('ok', '✓ URLを削除しました。');
+  setSyncResult('');
+  setSyncDot('');
+  refreshSavedUrlDisplay();
+}
+
+/* ================================================================
+   SETTINGS PANEL — 開閉・リセット操作
+================================================================ */
+function openSettings() {
+  const d = new Date();
+  document.getElementById('settingsTodayLabel').textContent = `${d.getMonth()+1}月${d.getDate()}日`;
+  // 毎回 localStorage の実値を読み込んで表示（キャッシュ不使用）
+  document.getElementById('gasUrlInput').value = getGasUrl();
+  refreshSavedUrlDisplay();
+  setUrlSaveResult('');
+  setSyncResult('');
+  document.getElementById('settingsOverlay').classList.add('open');
+  document.getElementById('settingsPanel').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+  document.getElementById('settingsPanel').classList.remove('open');
+}
+
+function settingsResetToday() {
+  if (!confirm(`「${modeName()}」の本日の成績をリセットしますか？`)) return;
+  localStorage.removeItem(getTodayKey()); // アクティブモードの本日分
+  updateStats();
+  pushToCloud(); // 変更をクラウドに反映
+  closeSettings();
+}
+function settingsResetAllTime() {
+  if (!confirm(`「${modeName()}」の全期間の成績をリセットしますか？\nこの操作は元に戻せません。`)) return;
+  localStorage.removeItem(STAT_KEYS[appMode].all); // アクティブモードの累計
+  updateStats();
+  pushToCloud();
+  closeSettings();
+}
+function settingsResetComplete() {
+  if (!confirm('すべてのデータ（素因数分解・掛け算の本日／全期間の成績、不正解リスト）を削除します。\nクラウド同期のURLは保持されます。本当によろしいですか？')) return;
+  // pf_ / mul_ で始まるデータキーのみ削除（pfcfg_ の設定キーは絶対に触れない）
+  const dataKeys = Object.keys(localStorage)
+    .filter(k => k.startsWith('pf_') || k.startsWith('mul_'));
+  dataKeys.forEach(k => localStorage.removeItem(k));
+
+  // 設定キー（URL・モード）が保持されていることを確認（デバッグ用）
+  console.assert(localStorage.getItem(MODE_KEY) === null || /^(pf|mul)$/.test(localStorage.getItem(MODE_KEY)),
+    '[Reset] モードキー保護チェック');
+
+  updateStats();
+  updateWrongBtn();
+  pushToCloud(); // クラウドも空にする
+  closeSettings();
+}
+
+/* ================================================================
+   MATH
+================================================================ */
+function randomNDigits(digits) {
+  if (digits <= 0) digits = 1; if (digits > 15) digits = 15;
+  if (digits === 1) return BigInt(Math.floor(Math.random() * 9) + 1);
+  let s = (Math.floor(Math.random() * 9) + 1).toString();
+  for (let i = 1; i < digits; i++) s += Math.floor(Math.random() * 10);
+  return BigInt(s);
+}
+function primeFactorize(n) {
+  const f = {}; let d = 2n;
+  while (d * d <= n) {
+    while (n % d === 0n) { const k = d.toString(); f[k] = (f[k] || 0) + 1; n = n / d; }
+    d++;
+  }
+  if (n > 1n) { const k = n.toString(); f[k] = (f[k] || 0) + 1; }
+  return f;
+}
+function formatFormula(f) {
+  return Object.keys(f).map(p => f[p] === 1 ? p : `${p}<sup>${f[p]}</sup>`).join(' × ');
+}
+function isPrime(f) { const k = Object.keys(f); return k.length === 1 && f[k[0]] === 1; }
+
+/* ---- 二桁の掛け算 ---- */
+function random2Digit() { return Math.floor(Math.random() * 90) + 10; } // 10〜99
+
+/**
+ * 掛け算の解説（通常の計算 + インド式たすき掛け）を生成する
+ * @returns {{normal:string, vedic:string, product:number}}
+ */
+function mulExplain(a, b) {
+  const product = a * b;
+
+  /* --- 通常の計算（分配法則で b を分解） --- */
+  const bTens = Math.floor(b / 10) * 10, bUnits = b % 10;
+  let normal;
+  if (bUnits === 0) {
+    normal = `${a} × ${b} = <b>${product.toLocaleString()}</b>`;
+  } else {
+    normal =
+      `${a} × ${b}<br>` +
+      `= ${a}×${bTens} + ${a}×${bUnits}<br>` +
+      `= ${(a*bTens).toLocaleString()} + ${a*bUnits}<br>` +
+      `= <b>${product.toLocaleString()}</b>`;
+  }
+
+  /* --- インド式（縦横/たすき掛け：Urdhva Tiryagbhyam） --- */
+  const a1 = Math.floor(a/10), a0 = a%10, b1 = Math.floor(b/10), b0 = b%10;
+  const right = a0 * b0;          // 一の位どうし
+  const cross = a1 * b0 + a0 * b1; // たすき掛け（十の位）
+  const left  = a1 * b1;          // 十の位どうし（百の位）
+  const vedic =
+    `<span class="vedic-step">① 一の位どうし：${a0}×${b0} = <b>${right}</b></span>` +
+    `<span class="vedic-step">② たすき掛け：${a1}×${b0} + ${a0}×${b1} = <b>${cross}</b></span>` +
+    `<span class="vedic-step">③ 十の位どうし：${a1}×${b1} = <b>${left}</b></span>` +
+    `<span class="vedic-step vedic-assemble">${left}×100 + ${cross}×10 + ${right} = <b>${product.toLocaleString()}</b></span>`;
+
+  return { normal, vedic, product };
+}
+
+/* ================================================================
+   CARD BUILDER
+================================================================ */
+let wrongMode = false;
+
+function buildCard(index, numStr, formula, prime, animDelay) {
+  const card = document.createElement('div');
+  card.className      = 'card';
+  card.dataset.state  = 'unanswered';
+  card.dataset.num    = numStr;
+  // 不正解リスト用の問題オブジェクト（判定時に addWrong へそのまま渡す）
+  card._problem = { num: numStr, formula, prime: !!prime };
+  card.style.animationDelay = `${animDelay}ms`;
+  card.innerHTML = `
+    <div class="card-top">
+      <span class="card-num">#${index}</span>
+      <span class="card-result"></span>
+    </div>
+    <div class="card-value">${BigInt(numStr).toLocaleString()}</div>
+    <hr class="card-divider">
+    <div class="card-hidden">？ ？ ？</div>
+    <div class="card-answer">
+      <div class="card-formula">${formula}</div>
+      ${prime ? '<span class="badge-prime">素数</span>' : ''}
+    </div>
+    <div class="card-actions">
+      <button class="btn-reveal" onclick="reveal(this)">答えを確認する</button>
+      <div class="judge-row">
+        <button class="btn-judge ok" onclick="judge(this,'correct')">✓ 正解</button>
+        <button class="btn-judge ng" onclick="judge(this,'incorrect')">✗ 不正解</button>
+      </div>
+    </div>
+    <button class="btn-correct-answer" onclick="correctJudgement(this)">✏ 回答を修正する</button>`;
+  return card;
+}
+
+/** 二桁の掛け算カードを生成する（解答 + 通常／インド式の2解説） */
+function buildMulCard(index, a, b, animDelay) {
+  const ex = mulExplain(a, b);
+  const numId = `${a}x${b}`;
+  const card = document.createElement('div');
+  card.className     = 'card mul-card';
+  card.dataset.state = 'unanswered';
+  card.dataset.num   = numId;
+  card._problem      = { num: numId, a, b }; // 不正解リスト用
+  card.style.animationDelay = `${animDelay}ms`;
+  card.innerHTML = `
+    <div class="card-top">
+      <span class="card-num">#${index}</span>
+      <span class="card-result"></span>
+    </div>
+    <div class="card-value">${a} × ${b}</div>
+    <hr class="card-divider">
+    <div class="card-hidden">？</div>
+    <div class="card-answer">
+      <div class="mul-product">= ${ex.product.toLocaleString()}</div>
+      <div class="mul-explain">
+        <div class="explain-block">
+          <span class="explain-title">📝 通常の計算</span>
+          <div class="explain-body">${ex.normal}</div>
+        </div>
+        <div class="explain-block">
+          <span class="explain-title">✨ インド式（たすき掛け）</span>
+          <div class="explain-body">${ex.vedic}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="btn-reveal" onclick="reveal(this)">答えを確認する</button>
+      <div class="judge-row">
+        <button class="btn-judge ok" onclick="judge(this,'correct')">✓ 正解</button>
+        <button class="btn-judge ng" onclick="judge(this,'incorrect')">✗ 不正解</button>
+      </div>
+    </div>
+    <button class="btn-correct-answer" onclick="correctJudgement(this)">✏ 回答を修正する</button>`;
+  return card;
+}
+
+/* ================================================================
+   QUIZ ACTIONS
+================================================================ */
+function reveal(btn) { btn.closest('.card').dataset.state = 'revealed'; }
+
+function judge(btn, verdict) {
+  const card = btn.closest('.card');
+  const num  = card.dataset.num;
+  card.dataset.state   = `judged-${verdict}`;
+  card.dataset.verdict = verdict;
+  card.querySelector('.card-result').textContent = verdict === 'correct' ? '✓ 正解' : '✗ 不正解';
+
+  const t = loadToday(), a = loadAllTime();
+  t.total++; a.total++;
+  if (verdict === 'correct') {
+    t.correct++; a.correct++;
+    removeWrong(num);
+  } else {
+    addWrong(card._problem); // 問題オブジェクトをそのまま記録（pf/mul 両対応）
+  }
+  saveToday(t); saveAllTime(a); updateStats();
+  pushToCloud(); // 自動クラウド同期（バックグラウンド）
+
+  // wrongMode中に正解した場合はカードをフェードアウト
+  // ただしカスタム入力カード（data-custom="true"）は対象外
+  if (wrongMode && verdict === 'correct' && !card.dataset.custom) {
+    card._fadeTimer = setTimeout(() => {
+      card.style.transition = 'opacity .4s,transform .4s';
+      card.style.opacity    = '0';
+      card.style.transform  = 'scale(.95)';
+      setTimeout(() => {
+        card.remove();
+        if (!document.getElementById('grid').querySelector('.card:not(.custom-card)')) showEmptyWrong();
+      }, 420);
+    }, 800);
+  }
+}
+
+function correctJudgement(btn) {
+  const card = btn.closest('.card');
+  const num  = card.dataset.num;
+  const prev = card.dataset.verdict;
+  if (!prev) return;
+
+  if (card._fadeTimer) {
+    clearTimeout(card._fadeTimer); card._fadeTimer = null;
+    card.style.transition = '';
+    card.style.opacity    = '1';
+    card.style.transform  = '';
+  }
+
+  const t = loadToday(), a = loadAllTime();
+  t.total  = Math.max(0, t.total  - 1);
+  a.total  = Math.max(0, a.total  - 1);
+  if (prev === 'correct') {
+    t.correct = Math.max(0, t.correct - 1);
+    a.correct = Math.max(0, a.correct - 1);
+    addWrong(card._problem); // pf/mul 両対応
+  } else {
+    removeWrong(num);
+  }
+  saveToday(t); saveAllTime(a); updateStats();
+  pushToCloud(); // 自動クラウド同期
+
+  card.dataset.state   = 'revealed';
+  card.dataset.verdict = '';
+  card.querySelector('.card-result').textContent = '';
+}
+
+function showEmptyWrong() {
+  document.getElementById('grid').innerHTML =
+    '<div class="empty"><div class="empty-icon">🎉</div><p>不正解の問題がなくなりました！</p></div>';
+}
+
+/* ================================================================
+   CUSTOM NUMBER ANALYSIS
+================================================================ */
+
+/** 入力中のリアルタイムバリデーション */
+function onCustomNumInput() {
+  const input = document.getElementById('customNumInput');
+  const val   = input.value;
+  // 数字以外が含まれていれば除去
+  const cleaned = val.replace(/[^0-9]/g, '');
+  if (val !== cleaned) input.value = cleaned;
+  input.classList.remove('invalid');
+  document.getElementById('customInputErr').classList.remove('visible');
+}
+
+/** エラーメッセージ表示 */
+function showCustomInputErr(msg) {
+  const el = document.getElementById('customInputErr');
+  el.textContent = msg;
+  el.classList.add('visible');
+  document.getElementById('customNumInput').classList.add('invalid');
+}
+
+/** 指定した数字を素因数分解してカードを生成する */
+function analyzeCustomNum() {
+  const input  = document.getElementById('customNumInput');
+  const errEl  = document.getElementById('customInputErr');
+  errEl.classList.remove('visible');
+  input.classList.remove('invalid');
+
+  const raw = input.value.trim();
+
+  /* --- バリデーション --- */
+  if (!raw) {
+    showCustomInputErr('数字を入力してください');
+    input.focus();
+    return;
+  }
+  if (!/^\d+$/.test(raw)) {
+    showCustomInputErr('半角数字のみ入力してください');
+    return;
+  }
+  // 先頭の 0 を除去（"007" → "7"）
+  const cleaned = raw.replace(/^0+/, '') || '0';
+  if (cleaned === '0') {
+    showCustomInputErr('1 以上の整数を入力してください');
+    return;
+  }
+  if (cleaned.length > 15) {
+    showCustomInputErr('15桁以内の数字を入力してください');
+    return;
+  }
+
+  /* --- 素因数分解 --- */
+  let n, f, fm, prime;
+  try {
+    n     = BigInt(cleaned);
+    f     = primeFactorize(n);
+    fm    = formatFormula(f);
+    prime = isPrime(f);
+  } catch(e) {
+    showCustomInputErr('計算エラーが発生しました: ' + e.message);
+    console.error('[analyzeCustomNum]', e);
+    return;
+  }
+
+  /* --- グリッドにカードを追加 --- */
+  const grid  = document.getElementById('grid');
+  // 空状態表示を削除
+  const empty = grid.querySelector('.empty');
+  if (empty) empty.remove();
+
+  // カードを生成してグリッド先頭に挿入
+  const card = buildCard('入力', cleaned, fm, prime, 0);
+  card.classList.add('custom-card');   // 視覚区別用クラス
+  card.dataset.custom = 'true';        // wrongModeフェードアウト除外フラグ
+  grid.insertBefore(card, grid.firstChild);
+
+  // 入力欄をリセット
+  input.value = '';
+  input.focus();
+
+  // カードが見えるようにスクロール
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ================================================================
+   GENERATE / SHOW WRONG / MODE SWITCH
+================================================================ */
+
+/** モードに応じた空状態プロンプト */
+function emptyPromptHTML() {
+  return appMode === 'mul'
+    ? '<div class="empty"><div class="empty-icon">✖️</div><p>「生成する」で二桁の掛け算を出題します</p></div>'
+    : '<div class="empty"><div class="empty-icon">🔢</div><p>「生成する」ボタンを押してください</p></div>';
+}
+
+/** 素因数分解：N桁の問題を20問生成 */
+function generate() {
+  wrongMode = false;
+  document.getElementById('modeLabel').classList.remove('visible');
+  const el = document.getElementById('digits');
+  let d = parseInt(el.value, 10);
+  if (isNaN(d) || d < 1) d = 1;
+  if (d > 15) d = 15;
+  el.value = d;
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 20; i++) {
+    const n = randomNDigits(d), f = primeFactorize(n), fm = formatFormula(f);
+    grid.appendChild(buildCard(i + 1, n.toString(), fm, isPrime(f), i * 28));
+  }
+}
+
+/** 二桁の掛け算：2桁×2桁の問題を20問生成 */
+function generateMul() {
+  wrongMode = false;
+  document.getElementById('modeLabel').classList.remove('visible');
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 20; i++) {
+    grid.appendChild(buildMulCard(i + 1, random2Digit(), random2Digit(), i * 28));
+  }
+}
+
+/** 不正解問題を表示（アクティブモードの不正解リストから再構成） */
+function showWrongProblems() {
+  const wrong = loadWrong();
+  if (!wrong.length) return;
+  wrongMode = true;
+  document.getElementById('modeLabel').classList.add('visible');
+  document.getElementById('modeLabelText').textContent =
+    `不正解問題モード（${modeName()}）：${wrong.length}問を表示中`;
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  wrong.forEach((p, i) => {
+    if (appMode === 'mul') {
+      const a = Number(p.a), b = Number(p.b);
+      if (a >= 1 && b >= 1) grid.appendChild(buildMulCard(i + 1, a, b, i * 28));
+    } else {
+      grid.appendChild(buildCard(i + 1, p.num, p.formula, p.prime, i * 28));
+    }
+  });
+  if (!grid.querySelector('.card')) showEmptyWrong();
+}
+
+/** モード切替（タブから呼ばれる） */
+function switchMode(mode) {
+  if ((mode !== 'pf' && mode !== 'mul') || mode === appMode) return;
+  setMode(mode);
+  applyModeUI();
+}
+
+/** 現在のモードを UI 全体へ反映（タブ・タイトル・グリッド・統計） */
+function applyModeUI() {
+  document.body.dataset.mode = appMode;
+  // タブの active 状態
+  document.querySelectorAll('.mode-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.mode === appMode));
+  // ヘッダーのタイトル・サブタイトル
+  const titleEl = document.getElementById('appTitle');
+  const subEl   = document.getElementById('appSubtitle');
+  if (appMode === 'mul') {
+    titleEl.textContent = '二桁の掛け算ドリル';
+    subEl.textContent   = '暗算で解いて、正解・不正解を記録しましょう';
+  } else {
+    titleEl.textContent = '素因数分解ジェネレーター';
+    subEl.textContent   = '自分で解いて、正解・不正解を記録しましょう';
+  }
+  // グリッドを空状態へ・モードラベル解除
+  wrongMode = false;
+  document.getElementById('modeLabel').classList.remove('visible');
+  document.getElementById('grid').innerHTML = emptyPromptHTML();
+  // 統計・不正解ボタンをアクティブモードで更新
+  updateStats();
+  updateWrongBtn();
+}
+
+/* ================================================================
+   INIT
+================================================================ */
+(function init() {
+  // 1. 旧キー移行 → 三重ストレージ補完（欠損復元）
+  migrateGasUrl();
+  consolidateGasUrl(); // 起動時に3ストレージを照合・補完
+
+  // 2. モード復元（pfcfg_mode）
+  appMode = getMode();
+
+  // 3. 両モードのデイリーインデックス整合性（空なら再構築）
+  ['pf', 'mul'].forEach(m => {
+    if (loadDailyIndexFor(m).length === 0) {
+      const rebuilt = rebuildDailyIndexFor(m);
+      if (rebuilt.length > 0) {
+        console.info(`[DailyIndex:${m}] ${rebuilt.length} 件の日付データから再構築しました。`);
+      }
+    }
+    if (loadTodayFor(m).total > 0) registerDateInIndexFor(m, getTodayStr());
+  });
+
+  // 4. 今日の日付ラベル
+  const d = new Date();
+  document.getElementById('todayDateLabel').textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+
+  // 5. モードUIを反映（タブ・タイトル・空状態・統計・不正解ボタン）
+  applyModeUI();
+
+  // 6. クラウド同期ドット初期表示
+  //    URL設定済みの場合のみ自動pull（空クラウードではローカルを保護）
+  if (getGasUrl()) {
+    setSyncDot('syncing');
+    pullFromCloud(false);
+  }
+
+  // 7. Enter キーで生成（素因数分解の桁数入力）
+  document.getElementById('digits').addEventListener('keydown', e => {
+    if (e.key === 'Enter') generate();
+  });
+})();
+</script>
+</body>
+</html>
