@@ -743,6 +743,8 @@ const GAS_URL_KEY = 'pfcfg_gas_url';
 
 // 現在のアクティブモード（'pf' | 'mul'）
 let appMode = 'pf';
+// 初回pullが完了するまで自動pushを抑止する（空に近いローカルでクラウドを上書きする事故の防止）
+let _initialPullDone = false;
 
 function getMode() {
   try { return (localStorage.getItem(MODE_KEY) === 'mul') ? 'mul' : 'pf'; }
@@ -1078,30 +1080,65 @@ function cloudHasAnyData(data) {
       || has(data.mulWrong, data.mulAlltime, data.mulDaily);
 }
 
+/** formatFormula が生成する数式のみを許容する許可リスト（例: "2<sup>3</sup> × 3 × 5"） */
+const FORMULA_OK = /^\d+(<sup>\d+<\/sup>)?( × \d+(<sup>\d+<\/sup>)?)*$/;
+
+/**
+ * 不正解リストの1エントリを無害化する（クラウド/外部由来データの検証）
+ *   pf  : num=数字。formula は許可リスト通過時のみ採用、それ以外は数値から再生成（stored-XSS遮断）
+ *   mul : num="AxB" 形式。a,b を数値化して採用
+ *   不正なものは null（呼び出し側で除外）
+ */
+function sanitizeWrongEntry(p) {
+  if (!p || p.num == null) return null;
+  const num = String(p.num);
+  if (/^\d+$/.test(num)) {                         // 素因数分解エントリ
+    if (typeof p.formula === 'string' && FORMULA_OK.test(p.formula)) {
+      return { num, formula: p.formula, prime: !!p.prime };
+    }
+    try {                                          // formula が信頼できない → 数値から再生成
+      const f = primeFactorize(BigInt(num));
+      return { num, formula: formatFormula(f), prime: isPrime(f) };
+    } catch { return null; }
+  }
+  const m = num.match(/^(\d{1,4})x(\d{1,4})$/);    // 掛け算エントリ
+  if (m) {
+    const a = Number(m[1]), b = Number(m[2]);
+    if (a >= 1 && b >= 1) return { num, a, b };
+  }
+  return null;
+}
+
 /**
  * クラウド応答の1モード分をローカルにマージ（非破壊）
- *   累計/日別: total が多い方を採用 ／ 不正解: union（クラウド優先）
+ *   累計/日別: total が多い方（同値なら correct が多い方）を採用 ／ 不正解: union（クラウド優先）
  */
 function mergeCloudMode(mode, cWrong, cAll, cDaily) {
-  // 累計
+  // 累計（total優先、同値時は correct が多い方）
   const localAll = loadAllTimeFor(mode);
   const cloudAll = _normStat(cAll);
-  if (cloudAll.total > localAll.total) saveAllTimeFor(mode, cloudAll);
+  if (cloudAll.total > localAll.total ||
+      (cloudAll.total === localAll.total && cloudAll.correct > localAll.correct)) {
+    saveAllTimeFor(mode, cloudAll);
+  }
 
   // 不正解リスト（num で重複排除、クラウド優先の union）
+  // クラウド由来エントリは信頼せず sanitizeWrongEntry で検証・無害化してから取り込む
   const localWrong = loadWrongFor(mode);
-  const cloudWrong = (Array.isArray(cWrong) ? cWrong : []).filter(p => p && p.num != null);
+  const cloudWrong = (Array.isArray(cWrong) ? cWrong : []).map(sanitizeWrongEntry).filter(Boolean);
   const cNums = new Set(cloudWrong.map(p => p.num));
   const localOnly = localWrong.filter(p => p && p.num != null && !cNums.has(p.num));
   saveWrongFor(mode, [...cloudWrong, ...localOnly]);
 
-  // 日別成績（日付ごと total が多い方）
+  // 日別成績（日付ごと total が多い方、同値なら correct が多い方）
   const cloudDaily = (cDaily && typeof cDaily === 'object') ? cDaily : {};
   Object.keys(cloudDaily).forEach(dateStr => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
     const c = _normStat(cloudDaily[dateStr]);
     const l = loadTodayFor(mode, dateStr);
-    if (c.total > l.total) saveTodayFor(mode, c, dateStr);
+    if (c.total > l.total || (c.total === l.total && c.correct > l.correct)) {
+      saveTodayFor(mode, c, dateStr);
+    }
   });
 }
 
@@ -1144,6 +1181,11 @@ async function pullFromCloud(manual = false) {
 async function pushToCloud(manual = false) {
   const url = getGasUrl();
   if (!url) return;
+  // 初回pull未完了の自動pushは抑止（near-emptyローカルでクラウドを上書きする事故を防ぐ）
+  if (!manual && !_initialPullDone) {
+    console.info('[Sync] 初回pull未完了のため自動pushをスキップしました。');
+    return;
+  }
   if (manual) setSyncResult('syncing', '⏳ クラウドに送信中…');
   setSyncDot('syncing');
   try {
@@ -1244,12 +1286,8 @@ function _getDayData(dateStr) {
   try {
     const raw = localStorage.getItem(STAT_KEYS[appMode].today + dateStr);
     if (!raw) return null;
-    const d = JSON.parse(raw);
-    if (!d || typeof d !== 'object') return null;
-    const total   = (typeof d.total   === 'number' && d.total   > 0) ? d.total   : 0;
-    const correct = (typeof d.correct === 'number' && d.correct >= 0) ? d.correct : 0;
-    if (total === 0) return null;
-    return { total, correct };
+    const d = _normStat(JSON.parse(raw)); // 正規化を _normStat に一本化（ロジック二重化の解消）
+    return d.total > 0 ? d : null;
   } catch { return null; }
 }
 
@@ -1880,6 +1918,8 @@ function applyModeUI() {
     titleEl.textContent = '素因数分解ジェネレーター';
     subEl.textContent   = '自分で解いて、正解・不正解を記録しましょう';
   }
+  document.title = titleEl.textContent; // ブラウザタブ/ブックマーク名もモードに追従
+
   // グリッドを空状態へ・モードラベル解除
   wrongMode = false;
   document.getElementById('modeLabel').classList.remove('visible');
@@ -1922,7 +1962,10 @@ function applyModeUI() {
   //    URL設定済みの場合のみ自動pull（空クラウードではローカルを保護）
   if (getGasUrl()) {
     setSyncDot('syncing');
-    pullFromCloud(false);
+    // 初回pull完了後に自動pushを解放（完了前の判定はローカル保持され、次回pushで送信される）
+    pullFromCloud(false).finally(() => { _initialPullDone = true; });
+  } else {
+    _initialPullDone = true; // URL未設定なら抑止不要のため即解放
   }
 
   // 7. Enter キーで生成（素因数分解の桁数入力）
