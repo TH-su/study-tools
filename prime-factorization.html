@@ -963,6 +963,22 @@ function normalizeUrl(s) {
 /** 一度でも同期に成功した形跡を残す（URL消失のサイレント停止検知に使用） */
 function markSyncedOnce() { try { localStorage.setItem(SYNCED_ONCE_KEY, '1'); } catch(e) {} }
 
+/**
+ * 永続ストレージを要求する（Chrome/Edge/Firefox 等で有効）
+ * 許可されると localStorage がディスク逼迫時の自動退避から除外され、消えにくくなる。
+ * Chrome はブックマーク済み/利用頻度が高い等の条件でプロンプト無しに許可する。
+ * 非対応(Safari/iOS等)や拒否時は何もしない（既存挙動のまま）。
+ */
+function requestPersistentStorage() {
+  try {
+    if (navigator.storage && typeof navigator.storage.persist === 'function') {
+      navigator.storage.persist().then(granted => {
+        console.info('[Storage] 永続ストレージ要求:', granted ? '許可' : '未許可');
+      }).catch(() => {});
+    }
+  } catch(e) {}
+}
+
 function getGasUrl() {
   try {
     return localStorage.getItem(GAS_URL_KEY)
@@ -2200,6 +2216,9 @@ function applyModeUI() {
    INIT
 ================================================================ */
 (async function init() {
+  // 0. 永続ストレージを要求（Chrome/Edge/Firefox: ディスク逼迫時の退避から除外され消えにくくなる）
+  requestPersistentStorage();
+
   // 1. 復元用リンク(#gas=/?gas=)からのURL取り込み（新端末・消去後の端末外復元）→ 旧キー移行 → 3ストレージ補完
   importGasUrlFromLocation();
   migrateGasUrl();
