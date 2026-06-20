@@ -532,9 +532,44 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
 .card.mul-card .card-num {
   background:var(--pri-d); color:#fff;
 }
+
+/* ===== 保存ボタン / 起動ロードバナー / トースト ===== */
+.btn-save {
+  background:linear-gradient(135deg,var(--ok),#37b24d); color:#fff; border:none;
+  display:flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(47,158,68,.25);
+}
+.btn-save:hover    { box-shadow:0 4px 12px rgba(47,158,68,.35); }
+.btn-save:disabled { opacity:.5; }
+
+/* 起動時のクラウド読み込みバナー（固定上部・スライドイン） */
+.load-banner {
+  position:fixed; top:0; left:0; right:0; z-index:400;
+  background:linear-gradient(135deg,var(--pri-d),var(--pri)); color:#fff;
+  text-align:center; font-size:.82rem; font-weight:700; letter-spacing:.03em;
+  padding:8px 12px; transform:translateY(-100%); transition:transform .25s ease;
+  box-shadow:0 2px 10px rgba(136,14,79,.3);
+}
+.load-banner.show { transform:translateY(0); }
+
+/* トースト通知（保存結果など） */
+.toast {
+  position:fixed; left:50%; bottom:24px; transform:translate(-50%,16px);
+  background:var(--g9); color:#fff; font-size:.84rem; font-weight:700;
+  padding:11px 18px; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,.28);
+  opacity:0; pointer-events:none; transition:opacity .2s,transform .2s; z-index:401;
+  max-width:90vw; text-align:center; line-height:1.5;
+}
+.toast.show { opacity:1; transform:translate(-50%,0); }
+.toast.ok   { background:var(--ok); }
+.toast.err  { background:var(--ng); }
+.toast.warn { background:var(--warn); color:#fff; }
 </style>
 </head>
 <body data-mode="pf">
+
+<!-- 起動時のクラウド読み込みバナー / トースト通知 -->
+<div class="load-banner" id="loadBanner">クラウドからデータを読み込み中…</div>
+<div class="toast" id="toast"></div>
 
 <header class="hdr">
   <button class="btn-calendar" onclick="openCalendar()" title="学習カレンダー">📅</button>
@@ -593,6 +628,7 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
     不正解問題を表示
     <span class="wrong-count-badge" id="wrongCount">0</span>
   </button>
+  <button class="btn btn-save" id="btnSave" onclick="saveData()" title="クラウドに保存（全端末で共有）">💾 保存</button>
 </div>
 
 <!-- 指定した数を分解（素因数分解モード専用） -->
@@ -1148,7 +1184,7 @@ function mergeCloudMode(mode, cWrong, cAll, cDaily) {
  */
 async function pullFromCloud(manual = false) {
   const url = getGasUrl();
-  if (!url) return;
+  if (!url) return false;
   if (manual) setSyncResult('syncing', '⏳ クラウドからデータを取得中…');
   setSyncDot('syncing');
   try {
@@ -1156,8 +1192,8 @@ async function pullFromCloud(manual = false) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
 
-    // 自動取得かつクラウドが空ならスキップ（ローカルデータを保護）
-    if (!manual && !cloudHasAnyData(data)) { setSyncDot('ok'); return; }
+    // 自動取得かつクラウドが空ならスキップ（ローカル保護）— 通信自体は成功扱い
+    if (!manual && !cloudHasAnyData(data)) { setSyncDot('ok'); return true; }
 
     mergeCloudMode('pf',  data.wrong,    data.alltime,    data.daily);
     mergeCloudMode('mul', data.mulWrong, data.mulAlltime, data.mulDaily);
@@ -1167,10 +1203,12 @@ async function pullFromCloud(manual = false) {
     const ts = new Date().toLocaleTimeString('ja-JP');
     if (manual) setSyncResult('ok', `✓ クラウドから取得しました（${ts}）`);
     setSyncDot('ok');
+    return true;
   } catch(e) {
     if (manual) setSyncResult('error', '✕ 取得エラー: ' + e.message);
     setSyncDot('error');
     console.error('[Sync] pullFromCloud error:', e);
+    return false;
   }
 }
 
@@ -1212,7 +1250,7 @@ async function pushToCloud(manual = false) {
  */
 async function syncCloud(manual = false) {
   const url = getGasUrl();
-  if (!url) return;
+  if (!url) return false;
   if (manual) setSyncResult('syncing', '⏳ 同期中…');
   setSyncDot('syncing');
   try {
@@ -1239,11 +1277,105 @@ async function syncCloud(manual = false) {
     const ts = new Date().toLocaleTimeString('ja-JP');
     if (manual) setSyncResult('ok', `✓ 同期しました（${ts}）`);
     setSyncDot('ok');
+    return true;
   } catch(e) {
     if (manual) setSyncResult('error', '✕ 同期エラー: ' + e.message);
     setSyncDot('error');
     console.error('[Sync] syncCloud error:', e);
+    return false;
   }
+}
+
+/* ================================================================
+   UI フィードバック（トースト / 読み込みバナー）
+================================================================ */
+let _toastTimer = null;
+function showToast(msg, kind) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'toast show' + (kind ? ' ' + kind : '');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = 'toast'; }, 2800);
+}
+function showLoadBanner(on) {
+  const el = document.getElementById('loadBanner');
+  if (el) el.classList.toggle('show', !!on);
+}
+
+/* ================================================================
+   起動時ロード / 保存 / 自動保存
+================================================================ */
+
+/**
+ * 起動時にクラウドから読み込む（最大3回リトライ・読込完了まで自動保存を抑止）
+ * 過去の成績を最初に確実に取り込んでから操作させる
+ */
+async function initialLoad() {
+  if (!getGasUrl()) { _initialPullDone = true; return; }
+  // 読込完了まで操作を一時無効化（古い/空データでの誤操作・上書き事故を根絶）
+  setControlsEnabled(false);
+  const grid = document.getElementById('grid');
+  if (grid) grid.innerHTML =
+    '<div class="empty"><div class="empty-icon">☁</div><p>クラウドから過去のデータを読み込み中…</p></div>';
+  showLoadBanner(true);
+  setSyncDot('syncing');
+  let ok = false;
+  for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+    ok = await pullFromCloud(false);                       // 非破壊マージで取り込み
+    if (!ok && attempt < 3) await new Promise(r => setTimeout(r, 800 * attempt));
+  }
+  showLoadBanner(false);
+  _initialPullDone = true;                                 // 読込完了後に自動保存を解放
+  if (grid) grid.innerHTML = emptyPromptHTML();
+  setControlsEnabled(true);
+  updateWrongBtn();                                        // 不正解ボタンを件数に応じて再設定
+  showToast(ok ? '✓ クラウドから読み込みました'
+               : '⚠ 読み込めませんでした。ローカル表示中（電波回復後に「保存」を）',
+            ok ? 'ok' : 'warn');
+}
+
+/** 起動ロード中は操作ボタンを無効化（wrongBtn は件数で制御） */
+function setControlsEnabled(on) {
+  ['genBtn', 'genBtnMul', 'btnSave'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !on;
+  });
+  const wb = document.getElementById('wrongBtn');
+  if (wb) wb.disabled = on ? (loadWrong().length === 0) : true;
+}
+
+/**
+ * 「保存」ボタン：クラウド取得→非破壊マージ→送信
+ * 過去の成績（正答率含む）を一切消さずに確実に保存・全端末で共有する
+ */
+async function saveData() {
+  if (!getGasUrl()) {
+    showToast('クラウドURLが未設定です。⚙設定から登録してください', 'warn');
+    openSettings();
+    return;
+  }
+  const btn = document.getElementById('btnSave');
+  if (btn) btn.disabled = true;
+  showToast('⏳ 保存中…');
+  const ok = await syncCloud(false);                       // merge + push（非破壊）
+  if (btn) btn.disabled = false;
+  showToast(ok ? '✓ 保存しました（全端末で共有）'
+               : '✕ 保存に失敗。電波状況を確認して再度お試しください',
+            ok ? 'ok' : 'err');
+}
+
+/** 自動保存（解答のたびにデバウンスしてローカル全量を保存）
+ *  blind push だが「起動時の読込完了まで操作ブロック＋_initialPullDoneゲート」で
+ *  near-empty上書き事故を根絶。単一端末では回答修正の減算も正しく反映される。 */
+let _autoSaveTimer = null;
+function scheduleAutoSave() {
+  if (!getGasUrl()) return;
+  if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(() => {
+    _autoSaveTimer = null;
+    pushToCloud(); // 初回pull未完了時はゲートで自動抑止される
+  }, 1200);
 }
 
 /* ================================================================
@@ -1696,7 +1828,7 @@ function judge(btn, verdict) {
     addWrong(card._problem); // 問題オブジェクトをそのまま記録（pf/mul 両対応）
   }
   saveToday(t); saveAllTime(a); updateStats();
-  pushToCloud(); // 自動クラウド同期（バックグラウンド）
+  scheduleAutoSave(); // 自動保存（デバウンス blind）
 
   // wrongMode中に正解した場合はカードをフェードアウト
   // ただしカスタム入力カード（data-custom="true"）は対象外
@@ -1737,7 +1869,7 @@ function correctJudgement(btn) {
     removeWrong(num);
   }
   saveToday(t); saveAllTime(a); updateStats();
-  pushToCloud(); // 自動クラウド同期
+  scheduleAutoSave(); // 自動保存（デバウンス blind）
 
   card.dataset.state   = 'revealed';
   card.dataset.verdict = '';
@@ -1932,7 +2064,7 @@ function applyModeUI() {
 /* ================================================================
    INIT
 ================================================================ */
-(function init() {
+(async function init() {
   // 1. 旧キー移行 → 三重ストレージ補完（欠損復元）
   migrateGasUrl();
   consolidateGasUrl(); // 起動時に3ストレージを照合・補完
@@ -1958,20 +2090,13 @@ function applyModeUI() {
   // 5. モードUIを反映（タブ・タイトル・空状態・統計・不正解ボタン）
   applyModeUI();
 
-  // 6. クラウド同期ドット初期表示
-  //    URL設定済みの場合のみ自動pull（空クラウードではローカルを保護）
-  if (getGasUrl()) {
-    setSyncDot('syncing');
-    // 初回pull完了後に自動pushを解放（完了前の判定はローカル保持され、次回pushで送信される）
-    pullFromCloud(false).finally(() => { _initialPullDone = true; });
-  } else {
-    _initialPullDone = true; // URL未設定なら抑止不要のため即解放
-  }
-
-  // 7. Enter キーで生成（素因数分解の桁数入力）
+  // 6. Enter キーで生成（素因数分解の桁数入力）
   document.getElementById('digits').addEventListener('keydown', e => {
     if (e.key === 'Enter') generate();
   });
+
+  // 7. 起動時にまずクラウドから読み込む（読込完了まで操作は無効化）
+  await initialLoad();
 })();
 </script>
 </body>
