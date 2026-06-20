@@ -318,6 +318,16 @@ body { font-family: 'Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','
 .btn-url-clear.visible { display:inline-block; }
 .btn-url-clear:hover { opacity:.75; }
 
+/* URLコピー/復元リンクボタン行 */
+.url-copy-row { display:flex; gap:8px; margin-top:4px; }
+.btn-url-copy {
+  flex:1; padding:8px 6px; font-size:.78rem; font-weight:700; border-radius:8px;
+  cursor:pointer; border:1.5px solid var(--g3); background:#fff; color:var(--pri);
+  transition:background .12s,transform .1s; white-space:nowrap;
+}
+.btn-url-copy:hover { background:var(--pri-l); transform:translateY(-1px); }
+.btn-url-copy:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+
 /* 保存結果バナー（保存成功/失敗を独立表示） */
 .url-save-result {
   padding:8px 10px; border-radius:8px; font-size:.78rem; font-weight:700;
@@ -692,6 +702,10 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
         <div class="saved-url-box" id="savedUrlBox">
           <span class="saved-url-box-label">現在保存されているURL</span>
           <span class="saved-url-box-value is-empty" id="savedUrlDisplay">（未設定）</span>
+          <div class="url-copy-row" id="urlCopyRow" style="display:none;">
+            <button class="btn-url-copy" onclick="copyGasUrl()">📋 URLをコピー</button>
+            <button class="btn-url-copy" onclick="copyRecoveryLink()">🔗 復元用リンクをコピー</button>
+          </div>
         </div>
 
         <!-- URL入力 & 保存フォーム -->
@@ -721,8 +735,9 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
         <div class="sync-hint-box">
           <strong>使い方</strong>
           初回（1台目）：URLを保存 → 「同期する」でデータを登録<br>
-          2台目以降：URLを保存 → 「同期する」でデータを引き継ぎ<br>
-          以降は回答するたびに自動でクラウドに送信されます
+          2台目以降：「🔗 復元用リンクをコピー」で作ったリンクを各端末で開くと自動設定<br>
+          以降は回答するたびに自動でクラウドに送信されます<br>
+          <strong style="color:var(--warn);">URLを忘れた場合</strong>：同期済みの別端末の⚙設定→「🔗 復元用リンクをコピー」から再取得できます
         </div>
       </div>
     </div>
@@ -915,17 +930,38 @@ function saveToday(s)                 { return saveTodayFor(appMode, s); }
 function loadAllTime()                { return loadAllTimeFor(appMode); }
 function saveAllTime(s)               { return saveAllTimeFor(appMode, s); }
 
-/* ---- GAS URL 読み書き（三重ストレージで保存信頼性を確保） ----
+/* ---- GAS URL 読み書き ----
  *
- *  保存先:
- *    [1] localStorage  メインキー  pfcfg_gas_url     ← 通常利用
- *    [2] localStorage  バックアップ pfcfg_gas_url_bk  ← [1] 書き込み失敗時の復元用
- *    [3] sessionStorage             pfcfg_gas_url     ← セッション内即時復元用
+ *  保存先（端末内）:
+ *    [1] localStorage  メインキー  pfcfg_gas_url     ← 通常利用（永続）
+ *    [2] localStorage  バックアップ pfcfg_gas_url_bk  ← キー単位の書込失敗フォールバック（永続）
+ *    [3] sessionStorage             pfcfg_gas_url     ← セッション内のみ（補助・揮発）
+ *
+ *  ※[1][2][3]はいずれも「同一オリジンのスクリプト書込ストレージ」であり、
+ *    iOS Safari ITP の7日消去・サイトデータ消去・プライベートモード終了では
+ *    3つ同時に消える（オリジン単位消去のため冗長性なし）。
+ *    端末外復元のため #gas= リンク取り込み（importGasUrlFromLocation）と
+ *    復元用リンクコピー（copyRecoveryLink）を併設している。
  *
  *  読み取り: [1] → [2] → [3] の順でフォールバック
  *  削除:     _removeGasUrl() が全3か所を同時削除
  */
-const GAS_URL_KEY_BK = 'pfcfg_gas_url_bk'; // バックアップキー（pfcfg_ 管理下）
+const GAS_URL_KEY_BK   = 'pfcfg_gas_url_bk';  // バックアップキー（pfcfg_ 管理下）
+const SYNCED_ONCE_KEY  = 'pfcfg_synced_once'; // 一度でも同期成功した形跡（消失検知用）
+
+/** GAS Web App URL の検証（通常形式 + Google Workspace組織形式 /a/macros/ の両対応） */
+function isValidGasUrl(u) {
+  if (typeof u !== 'string') return false;
+  return u.startsWith('https://script.google.com/macros/s/')
+      || /^https:\/\/script\.google\.com\/a\/macros\/[^/]+\/s\//.test(u);
+}
+/** 入力URLの正規化（全角→半角・空白/改行除去） */
+function normalizeUrl(s) {
+  try { return String(s).normalize('NFKC').replace(/\s+/g, ''); }
+  catch(e) { return String(s).replace(/\s+/g, ''); }
+}
+/** 一度でも同期に成功した形跡を残す（URL消失のサイレント停止検知に使用） */
+function markSyncedOnce() { try { localStorage.setItem(SYNCED_ONCE_KEY, '1'); } catch(e) {} }
 
 function getGasUrl() {
   try {
@@ -941,14 +977,18 @@ function setGasUrl(url) {
     console.warn('[GasUrl] 空のURLは保存しません。削除は clearGasUrl() を使用してください。');
     return false;
   }
-  const val = url.trim();
-  let savedCount = 0;
+  const val = normalizeUrl(url);
+  if (!val) {
+    console.warn('[GasUrl] 正規化後に空になったため保存しません。');
+    return false;
+  }
+  let durableCount = 0; // localStorage（永続）への成功数のみカウント
 
   // [1] メインキー（localStorage）— 書き込み後に読み返して検証
   try {
     localStorage.setItem(GAS_URL_KEY, val);
     if (localStorage.getItem(GAS_URL_KEY) === val) {
-      savedCount++;
+      durableCount++;
     } else {
       console.error('[GasUrl] メインキー書き込み検証失敗: 値が一致しません');
     }
@@ -957,20 +997,18 @@ function setGasUrl(url) {
   // [2] バックアップキー（localStorage 別キー）
   try {
     localStorage.setItem(GAS_URL_KEY_BK, val);
-    savedCount++;
+    if (localStorage.getItem(GAS_URL_KEY_BK) === val) durableCount++;
   } catch(e) { console.warn('[GasUrl] バックアップキー書き込みエラー:', e); }
 
-  // [3] sessionStorage（ページ滞在中の即時復元用）
-  try {
-    sessionStorage.setItem(GAS_URL_KEY, val);
-    savedCount++;
-  } catch(e) { console.warn('[GasUrl] sessionStorage 書き込みエラー:', e); }
+  // [3] sessionStorage（補助・揮発）— 永続カウントには含めない
+  try { sessionStorage.setItem(GAS_URL_KEY, val); } catch(e) {}
 
-  if (savedCount === 0) {
-    console.error('[GasUrl] 全ストレージへの書き込みに失敗。ブラウザ設定を確認してください。');
+  // 永続ストレージ（localStorage）に1つも書けなければ失敗（プライベートモード等）
+  if (durableCount === 0) {
+    console.error('[GasUrl] 永続ストレージへの書き込みに失敗。プライベートモード/ストレージ無効の可能性。');
     return false;
   }
-  console.info(`[GasUrl] URL保存完了 (${savedCount}/3 ストレージに書き込み成功)`);
+  console.info(`[GasUrl] URL保存完了 (localStorage ${durableCount}/2 に永続保存)`);
   return true;
 }
 
@@ -986,11 +1024,15 @@ function migrateGasUrl() {
   const OLD_KEY = 'pf_gas_url';
   try {
     const old = localStorage.getItem(OLD_KEY);
-    if (old && old.trim() && !getGasUrl()) {
-      setGasUrl(old.trim()); // 三重ストレージへ書き込み
+    if (!old) return;
+    if (old.trim() && !getGasUrl()) {
+      if (!setGasUrl(old.trim())) {     // 書込失敗 → 旧キーを残して喪失を防ぐ
+        console.warn('[GasUrl] 移行先への書込に失敗。旧キーを保持します。');
+        return;
+      }
       console.info('[GasUrl] 旧キー pf_gas_url から移行しました。');
     }
-    if (old) localStorage.removeItem(OLD_KEY);
+    localStorage.removeItem(OLD_KEY);   // 移行成功 or 既に現行値あり の時のみ削除
   } catch(e) { console.warn('[GasUrl] migrateGasUrl エラー:', e); }
 }
 
@@ -1015,6 +1057,91 @@ function consolidateGasUrl() {
   if (!fromMain || !fromBk || !fromSession) {
     console.info(`[GasUrl] consolidateGasUrl: 欠損ストレージを補完しました (main:${!!fromMain} bk:${!!fromBk} session:${!!fromSession})`);
   }
+}
+
+/**
+ * URL/ハッシュの ?gas= / #gas= からGAS URLを取り込む（端末外ブートストラップ）
+ * 管理者が「復元用リンク」を配布すれば、新端末・ストレージ消去後でもタップ一発で復元できる。
+ * フラグメント優先（サーバーログ/リファラにURLを残さない）。取り込み後はアドレスバーから除去。
+ */
+function importGasUrlFromLocation() {
+  try {
+    let raw = '';
+    try { raw = new URLSearchParams((location.hash || '').replace(/^#/, '')).get('gas') || ''; } catch(e) {}
+    if (!raw) { try { raw = new URLSearchParams(location.search).get('gas') || ''; } catch(e) {} }
+    if (!raw) return false;
+    const url = normalizeUrl(raw);
+    let imported = false;
+    if (isValidGasUrl(url)) {
+      imported = setGasUrl(url); // 検証済みのみ保存（任意URL注入を防止）
+      if (imported) console.info('[GasUrl] 復元用リンクからURLを取り込みました。');
+    }
+    // アドレスバーからパラメータを除去（URL残留・共有事故防止）
+    try { history.replaceState(null, '', location.pathname); } catch(e) {}
+    return imported;
+  } catch(e) { console.warn('[GasUrl] importGasUrlFromLocation エラー:', e); return false; }
+}
+
+/** クリップボードへコピー（Clipboard API → execCommand フォールバック） */
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      ok ? resolve() : reject(new Error('execCommand失敗'));
+    } catch(e) { reject(e); }
+  });
+}
+function copyGasUrl() {
+  const u = getGasUrl();
+  if (!u) { showToast('URLが未設定です', 'warn'); return; }
+  copyToClipboard(u).then(() => showToast('✓ URLをコピーしました', 'ok'))
+                    .catch(() => showToast('✕ コピーに失敗しました', 'err'));
+}
+function copyRecoveryLink() {
+  const u = getGasUrl();
+  if (!u) { showToast('URLが未設定です', 'warn'); return; }
+  const link = location.origin + location.pathname + '#gas=' + encodeURIComponent(u);
+  copyToClipboard(link).then(() => showToast('✓ 復元用リンクをコピー。各端末でこれを開くと自動設定されます', 'ok'))
+                       .catch(() => showToast('✕ コピーに失敗しました', 'err'));
+}
+
+/** URLが消えていて、かつ過去に利用形跡がある場合に警告（サイレント同期停止の防止） */
+function warnIfUrlLost() {
+  if (getGasUrl()) return;
+  let usedBefore = false;
+  try {
+    usedBefore = localStorage.getItem(SYNCED_ONCE_KEY) === '1'
+      || Object.keys(localStorage).some(k => /^(pf|mul)_/.test(k));
+  } catch(e) {}
+  if (usedBefore) {
+    showToast('⚠ クラウドURLが見つかりません。⚙設定→「復元用リンク」または再入力で同期が復活します', 'warn');
+  }
+}
+
+/** 古い日次キーを剪定（容量超過の予防・既定180日） */
+function pruneOldDailyKeys(retainDays) {
+  try {
+    const days = retainDays || 180;
+    const cutoff = new Date(Date.now() - days * 86400000)
+      .toISOString().slice(0, 10);
+    ['pf', 'mul'].forEach(mode => {
+      const prefix = STAT_KEYS[mode].today;
+      let pruned = 0;
+      Object.keys(localStorage)
+        .filter(k => k.startsWith(prefix)
+          && /^\d{4}-\d{2}-\d{2}$/.test(k.slice(prefix.length))
+          && k.slice(prefix.length) < cutoff)
+        .forEach(k => { try { localStorage.removeItem(k); pruned++; } catch(e) {} });
+      if (pruned > 0) rebuildDailyIndexFor(mode);
+    });
+  } catch(e) { console.warn('[Storage] pruneOldDailyKeys エラー:', e); }
 }
 
 /* ---- 不正解リスト操作 ---- */
@@ -1193,7 +1320,7 @@ async function pullFromCloud(manual = false) {
     const data = await res.json();
 
     // 自動取得かつクラウドが空ならスキップ（ローカル保護）— 通信自体は成功扱い
-    if (!manual && !cloudHasAnyData(data)) { setSyncDot('ok'); return true; }
+    if (!manual && !cloudHasAnyData(data)) { setSyncDot('ok'); markSyncedOnce(); return true; }
 
     mergeCloudMode('pf',  data.wrong,    data.alltime,    data.daily);
     mergeCloudMode('mul', data.mulWrong, data.mulAlltime, data.mulDaily);
@@ -1203,6 +1330,7 @@ async function pullFromCloud(manual = false) {
     const ts = new Date().toLocaleTimeString('ja-JP');
     if (manual) setSyncResult('ok', `✓ クラウドから取得しました（${ts}）`);
     setSyncDot('ok');
+    markSyncedOnce();
     return true;
   } catch(e) {
     if (manual) setSyncResult('error', '✕ 取得エラー: ' + e.message);
@@ -1237,6 +1365,7 @@ async function pushToCloud(manual = false) {
     const ts = new Date().toLocaleTimeString('ja-JP');
     if (manual) setSyncResult('ok', `✓ クラウドに送信しました（${ts}）`);
     setSyncDot('ok');
+    markSyncedOnce();
   } catch(e) {
     if (manual) setSyncResult('error', '✕ 送信エラー: ' + e.message);
     setSyncDot('error');
@@ -1277,6 +1406,7 @@ async function syncCloud(manual = false) {
     const ts = new Date().toLocaleTimeString('ja-JP');
     if (manual) setSyncResult('ok', `✓ 同期しました（${ts}）`);
     setSyncDot('ok');
+    markSyncedOnce();
     return true;
   } catch(e) {
     if (manual) setSyncResult('error', '✕ 同期エラー: ' + e.message);
@@ -1326,12 +1456,14 @@ async function initialLoad() {
     if (!ok && attempt < 3) await new Promise(r => setTimeout(r, 800 * attempt));
   }
   showLoadBanner(false);
-  _initialPullDone = true;                                 // 読込完了後に自動保存を解放
+  // 成功時のみ自動保存(blind push)を解放。失敗時はゲートを閉じたままにし、
+  // near-emptyローカルでクラウドを上書きする事故を防ぐ（手動「保存」は安全なmerge経路）
+  if (ok) _initialPullDone = true;
   if (grid) grid.innerHTML = emptyPromptHTML();
   setControlsEnabled(true);
   updateWrongBtn();                                        // 不正解ボタンを件数に応じて再設定
   showToast(ok ? '✓ クラウドから読み込みました'
-               : '⚠ 読み込めませんでした。ローカル表示中（電波回復後に「保存」を）',
+               : '⚠ 読み込めませんでした。自動保存は一時停止中。電波回復後に「💾保存」を押してください',
             ok ? 'ok' : 'warn');
 }
 
@@ -1551,14 +1683,17 @@ function refreshSavedUrlDisplay() {
   const url  = getGasUrl();
   const disp = document.getElementById('savedUrlDisplay');
   const clrBtn = document.getElementById('btnUrlClear');
+  const copyRow = document.getElementById('urlCopyRow');
   if (url) {
     disp.textContent = url;
     disp.className   = 'saved-url-box-value is-set';
     if (clrBtn) clrBtn.classList.add('visible');
+    if (copyRow) copyRow.style.display = 'flex';
   } else {
     disp.textContent = '（未設定）';
     disp.className   = 'saved-url-box-value is-empty';
     if (clrBtn) clrBtn.classList.remove('visible');
+    if (copyRow) copyRow.style.display = 'none';
   }
   const hasSrc = !!url;
   document.getElementById('btnSync').disabled = !hasSrc;
@@ -1567,8 +1702,8 @@ function refreshSavedUrlDisplay() {
 /** 入力欄の変化を検知してバリデーション状態を更新 */
 function onUrlInput() {
   const input = document.getElementById('gasUrlInput');
-  const val   = input.value.trim();
-  if (val && !val.startsWith('https://script.google.com/macros/s/')) {
+  const val   = normalizeUrl(input.value);
+  if (val && !isValidGasUrl(val)) {
     input.classList.add('invalid');
   } else {
     input.classList.remove('invalid');
@@ -1579,21 +1714,21 @@ function onUrlInput() {
 /** URLを保存する（保存と同期は完全に独立） */
 function saveGasUrl() {
   const input = document.getElementById('gasUrlInput');
-  const raw   = input.value.trim();
+  const raw   = normalizeUrl(input.value); // 全角→半角・空白除去
 
   // バリデーション
   if (!raw) {
     setUrlSaveResult('error', '✕ URLを入力してください。削除する場合は「URLを削除して同期を無効にする」を使用してください。');
     return;
   }
-  if (!raw.startsWith('https://script.google.com/macros/s/')) {
-    setUrlSaveResult('error', '✕ URLの形式が正しくありません。\n「https://script.google.com/macros/s/」で始まるURLを入力してください。');
+  if (!isValidGasUrl(raw)) {
+    setUrlSaveResult('error', '✕ URLの形式が正しくありません。\n「https://script.google.com/macros/s/…/exec」（組織アカウントは /a/macros/…）で始まるURLを入力してください。');
     input.classList.add('invalid');
     return;
   }
   input.classList.remove('invalid');
 
-  // localStorage に書き込み（ここで必ず保存される）
+  // localStorage に書き込み（永続2スロット＋sessionStorage）
   const ok = setGasUrl(raw);
   if (!ok) {
     setUrlSaveResult('error', '✕ 保存に失敗しました。ブラウザのプライベートモードまたは設定でストレージが無効になっている可能性があります。');
@@ -1601,7 +1736,7 @@ function saveGasUrl() {
   }
 
   // 保存成功を即時表示（ネットワーク結果とは独立）
-  setUrlSaveResult('ok', '✓ URLを保存しました。「同期する」ボタンで同期してください。');
+  setUrlSaveResult('ok', '✓ URLを保存しました。「🔗 復元用リンクをコピー」で控えておくと安心です。');
 
   // 保存済みURL表示を更新
   refreshSavedUrlDisplay();
@@ -2065,14 +2200,16 @@ function applyModeUI() {
    INIT
 ================================================================ */
 (async function init() {
-  // 1. 旧キー移行 → 三重ストレージ補完（欠損復元）
+  // 1. 復元用リンク(#gas=/?gas=)からのURL取り込み（新端末・消去後の端末外復元）→ 旧キー移行 → 3ストレージ補完
+  importGasUrlFromLocation();
   migrateGasUrl();
   consolidateGasUrl(); // 起動時に3ストレージを照合・補完
 
   // 2. モード復元（pfcfg_mode）
   appMode = getMode();
 
-  // 3. 両モードのデイリーインデックス整合性（空なら再構築）
+  // 3. 古い日次キーの剪定（容量超過の予防）→ 両モードのデイリーインデックス整合性
+  pruneOldDailyKeys(180);
   ['pf', 'mul'].forEach(m => {
     if (loadDailyIndexFor(m).length === 0) {
       const rebuilt = rebuildDailyIndexFor(m);
@@ -2090,12 +2227,15 @@ function applyModeUI() {
   // 5. モードUIを反映（タブ・タイトル・空状態・統計・不正解ボタン）
   applyModeUI();
 
-  // 6. Enter キーで生成（素因数分解の桁数入力）
+  // 6. URL消失のサイレント検知（過去利用形跡があるのにURLが無い場合に警告）
+  warnIfUrlLost();
+
+  // 7. Enter キーで生成（素因数分解の桁数入力）
   document.getElementById('digits').addEventListener('keydown', e => {
     if (e.key === 'Enter') generate();
   });
 
-  // 7. 起動時にまずクラウドから読み込む（読込完了まで操作は無効化）
+  // 8. 起動時にまずクラウドから読み込む（読込完了まで操作は無効化）
   await initialLoad();
 })();
 </script>
