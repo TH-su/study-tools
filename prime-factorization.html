@@ -262,7 +262,7 @@ body { font-family: 'Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','
 .settings-item-desc  { font-size:.75rem; color:var(--g5); line-height:1.45; margin-bottom:2px; }
 .btn-setting-action {
   padding:10px 16px; font-size:.88rem; font-weight:700; border-radius:9px;
-  cursor:pointer; border:none; transition:opacity .12s,transform .12s; text-align:left; letter-spacing:.02em;
+  cursor:pointer; border:none; transition:opacity .12s,transform .12s; text-align:start; letter-spacing:.02em;
 }
 .btn-setting-action:hover  { opacity:.85; transform:translateY(-1px); }
 .btn-setting-action:active { transform:translateY(0); }
@@ -573,6 +573,16 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
 .toast.ok   { background:var(--ok); }
 .toast.err  { background:var(--ng); }
 .toast.warn { background:var(--warn); color:#fff; }
+
+/* 動きを減らす設定への対応（2026-08-10 追加・通常表示に影響なし） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 </style>
 </head>
 <body data-mode="pf">
@@ -582,10 +592,10 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
 <div class="toast" id="toast"></div>
 
 <header class="hdr">
-  <button class="btn-calendar" onclick="openCalendar()" title="学習カレンダー">📅</button>
+  <button class="btn-calendar" onclick="openCalendar()" title="学習カレンダー" aria-label="学習カレンダー">📅</button>
   <h1 id="appTitle">素因数分解ジェネレーター</h1>
   <p id="appSubtitle">自分で解いて、正解・不正解を記録しましょう</p>
-  <button class="btn-settings" onclick="openSettings()" title="設定" style="position:relative;">
+  <button class="btn-settings" onclick="openSettings()" title="設定" style="position:relative;" aria-label="設定">
     ⚙
     <span class="sync-dot" id="syncDot"></span>
   </button>
@@ -668,10 +678,10 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
 <div class="cal-overlay" id="calOverlay" onclick="closeCalendar()"></div>
 <div class="cal-modal" id="calModal">
   <div class="cal-hdr">
-    <button class="cal-nav-btn" id="calPrev" onclick="calPrevMonth()" title="前の月">‹</button>
+    <button class="cal-nav-btn" id="calPrev" onclick="calPrevMonth()" title="前の月" aria-label="前の月">‹</button>
     <span class="cal-title" id="calTitle"></span>
-    <button class="cal-nav-btn" id="calNext" onclick="calNextMonth()" title="次の月">›</button>
-    <button class="cal-close-btn" onclick="closeCalendar()" title="閉じる">✕</button>
+    <button class="cal-nav-btn" id="calNext" onclick="calNextMonth()" title="次の月" aria-label="次の月">›</button>
+    <button class="cal-close-btn" onclick="closeCalendar()" title="閉じる" aria-label="閉じる">✕</button>
   </div>
   <div class="cal-body">
     <div class="cal-weekdays">
