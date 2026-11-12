@@ -9,21 +9,21 @@
   --bg:#f4f6fb; --card:#ffffff; --ink:#1d2340; --sub:#555d7d; --line:#d9deec;
   --accent:#3b5bdb; --accent-ink:#ffffff; --accent-soft:#e3e9ff;
   --blue:#2f6fde; --orange:#d9680a; --ok:#1a8a4a; --ng:#c92a5e; --gold:#e09b00;
-  --blue-soft:#dbe6ff; --orange-soft:#ffe3cc; --cut:#c4c9d8; --shadow:0 2px 10px rgba(30,40,90,.08);
+  --blue-soft:#dbe6ff; --orange-soft:#ffe3cc; --green-soft:#d4f3e1; --gray-soft:#eceef5; --cut:#c4c9d8; --shadow:0 2px 10px rgba(30,40,90,.08);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#11141f; --card:#1b2030; --ink:#e8ebf7; --sub:#a9b0cb; --line:#2f3653;
     --accent:#7d95ff; --accent-ink:#0d1020; --accent-soft:#26305a;
     --blue:#77a2ff; --orange:#ffa452; --ok:#52d38d; --ng:#ff7fa6; --gold:#ffcb45;
-    --blue-soft:#22325c; --orange-soft:#4a3119; --cut:#3b4260; --shadow:0 2px 10px rgba(0,0,0,.35);
+    --blue-soft:#22325c; --orange-soft:#4a3119; --green-soft:#1c3d2b; --gray-soft:#2a3045; --cut:#3b4260; --shadow:0 2px 10px rgba(0,0,0,.35);
   }
 }
 :root[data-theme="dark"]{
   --bg:#11141f; --card:#1b2030; --ink:#e8ebf7; --sub:#a9b0cb; --line:#2f3653;
   --accent:#7d95ff; --accent-ink:#0d1020; --accent-soft:#26305a;
   --blue:#77a2ff; --orange:#ffa452; --ok:#52d38d; --ng:#ff7fa6; --gold:#ffcb45;
-  --blue-soft:#22325c; --orange-soft:#4a3119; --cut:#3b4260; --shadow:0 2px 10px rgba(0,0,0,.35);
+  --blue-soft:#22325c; --orange-soft:#4a3119; --green-soft:#1c3d2b; --gray-soft:#2a3045; --cut:#3b4260; --shadow:0 2px 10px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -34,6 +34,7 @@ button{font:inherit;color:inherit}
 .topbar h1{font-size:1.35rem;margin:0}
 .back{color:var(--accent);text-decoration:none;font-size:.9rem;min-height:44px;display:inline-flex;align-items:center}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.card h2{margin:0 0 6px;font-size:1.1rem}
 .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .lv{display:flex;align-items:baseline;gap:8px}
 .lv b{font-size:1.6rem}
@@ -47,6 +48,8 @@ button{font:inherit;color:inherit}
 .btn.big{width:100%;font-size:1.15rem;min-height:60px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn:focus-visible,.blank:focus-visible,.opt:focus-visible,.key:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid2 .card{margin-bottom:0}
 .worlds{display:grid;gap:12px}
 .world{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center}
 .wnum{width:48px;height:48px;border-radius:12px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.2rem}
@@ -62,17 +65,26 @@ button{font:inherit;color:inherit}
 .cal .d.frz{background:var(--blue-soft)}
 .cal .d.today{outline:2px solid var(--gold)}
 .cal .d.fut{opacity:.35}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}
+.tcard{border:2px solid var(--line);border-radius:14px;padding:10px;background:var(--card);text-align:center}
+.tcard .e{font-size:2rem;line-height:1.2}
+.tcard b{display:block;font-size:.95rem}
+.tcard.on{border-color:var(--gold)}
+.tcard.off .e{filter:grayscale(1);opacity:.35}
+.newcard{font-weight:800;color:var(--accent)}
 /* play */
 .playhead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 .prog{display:flex;gap:4px;flex-wrap:wrap}
 .prog i{width:14px;height:14px;border-radius:4px;background:var(--line);display:block}
-.prog i.d{background:var(--accent)} .prog i.c{outline:2px solid var(--gold)}
+.prog i.d{background:var(--accent)} .prog i.c{outline:2px solid var(--gold)} .prog i.boss{border-radius:50%}
 .timer{font-variant-numeric:tabular-nums;font-weight:700}
+.timer.ta{font-size:1.2rem;color:var(--ng)}
 .qtitle{font-size:1.1rem;font-weight:700;margin:0 0 6px}
 .diagram{display:flex;justify-content:center;margin:6px 0 10px;overflow-x:auto}
 .diagram svg{max-width:100%;height:auto}
 .expr{font-size:1.35rem;font-variant-numeric:tabular-nums;font-weight:700;display:grid;gap:6px;margin:6px 0 10px}
 .expr .ln{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.expr .ln > span{min-width:0}
 .blank{min-width:64px;min-height:48px;padding:4px 10px;border-radius:10px;border:2px dashed var(--sub);background:var(--bg);font-size:1.3rem;font-weight:800;cursor:pointer;font-variant-numeric:tabular-nums}
 .blank.act{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
 .blank.ok{border-style:solid;border-color:var(--ok);color:var(--ok);cursor:default}
@@ -91,6 +103,7 @@ button{font:inherit;color:inherit}
 .starlist{list-style:none;padding:0;margin:6px 0;display:grid;gap:2px}
 .starlist li{font-size:.95rem}
 .done-panel{border:2px solid var(--ok)}
+.boss-panel{border:2px solid var(--gold)}
 .explain{margin:6px 0 10px}
 .res-big{font-size:1.5rem;font-weight:800;margin:0 0 6px}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:700;max-width:90vw;z-index:10;display:none}
@@ -99,18 +112,25 @@ button{font:inherit;color:inherit}
 .shake{animation:shake .3s}
 @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 @media (prefers-reduced-motion: reduce){ .pop,.shake{animation:none} }
+@media (max-width:560px){ .grid2{grid-template-columns:1fr} }
 @media (max-width:420px){ .expr{font-size:1.15rem} .blank{min-width:56px;font-size:1.15rem} .world{grid-template-columns:40px 1fr} .world .act-col{grid-column:1 / -1} .wnum{width:40px;height:40px} }
 /* svg */
 .sv-blue{fill:var(--blue-soft);stroke:var(--blue);stroke-width:2}
 .sv-orange{fill:var(--orange-soft);stroke:var(--orange);stroke-width:2}
+.sv-green{fill:var(--green-soft);stroke:var(--ok);stroke-width:2}
+.sv-gray{fill:var(--gray-soft);stroke:var(--sub);stroke-width:2}
 .sv-cut{fill:url(#dl-hatch);stroke:var(--ng);stroke-width:2;stroke-dasharray:5 4}
 .sv-dotb{fill:var(--blue)} .sv-doto{fill:var(--orange)}
 .sv-t{fill:var(--ink);font-size:15px;font-weight:700;font-family:inherit}
 .sv-tb{fill:var(--blue);font-size:15px;font-weight:800}
 .sv-to{fill:var(--orange);font-size:15px;font-weight:800}
+.sv-tg{fill:var(--ok);font-size:15px;font-weight:800}
+.sv-ts{fill:var(--sub);font-size:15px;font-weight:800}
 .sv-tn{fill:var(--ng);font-size:15px;font-weight:800}
+.sv-big{fill:var(--ink);font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.sv-bigb{fill:var(--blue);font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
 .sv-hatch{stroke:var(--ng);stroke-width:1.5}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sv-rule{stroke:var(--ink);stroke-width:2}
 </style>
 </head>
 <body>
@@ -120,30 +140,67 @@ button{font:inherit;color:inherit}
 'use strict';
 /* ===== 定数 ===== */
 const KEY='dl_state_v1', BAK='dl_state_v1_bak', SES='dl_session_v1', LAST='dl_last_result_v1', VIEW='dlcfg_view';
-const VIEWS=['home','play','result'];
+const VIEWS=['home','play','result','cards'];
 const WORLDS=[
   {id:1,name:'見える分配',sub:'点の図を2つに分けてかける',ex:'4×(3＋5)',target:30},
   {id:2,name:'かっこを開く',sub:'4つの形を使いこなす',ex:'6×(20−3)',target:35},
   {id:3,name:'工夫・たし算',sub:'キリのよい数＋あまりに分ける',ex:'102×7',target:30},
   {id:4,name:'工夫・ひき算',sub:'キリのよい数から少しひく',ex:'98×7',target:35},
   {id:5,name:'まとめる',sub:'同じ数でくくって一発で',ex:'37×6＋37×4',target:35},
+  {id:6,name:'4つの部屋',sub:'2けた×2けたを面積図で・筆算の中の分配法則',ex:'23×47',target:45},
+  {id:7,name:'達人の技',sub:'99・25・1001・小数・3つまとめ',ex:'25×44',target:40},
 ];
-const UNLOCK=30, GOOD=60, MASTER=100;
+const UNLOCK=30, GOOD=60, MASTER=100, GOOD_DAYS=2, MASTER_DAYS=3; // とくい・マスターは別の日にも練習した時だけ
 const TITLES=['たまご','ひよこ','見習い','けいさん職人','くふう名人','ぶんぱい達人','分配博士','大博士','伝説の数学者'];
-const MISSION_N=10, PRACTICE_N=5, MISSION_BONUS=30;
+const MISSION_N=10, PRACTICE_N=5, MISSION_BONUS=30, TA_SEC=60, REVIEW_MAX=3, REVIEW_STEPS=[1,3,7];
+const RANKS=[{max:8,n:'いなずま'},{max:12,n:'ジェット'},{max:18,n:'ロケット'},{max:25,n:'じてんしゃ'},{max:1e9,n:'あるき'}];
+const CARDS=[
+  {id:'dots',e:'🔵',n:'点の図マスター',d:'ワールド1で★3をとる'},
+  {id:'paren4',e:'🧩',n:'4つの形',d:'ワールド2の4つの形をぜんぶ解く'},
+  {id:'r100',e:'💯',n:'100にする技',d:'100＋あまり に分けて解く'},
+  {id:'r1000',e:'🏔',n:'1000にする技',d:'1000以上＋あまり に分けて解く'},
+  {id:'minus',e:'✂️',n:'切り取りの技',d:'キリのよい数−少し で解く'},
+  {id:'group',e:'🤝',n:'くくる技',d:'同じ数でまとめて解く'},
+  {id:'group100',e:'🎯',n:'100でくくる',d:'まとめると100になる問題を解く'},
+  {id:'grid',e:'🏠',n:'4つの部屋',d:'2けた×2けたを4つに分けて解く'},
+  {id:'hissan',e:'📝',n:'筆算の秘密',d:'筆算の中に分配法則を見つける'},
+  {id:'n99',e:'🎱',n:'99の技',d:'99×2けたを 100−1 で解く'},
+  {id:'q25',e:'🪙',n:'25の技',d:'25×4＝100 を使って解く'},
+  {id:'dec',e:'🔸',n:'小数でも使える',d:'小数の分配法則を解く'},
+  {id:'g3',e:'🧺',n:'3つまとめ',d:'3つのかけ算を1つにまとめる'},
+  {id:'n1001',e:'🪞',n:'1001の不思議',d:'1001×数 を 1000＋1 で解く'},
+  {id:'boss',e:'👑',n:'ボスたおし',d:'ボス問題を★2以上で解く'},
+  {id:'boss5',e:'🏆',n:'ボスハンター',d:'ボス問題を5回たおす'},
+  {id:'speed',e:'⚡',n:'いなずま',d:'1問を10秒以内で解く'},
+  {id:'perfect',e:'🌟',n:'パーフェクト',d:'ミッション10問すべて★3'},
+  {id:'review',e:'🔁',n:'ふくしゅう名人',d:'ふくしゅう問題を★3で解く'},
+  {id:'ta8',e:'⏱',n:'60秒で8問',d:'タイムアタックで8問以上解く'},
+  {id:'st3',e:'🔥',n:'3日れんぞく',d:'ミッションを3日つづける'},
+  {id:'st7',e:'🔥',n:'1週間れんぞく',d:'ミッションを7日つづける'},
+  {id:'st30',e:'🌋',n:'30日れんぞく',d:'ミッションを30日つづける'},
+  {id:'master',e:'🎓',n:'はじめてのマスター',d:'どれかのワールドをマスターにする'},
+  {id:'lv10',e:'🚀',n:'レベル10',d:'レベル10になる'},
+];
+const CARD_IDS=CARDS.map(c=>c.id);
 
 /* ===== 保存（失敗しても既存データを残す） ===== */
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}}
 function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
 const num=v=>typeof v==='number'&&isFinite(v);
-function defaultState(){return {v:1,xp:0,worlds:{},days:{},total:{solved:0,stars:0}}}
+const isDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
+function defaultState(){return {v:1,xp:0,worlds:{},days:{},total:{solved:0,stars:0},cards:{},review:[],ta:{best:0,recent:[]},bossWins:0,forms:[]}}
 function normalize(s){
   const o=defaultState();
   o.xp=num(s.xp)&&s.xp>=0?Math.floor(s.xp):0;
   if(s.total&&typeof s.total==='object'){o.total.solved=num(s.total.solved)?s.total.solved:0;o.total.stars=num(s.total.stars)?s.total.stars:0;}
-  for(const w of WORLDS){const x=s.worlds&&s.worlds[w.id];if(x&&typeof x==='object'){o.worlds[w.id]={pts:num(x.pts)?Math.max(0,Math.min(MASTER,x.pts)):0,n:num(x.n)?x.n:0,three:num(x.three)?x.three:0,days:num(x.days)?x.days:0,last:typeof x.last==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x.last)?x.last:''};}}
-  if(s.days&&typeof s.days==='object'){for(const k of Object.keys(s.days)){if(/^\d{4}-\d{2}-\d{2}$/.test(k)){const d=s.days[k]||{};o.days[k]={mission:d.mission===true,solved:num(d.solved)?d.solved:0,stars:num(d.stars)?d.stars:0};}}}
+  for(const w of WORLDS){const x=s.worlds&&s.worlds[w.id];if(x&&typeof x==='object'){o.worlds[w.id]={pts:num(x.pts)?Math.max(0,Math.min(MASTER,x.pts)):0,n:num(x.n)?x.n:0,three:num(x.three)?x.three:0,days:num(x.days)?x.days:0,last:isDate(x.last)?x.last:''};}}
+  if(s.days&&typeof s.days==='object'){for(const k of Object.keys(s.days)){if(isDate(k)){const d=s.days[k]||{};o.days[k]={mission:d.mission===true,solved:num(d.solved)?d.solved:0,stars:num(d.stars)?d.stars:0};}}}
+  if(s.cards&&typeof s.cards==='object'){for(const id of CARD_IDS){if(isDate(s.cards[id]))o.cards[id]=s.cards[id];}}
+  if(Array.isArray(s.review))o.review=s.review.filter(r=>r&&num(r.w)&&r.w>=1&&r.w<=WORLDS.length&&num(r.k)&&isDate(r.due)&&num(r.step)).slice(-30).map(r=>({w:r.w,k:r.k,due:r.due,step:r.step}));
+  if(s.ta&&typeof s.ta==='object'){o.ta.best=num(s.ta.best)?s.ta.best:0;o.ta.recent=Array.isArray(s.ta.recent)?s.ta.recent.filter(num).slice(-10):[];}
+  o.bossWins=num(s.bossWins)?s.bossWins:0;
+  o.forms=Array.isArray(s.forms)?[...new Set(s.forms.filter(f=>[0,1,2,3].includes(f)))]:[];
   return o;
 }
 function parseState(raw){if(!raw)return null;try{const s=JSON.parse(raw);if(!s||typeof s!=='object'||s.v!==1)return null;return normalize(s)}catch(e){return null}}
@@ -163,7 +220,7 @@ function saveState(){
   if(!lsSet(KEY,JSON.stringify(state))){toast('保存できませんでした（このブラウザの保存領域が使えません）');return false;}
   return true;
 }
-window.addEventListener('storage',e=>{if(e.key===KEY){const s=parseState(e.newValue);if(s&&s.xp>=state.xp){state=s;if(view==='home')render();}}});
+window.addEventListener('storage',e=>{if(e.key===KEY){const s=parseState(e.newValue);if(s&&s.xp>=state.xp){state=s;if(view==='home'||view==='cards')render();}}});
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
 
 /* ===== 日付・連続日数 ===== */
@@ -173,8 +230,8 @@ const addDays=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
 const weekKey=d=>dkey(addDays(d,-((d.getDay()+6)%7)));
 const isDone=k=>!!(state.days[k]&&state.days[k].mission);
 function streakInfo(){
-  const today=new Date(); const todayDone=isDone(dkey(today));
-  let d=todayDone?today:addDays(today,-1); let count=0; const used={}, frozen={};
+  const now=new Date(); const todayDone=isDone(dkey(now));
+  let d=todayDone?now:addDays(now,-1); let count=0; const used={}, frozen={};
   for(let i=0;i<3000;i++){
     const k=dkey(d);
     if(isDone(k)){count++;d=addDays(d,-1);continue;}
@@ -182,60 +239,97 @@ function streakInfo(){
     if(!used[wk]&&isDone(dkey(addDays(d,-1)))){used[wk]=true;frozen[k]=true;d=addDays(d,-1);continue;}
     break;
   }
-  return {count,frozen,todayDone,freezeLeft:used[weekKey(today)]?0:1};
+  return {count,frozen,todayDone,freezeLeft:used[weekKey(now)]?0:1};
 }
 
-/* ===== レベル・習熟 ===== */
+/* ===== レベル・習熟・ランク ===== */
 const need=L=>20*(L-1)*L;
 function levelOf(xp){let L=1;while(xp>=need(L+1))L++;return L}
 const titleOf=L=>TITLES[Math.min(Math.floor((L-1)/2),TITLES.length-1)];
 const wstat=id=>state.worlds[id]||{pts:0,n:0,three:0,days:0,last:''};
-const GOOD_DAYS=2, MASTER_DAYS=3; // とくい・マスターは別の日にも練習した時だけ
 function mastery(id){const s=wstat(id);if(!s.n)return {lv:0,name:'未挑戦'};if(s.pts>=MASTER&&s.days>=MASTER_DAYS)return {lv:4,name:'マスター'};if(s.pts>=GOOD&&s.days>=GOOD_DAYS)return {lv:3,name:'とくい'};if(s.pts>=UNLOCK)return {lv:2,name:'できた'};return {lv:1,name:'挑戦中'}}
 const unlocked=id=>id===1||wstat(id-1).pts>=UNLOCK;
+function rankOf(){const r=state.ta.recent;if(r.length<3)return null;const avg=r.reduce((a,b)=>a+b,0)/r.length;return {avg:Math.round(avg*10)/10,name:RANKS.find(x=>avg<=x.max).n};}
 
 /* ===== 問題づくり ===== */
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function gen(w){
-  if(w===1)return {w,a:rnd(2,5),b:rnd(2,6),c:rnd(2,6)};
-  if(w===2){const form=rnd(0,3);const plus=form%2===0;return {w,form,a:rnd(2,9),b:plus?pick([10,20,30,40,50,60]):pick([20,30,40,50,60,70,80,90]),c:rnd(1,9)};}
-  if(w===3){
-    const R=pick([100,100,200,300,1000]);const k=rnd(1,9);const N=R+k;
-    const m=(R===100&&Math.random()<.3)?rnd(11,29):rnd(3,9);
-    const best={x:R,y:k,op:'+'};const d1={x:R-10,y:k+10,op:'+'};
-    const d2=N%2===0?{x:N/2,y:N/2,op:'+'}:{x:R-20,y:k+20,op:'+'};
-    const opts=shuffle([best,d1,d2]);return {w,N,m,left:Math.random()<.5,opts,best:opts.indexOf(best)};
+const notTen=(a,b)=>{let x;do{x=rnd(a,b)}while(x%10===0);return x};
+function splitPlus(w,R,m,extra){const k=rnd(1,9),N=R+k;const best={x:R,y:k,op:'+'},d1={x:R-10,y:k+10,op:'+'};
+  const d2=N%2===0?{x:N/2,y:N/2,op:'+'}:{x:R-20,y:k+20,op:'+'};const opts=shuffle([best,d1,d2]);
+  return Object.assign({w,N,m,left:Math.random()<.5,opts,best:opts.indexOf(best)},extra||{});}
+function splitMinus(w,R,k,m,extra){const N=R-k;const best={x:R,y:k,op:'−'},d1={x:R-10,y:10-k,op:'+'},d2={x:R/2,y:N-R/2,op:'+'};
+  const opts=shuffle([best,d1,d2]);return Object.assign({w,N,m,left:Math.random()<.5,opts,best:opts.indexOf(best)},extra||{});}
+/* o.k: 種類の指定（ふくしゅう用） o.hard: ボス問題 */
+function gen(w,o){
+  o=o||{};const H=!!o.hard;
+  if(w===1)return H?{w,a:rnd(5,8),b:rnd(4,8),c:rnd(4,8)}:{w,a:rnd(2,5),b:rnd(2,6),c:rnd(2,6)};
+  if(w===2){const form=[0,1,2,3].includes(o.k)?o.k:rnd(0,3);const plus=form%2===0;return {w,form,a:H?rnd(11,19):rnd(2,9),b:plus?pick([10,20,30,40,50,60]):pick([20,30,40,50,60,70,80,90]),c:rnd(1,9)};}
+  if(w===3){if(H)return splitPlus(w,pick([1000,2000]),rnd(11,29));const R=pick([100,100,200,300,1000]);return splitPlus(w,R,(R===100&&Math.random()<.3)?rnd(11,29):rnd(3,9));}
+  if(w===4){if(H)return splitMinus(w,1000,rnd(1,5),rnd(11,29));const R=pick([100,100,200,1000,50]);const k=R===50?1:(R===1000?rnd(1,5):rnd(1,3));
+    return splitMinus(w,R,k,(R===100&&k===1&&Math.random()<.4)?rnd(11,29):rnd(3,9));}
+  if(w===5){
+    for(;;){
+      const a=notTen(12,98);const op=H?pick(['+','−']):pick(['+','+','−']);const T=H?100:pick([10,100]);let b,c;
+      if(op==='+'){b=T===10?rnd(1,9):rnd(11,89);c=T-b;}else{c=T===10?rnd(1,9):rnd(1,40);b=c+T;}
+      if(b===c||a===b||a===c||c<=0)continue;
+      return {w,a,b,c,op,T,order:rnd(0,1),opts:shuffle([a,b,c])};
+    }
   }
-  if(w===4){
-    const R=pick([100,100,200,1000,50]);const k=R===50?1:(R===1000?rnd(1,5):rnd(1,3));const N=R-k;
-    const m=(R===100&&k===1&&Math.random()<.4)?rnd(11,29):rnd(3,9);
-    const best={x:R,y:k,op:'−'};const d1={x:R-10,y:10-k,op:'+'};const d2={x:R/2,y:N-R/2,op:'+'};
-    const opts=shuffle([best,d1,d2]);return {w,N,m,left:Math.random()<.5,opts,best:opts.indexOf(best)};
+  if(w===6){
+    const k=[0,1].includes(o.k)?o.k:(H?0:(Math.random()<.3?1:0));
+    if(k===0)return H?{w,k,a1:rnd(6,9),a2:rnd(6,9),b1:rnd(6,9),b2:rnd(6,9)}:{w,k,a1:rnd(1,9),a2:rnd(1,9),b1:rnd(1,9),b2:rnd(1,9)};
+    const tn=rnd(1,9),u=rnd(1,9),m=rnd(3,9),t=tn*10,A=t+u;
+    const right=`${t}×${m}`;const opts=shuffle([right,`${tn}×${m}`,`${A}×${m}`]);
+    return {w,k,A,t,u,m,opts,ci:opts.indexOf(right)};
   }
-  // w===5
-  for(;;){
-    let a=rnd(12,98);if(a%10===0)continue;
-    const op=pick(['+','+','−']);const T=pick([10,100]);let b,c;
-    if(op==='+'){b=T===10?rnd(1,9):rnd(11,89);c=T-b;}else{c=T===10?rnd(1,9):rnd(1,40);b=c+T;}
-    if(b===c||a===b||a===c||c<=0)continue;
-    const opts=shuffle([a,b,c]);return {w,a,b,c,op,T,order:rnd(0,1),opts};
+  // w===7
+  const k=[0,1,2,3,4].includes(o.k)?o.k:(H?pick([3,4]):rnd(0,4));
+  if(k===0)return splitMinus(7,100,1,notTen(12,98),{k});
+  if(k===1){const N=pick([44,48,84,88,124,128,164,168]);const x=N-N%10,y=N%10;const best={x,y,op:'+'};
+    const opts=shuffle([best,{x:x-10,y:y+10,op:'+'},{x:N/2,y:N/2,op:'+'}]);return {w,k,N,m:25,left:Math.random()<.5,opts,best:opts.indexOf(best)};}
+  if(k===2)return {w,k,a10:pick([25,75,125]),b:pick([2,4,6,8]),c10:pick([4,8]),left:Math.random()<.5};
+  if(k===3){
+    for(;;){const a=notTen(12,98);const T=H?100:pick([10,100]);let b,c,d;
+      if(T===10){b=rnd(1,7);c=rnd(1,8-b);d=T-b-c;}else{b=rnd(10,60);c=rnd(10,89-b);d=T-b-c;}
+      if(d<1||new Set([a,b,c,d]).size<4)continue;
+      return {w,k,a,b,c,d,T,opts:shuffle([a,b,c])};}
   }
+  const best={x:1000,y:1,op:'+'};const opts=shuffle([best,{x:900,y:101,op:'+'},{x:500,y:501,op:'+'}]);
+  return {w,k:4,N:1001,m:(H||Math.random()<.5)?rnd(101,999):rnd(12,99),left:Math.random()<.5,opts,best:opts.indexOf(best)};
 }
+/* 問題の型 */
+function typ(p){
+  if(p.w===1)return 'dots'; if(p.w===2)return 'paren'; if(p.w===3||p.w===4)return 'split'; if(p.w===5)return 'group';
+  if(p.w===6)return p.k===1?'hissan':'grid';
+  if(p.w===7)return (p.k===0||p.k===1||p.k===4)?'split':(p.k===2?'dec':'group3');
+  return '';
+}
+const kOf=p=>p.w===2?p.form:(p.w>=6?p.k:0);
+const GATE=['group','group3','hissan']; // 選び直しが必要な選択（まちがいは「ミス」）
 function validP(p){
-  if(!p||typeof p!=='object'||![1,2,3,4,5].includes(p.w))return false;
-  const ok=ks=>ks.every(k=>num(p[k]));
-  if(p.w===1)return ok(['a','b','c']);
-  if(p.w===2)return ok(['a','b','c','form'])&&p.form>=0&&p.form<=3&&p.b>p.c;
-  if(p.w===3||p.w===4)return ok(['N','m','best'])&&Array.isArray(p.opts)&&p.opts.length===3&&p.opts.every(o=>o&&num(o.x)&&num(o.y)&&(o.op==='+'||o.op==='−'))&&p.best>=0&&p.best<3;
-  return ok(['a','b','c','T','order'])&&(p.op==='+'||p.op==='−')&&Array.isArray(p.opts)&&p.opts.length===3&&p.opts.every(num);
+  if(!p||typeof p!=='object'||!WORLDS.some(w=>w.id===p.w))return false;
+  if(p.w>=6&&!num(p.k))return false;
+  const ok=ks=>ks.every(k=>num(p[k]));const t=typ(p);
+  const splitOK=()=>ok(['N','m','best'])&&Array.isArray(p.opts)&&p.opts.length===3&&p.opts.every(o=>o&&num(o.x)&&num(o.y)&&(o.op==='+'||o.op==='−'))&&p.best>=0&&p.best<3;
+  if(t==='dots')return ok(['a','b','c']);
+  if(t==='paren')return ok(['a','b','c','form'])&&p.form>=0&&p.form<=3&&p.b>p.c;
+  if(t==='split')return splitOK();
+  if(t==='group')return ok(['a','b','c','T','order'])&&(p.op==='+'||p.op==='−')&&Array.isArray(p.opts)&&p.opts.length===3&&p.opts.every(num);
+  if(t==='grid')return ok(['a1','a2','b1','b2']);
+  if(t==='hissan')return ok(['A','t','u','m','ci'])&&Array.isArray(p.opts)&&p.opts.length===3&&p.opts.every(s=>typeof s==='string'&&/^\d+×\d+$/.test(s))&&p.ci>=0&&p.ci<3;
+  if(t==='dec')return ok(['a10','b','c10']);
+  if(t==='group3')return ok(['a','b','c','d','T'])&&Array.isArray(p.opts)&&p.opts.length===3&&p.opts.every(num);
+  return false;
 }
 const OPC=op=>op==='+'?'＋':'−';
 const B=i=>({b:i});
-/* 選んだ分け方（ch）をもとに、式の行・答え・ヒントを作る */
+const fmt=x10=>x10%10===0?String(x10/10):Math.floor(x10/10)+'.'+(x10%10);
+/* 選んだもの（ch）をもとに、式の行・答え・ヒントを作る */
 function build(p,ch){
-  if(p.w===1||p.w===2){
+  const t=typ(p);
+  if(t==='dots'||t==='paren'){
     const plus=p.w===1||p.form%2===0, op=plus?'＋':'−', aLeft=p.w===1||p.form<2;
     const ab=p.a*p.b, ac=p.a*p.c, res=plus?ab+ac:ab-ac;
     const head=aLeft?`${p.a}×(${p.b}${op}${p.c})`:`(${p.b}${op}${p.c})×${p.a}`;
@@ -244,7 +338,7 @@ function build(p,ch){
     return {lines:[[head],l2,['＝ ',B(2),' '+op+' ',B(3)],['＝ ',B(4)]],ans:[p.b,p.c,ab,ac,res],
       hints:[hb[0],hb[1],`${p.a}×${p.b} は？`,`${p.a}×${p.c} は？`,`${ab} ${op} ${ac} は？`]};
   }
-  if(p.w===3||p.w===4){
+  if(t==='split'){
     const o=p.opts[ch], op=OPC(o.op), m=p.m;
     const head=p.left?`${p.N}×${m}`:`${m}×${p.N}`;
     const l2=p.left?`＝ (${o.x}${op}${o.y})×${m}`:`＝ ${m}×(${o.x}${op}${o.y})`;
@@ -253,41 +347,76 @@ function build(p,ch){
     return {lines:[[head],[l2],[l3],['＝ ',B(0),' '+op+' ',B(1)],['＝ ',B(2)]],ans:[xm,ym,p.N*m],
       hints:[`${o.x}×${m} は？`,`${o.y}×${m} は？`,`${xm} ${op} ${ym} は？`]};
   }
-  const op=OPC(p.op), a=p.a, o0=p.order===0;
-  const head=o0?`${a}×${p.b} ${op} ${a}×${p.c}`:`${p.b}×${a} ${op} ${p.c}×${a}`;
-  return {lines:[[head],o0?['＝ '+a+'×(',B(0),' '+op+' ',B(1),')']:['＝ (',B(0),' '+op+' ',B(1),')×'+a],
-    o0?['＝ '+a+'×',B(2)]:['＝ ',B(2),'×'+a],['＝ ',B(3)]],ans:[p.b,p.c,p.T,a*p.T],
-    hints:['1つめのかけ算で、まとめた数でない方は？','2つめのかけ算で、まとめた数でない方は？',`${p.b} ${op} ${p.c} は？`,`${a}×${p.T} は？`]};
+  if(t==='group'){
+    const op=OPC(p.op), a=p.a, o0=p.order===0;
+    const head=o0?`${a}×${p.b} ${op} ${a}×${p.c}`:`${p.b}×${a} ${op} ${p.c}×${a}`;
+    return {lines:[[head],o0?['＝ '+a+'×(',B(0),' '+op+' ',B(1),')']:['＝ (',B(0),' '+op+' ',B(1),')×'+a],
+      o0?['＝ '+a+'×',B(2)]:['＝ ',B(2),'×'+a],['＝ ',B(3)]],ans:[p.b,p.c,p.T,a*p.T],
+      hints:['1つめのかけ算で、まとめた数でない方は？','2つめのかけ算で、まとめた数でない方は？',`${p.b} ${op} ${p.c} は？`,`${a}×${p.T} は？`]};
+  }
+  if(t==='grid'){
+    const A=p.a1*10+p.a2,Bn=p.b1*10+p.b2,x1=p.a1*10,x2=p.a2,y1=p.b1*10,y2=p.b2;
+    const v=[x1*y1,x1*y2,x2*y1,x2*y2];
+    return {lines:[[`${A}×${Bn}`],[`＝ (${x1}＋${x2})×(${y1}＋${y2})`],[`＝ ${x1}×${y1} ＋ ${x1}×${y2} ＋ ${x2}×${y1} ＋ ${x2}×${y2}`],
+      ['＝ ',B(0),' ＋ ',B(1),' ＋ ',B(2),' ＋ ',B(3)],['＝ ',B(4)]],ans:[...v,A*Bn],
+      hints:[`${x1}×${y1} は？`,`${x1}×${y2} は？`,`${x2}×${y1} は？`,`${x2}×${y2} は？`,`4つの部屋をたすと？`]};
+  }
+  if(t==='hissan'){
+    return {lines:[[`${p.A}×${p.m}`],[`＝ (${p.t}＋${p.u})×${p.m}`],[`＝ ${p.u}×${p.m} ＋ ${p.t}×${p.m}`],['＝ ',B(0),' ＋ ',B(1)],['＝ ',B(2)]],
+      ans:[p.u*p.m,p.t*p.m,p.A*p.m],hints:[`${p.u}×${p.m} は？（筆算の1段め）`,`${p.t}×${p.m} は？（筆算の2段め）`,'2つの段をたすと？']};
+  }
+  if(t==='dec'){
+    const aS=fmt(p.a10),cS=fmt(p.c10),NS=fmt(p.b*10+p.c10),x=p.a10*p.b/10,y=p.a10*p.c10/100;
+    const head=p.left?`${NS}×${aS}`:`${aS}×${NS}`;
+    return {lines:[[head],[p.left?`＝ (${p.b}＋${cS})×${aS}`:`＝ ${aS}×(${p.b}＋${cS})`],[p.left?`＝ ${p.b}×${aS} ＋ ${cS}×${aS}`:`＝ ${aS}×${p.b} ＋ ${aS}×${cS}`],
+      ['＝ ',B(0),' ＋ ',B(1)],['＝ ',B(2)]],ans:[x,y,x+y],hints:[`${aS}×${p.b} は？`,`${aS}×${cS} は？（${aS}×${p.c10} を10でわる）`,`${x} ＋ ${y} は？`]};
+  }
+  // group3
+  const a=p.a;
+  return {lines:[[`${a}×${p.b} ＋ ${a}×${p.c} ＋ ${a}×${p.d}`],['＝ '+a+'×(',B(0),' ＋ ',B(1),' ＋ ',B(2),')'],['＝ '+a+'×',B(3)],['＝ ',B(4)]],
+    ans:[p.b,p.c,p.d,p.T,a*p.T],hints:['1つめのかけ算の、もう1つの数は？','2つめのかけ算の、もう1つの数は？','3つめのかけ算の、もう1つの数は？',`${p.b}＋${p.c}＋${p.d} は？`,`${a}×${p.T} は？`]};
 }
-function headOf(p){
-  if(p.w===3||p.w===4)return p.left?`${p.N}×${p.m}`:`${p.m}×${p.N}`;
-  return build(p,0).lines[0][0];
-}
+function headOf(p){if(typ(p)==='split')return p.left?`${p.N}×${p.m}`:`${p.m}×${p.N}`;return build(p,0).lines[0][0];}
 function qTitle(p){
-  if(p.w===1)return '点の数を、2つに分けて数えよう';
-  if(p.w===2)return 'かっこを開いて計算しよう';
-  if(p.w===3||p.w===4)return `${headOf(p)} を工夫して計算しよう`;
-  return `${headOf(p)} をまとめて計算しよう`;
+  const t=typ(p),h=headOf(p);let s;
+  if(t==='dots')s='点の数を、2つに分けて数えよう';
+  else if(t==='paren')s='かっこを開いて計算しよう';
+  else if(t==='split')s=`${h} を工夫して計算しよう`;
+  else if(t==='group'||t==='group3')s=`${h} をまとめて計算しよう`;
+  else if(t==='grid')s=`${h} を4つの部屋に分けて計算しよう`;
+  else if(t==='hissan')s='筆算の中の分配法則をさがそう';
+  else s=`小数でも分配法則！ ${h} を計算しよう`;
+  return (p.boss?'👑 ボス問題！ ':'')+(p.rev?'🔁 ふくしゅう　':'')+s;
 }
 function choiceOf(p){
-  if(p.w===3||p.w===4)return {prompt:`${p.N} をどう分ける？`,labels:p.opts.map(o=>`${o.x}${OPC(o.op)}${o.y}`)};
-  if(p.w===5)return {prompt:'どちらのかけ算にもある数は？（その数でまとめる）',labels:p.opts.map(String)};
+  const t=typ(p);
+  if(t==='split')return {prompt:`${p.N} をどう分ける？`,labels:p.opts.map(o=>`${o.x}${OPC(o.op)}${o.y}`)};
+  if(t==='group'||t==='group3')return {prompt:'どのかけ算にもある数は？（その数でまとめる）',labels:p.opts.map(String)};
+  if(t==='hissan')return {prompt:`${p.A}×${p.m} のくわしい筆算。2段めは、どのかけ算の答え？`,labels:p.opts.slice()};
   return null;
 }
 function explain(p,ch,best){
-  if(p.w===1)return `${p.a}×(${p.b}＋${p.c}) は「${p.a}×${p.b}」と「${p.a}×${p.c}」を合わせたもの。点の図を2つに分けても、点の数は変わらないね。`;
-  if(p.w===2){const plus=p.form%2===0;return plus?`かっこの中の2つの数に、それぞれ ${p.a} をかけてたす。長方形を2つに切っても面積は同じ。`:`大きい長方形（×${p.b}）から、切り取った帯（×${p.c}）の分をひく。ひき算でも分配法則が使える。`;}
-  if(p.w===3||p.w===4){
+  const t=typ(p);
+  if(t==='dots')return `${p.a}×(${p.b}＋${p.c}) は「${p.a}×${p.b}」と「${p.a}×${p.c}」を合わせたもの。点の図を2つに分けても、点の数は変わらないね。`;
+  if(t==='paren'){const plus=p.form%2===0;return plus?`かっこの中の2つの数に、それぞれ ${p.a} をかけてたす。長方形を2つに切っても面積は同じ。`:`大きい長方形（×${p.b}）から、切り取った帯（×${p.c}）の分をひく。ひき算でも分配法則が使える。`;}
+  if(t==='split'){
     const o=p.opts[p.best], mul=v=>p.left?`${v}×${p.m}`:`${p.m}×${v}`;
-    const why=p.w===3?`${p.N} を ${o.x}＋${o.y} に分けると、${mul(o.x)} はすぐわかる。あとは ${mul(o.y)} をたすだけ。`:`${p.N} は ${o.x} より ${o.y} 小さい。${mul(o.x)} から ${mul(o.y)} をひけば一発。`;
+    let why=o.op==='+'?`${p.N} を ${o.x}＋${o.y} に分けると、${mul(o.x)} はすぐわかる。あとは ${mul(o.y)} をたすだけ。`:`${p.N} は ${o.x} より ${o.y} 小さい。${mul(o.x)} から ${mul(o.y)} をひけば一発。`;
+    if(p.w===7&&p.k===1)why+=' 25×4＝100 だから、25×40 や 25×80 もすぐわかる。';
+    if(p.w===7&&p.k===4)why+=` ${p.m}×1000 と ${p.m} をたすので、${p.m} が2回ならぶ！`;
     if(best)return 'いちばん楽な分け方！ '+why;
     const c=p.opts[ch];return `${c.x}${OPC(c.op)}${c.y} でも計算できた！ でも、${why}`;
   }
-  return `どちらにも ×${p.a} があるので ${p.a}×(${p.b}${OPC(p.op)}${p.c}) とまとめられる。${p.b}${OPC(p.op)}${p.c}＝${p.T} だから、${p.a}×${p.T} で一発！`;
+  if(t==='group')return `どちらにも ×${p.a} があるので ${p.a}×(${p.b}${OPC(p.op)}${p.c}) とまとめられる。${p.b}${OPC(p.op)}${p.c}＝${p.T} だから、${p.a}×${p.T} で一発！`;
+  if(t==='group3')return `3つとも ×${p.a} があるので ${p.a}×(${p.b}＋${p.c}＋${p.d}) にまとめられる。3つでも分配法則は使える！`;
+  if(t==='grid')return `${p.a1*10+p.a2}×${p.b1*10+p.b2} は、たてとよこを十の位と一の位に分けた4つの部屋の面積をたしたもの。2回分配しているんだね。`;
+  if(t==='hissan')return `くわしい筆算の1段めは ${p.u}×${p.m}、2段めは ${p.t}×${p.m}。筆算は ${p.A} を ${p.t}＋${p.u} に分けて計算してたしている＝分配法則そのもの！`;
+  return `${fmt(p.b*10+p.c10)} を ${p.b}＋${fmt(p.c10)} に分けた。小数でも分配法則はそのまま使える（5年生で習う内容の先取り）。`;
 }
 
-/* ===== 図（点の図・面積図） ===== */
+/* ===== 図（点の図・面積図・筆算） ===== */
 const HATCH='<defs><pattern id="dl-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="sv-hatch"/></pattern></defs>';
+const PCLS=['sv-blue','sv-orange','sv-green','sv-gray'], TCLS=['sv-tb','sv-to','sv-tg','sv-ts'];
 function dotsSVG(a,b,c,solved){
   const s=26,gap=14,ox=34,oy=30;const W=ox+(b+c)*s+gap+10,H=oy+a*s+(solved?30:8);
   let g='';
@@ -295,82 +424,130 @@ function dotsSVG(a,b,c,solved){
   g+=`<text x="${ox+b*s/2}" y="20" text-anchor="middle" class="sv-tb">${b}列</text>`;
   g+=`<text x="${ox+b*s+gap+c*s/2}" y="20" text-anchor="middle" class="sv-to">${c}列</text>`;
   g+=`<text x="14" y="${oy+a*s/2+5}" text-anchor="middle" class="sv-t">${a}</text>`;
-  g+=`<line x1="${ox+b*s+gap/2}" y1="${oy-4}" x2="${ox+b*s+gap/2}" y2="${oy+a*s+4}" stroke="currentColor" stroke-dasharray="4 4" class="sv-t" style="stroke:var(--sub)"/>`;
+  g+=`<line x1="${ox+b*s+gap/2}" y1="${oy-4}" x2="${ox+b*s+gap/2}" y2="${oy+a*s+4}" stroke-dasharray="4 4" style="stroke:var(--sub)"/>`;
   if(solved){g+=`<text x="${ox+b*s/2}" y="${oy+a*s+22}" text-anchor="middle" class="sv-tb">${a*b}</text><text x="${ox+b*s+gap+c*s/2}" y="${oy+a*s+22}" text-anchor="middle" class="sv-to">${a*c}</text>`;}
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="点が${a}行。左に青い点が${b}列、右にオレンジの点が${c}列">${g}</svg>`;
 }
-/* h: 縦の長さ、x/y: 横の2つの長さ、minus: y を切り取る */
-function areaSVG(h,x,y,minus,solved){
+/* たて hLab、よこを parts（v:比の値, lab:上の文字, area:答え）に分けた長方形 */
+function areaN(hLab,parts,solved){
+  const ox=40,oy=28,TW=280,RH=96;
+  let ws=parts.map(q=>Math.max(1e-9,q.v));const sum=ws.reduce((a,b)=>a+b,0);ws=ws.map(v=>Math.max(48,v/sum*TW));const k=TW/ws.reduce((a,b)=>a+b,0);ws=ws.map(v=>v*k);
+  let g='',x=ox;
+  parts.forEach((q,i)=>{g+=`<rect x="${x}" y="${oy}" width="${ws[i]}" height="${RH}" class="${PCLS[i]}" rx="4"/><text x="${x+ws[i]/2}" y="20" text-anchor="middle" class="${TCLS[i]}">${q.lab}</text>`;
+    if(solved)g+=`<text x="${x+ws[i]/2}" y="${oy+RH/2+5}" text-anchor="middle" class="${TCLS[i]}">${q.area}</text>`;x+=ws[i];});
+  g+=`<text x="18" y="${oy+RH/2+5}" text-anchor="middle" class="sv-t">${hLab}</text>`;
+  const W=ox+TW+10,H=oy+RH+10;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="たて${hLab}の長方形を、よこ${parts.map(q=>q.lab).join('と')}に分けた図">${g}</svg>`;
+}
+function cutSVG(h,x,y,solved){
   const ox=40,oy=28,TW=280,RH=96;let g=HATCH;
-  if(!minus){
-    const sc=TW/(x+y);let wx=Math.max(48,x*sc),wy=Math.max(48,y*sc);const k=TW/(wx+wy);wx*=k;wy*=k;
-    g+=`<rect x="${ox}" y="${oy}" width="${wx}" height="${RH}" class="sv-blue" rx="4"/><rect x="${ox+wx}" y="${oy}" width="${wy}" height="${RH}" class="sv-orange" rx="4"/>`;
-    g+=`<text x="${ox+wx/2}" y="20" text-anchor="middle" class="sv-tb">${x}</text><text x="${ox+wx+wy/2}" y="20" text-anchor="middle" class="sv-to">${y}</text>`;
-    if(solved)g+=`<text x="${ox+wx/2}" y="${oy+RH/2+5}" text-anchor="middle" class="sv-tb">${h*x}</text><text x="${ox+wx+wy/2}" y="${oy+RH/2+5}" text-anchor="middle" class="sv-to">${h*y}</text>`;
-  }else{
-    const wy=Math.min(120,Math.max(44,TW*y/x));
-    g+=`<rect x="${ox}" y="${oy}" width="${TW}" height="${RH}" class="sv-blue" rx="4"/><rect x="${ox+TW-wy}" y="${oy}" width="${wy}" height="${RH}" class="sv-cut"/>`;
-    g+=`<text x="${ox+TW/2}" y="20" text-anchor="middle" class="sv-tb">${x}</text><text x="${ox+TW}" y="${oy+RH+20}" text-anchor="end" class="sv-tn">−${y}（切り取る）</text>`;
-    if(solved)g+=`<text x="${ox+(TW-wy)/2}" y="${oy+RH/2+5}" text-anchor="middle" class="sv-tb">${h*x}−${h*y}</text>`;
-  }
+  const wy=Math.min(120,Math.max(44,TW*y/x));
+  g+=`<rect x="${ox}" y="${oy}" width="${TW}" height="${RH}" class="sv-blue" rx="4"/><rect x="${ox+TW-wy}" y="${oy}" width="${wy}" height="${RH}" class="sv-cut"/>`;
+  g+=`<text x="${ox+TW/2}" y="20" text-anchor="middle" class="sv-tb">${x}</text><text x="${ox+TW}" y="${oy+RH+20}" text-anchor="end" class="sv-tn">−${y}（切り取る）</text>`;
+  if(solved)g+=`<text x="${ox+(TW-wy)/2}" y="${oy+RH/2+5}" text-anchor="middle" class="sv-tb">${h*x}−${h*y}</text>`;
   g+=`<text x="18" y="${oy+RH/2+5}" text-anchor="middle" class="sv-t">${h}</text>`;
-  const W=ox+TW+10,H=oy+RH+(minus?30:10);
-  const lab=minus?`たて${h}、よこ${x}の長方形から、よこ${y}の帯を切り取った図`:`たて${h}の長方形を、よこ${x}と${y}に分けた図`;
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${lab}">${g}</svg>`;
+  const W=ox+TW+10,H=oy+RH+30;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="たて${h}、よこ${x}の長方形から、よこ${y}の帯を切り取った図">${g}</svg>`;
+}
+function rect2(h,x,y,minus,solved){return minus?cutSVG(h,x,y,solved):areaN(h,[{v:x,lab:x,area:h*x},{v:y,lab:y,area:h*y}],solved);}
+function gridSVG(p,solved){
+  const x1=p.a1*10,x2=p.a2,y1=p.b1*10,y2=p.b2,ox=44,oy=28,TW=270,TH=170;
+  const wa=Math.max(60,Math.min(TW-60,TW*x1/(x1+x2))),wb=TW-wa,ha=Math.max(56,Math.min(TH-56,TH*y1/(y1+y2))),hb=TH-ha;
+  const cells=[[ox,oy,wa,ha,x1*y1],[ox,oy+ha,wa,hb,x1*y2],[ox+wa,oy,wb,ha,x2*y1],[ox+wa,oy+ha,wb,hb,x2*y2]];
+  let g='';cells.forEach((c,i)=>{g+=`<rect x="${c[0]}" y="${c[1]}" width="${c[2]}" height="${c[3]}" class="${PCLS[i]}"/>`;if(solved)g+=`<text x="${c[0]+c[2]/2}" y="${c[1]+c[3]/2+5}" text-anchor="middle" class="${TCLS[i]}">${c[4]}</text>`;});
+  g+=`<text x="${ox+wa/2}" y="20" text-anchor="middle" class="sv-t">${x1}</text><text x="${ox+wa+wb/2}" y="20" text-anchor="middle" class="sv-t">${x2}</text>`;
+  g+=`<text x="20" y="${oy+ha/2+5}" text-anchor="middle" class="sv-t">${y1}</text><text x="20" y="${oy+ha+hb/2+5}" text-anchor="middle" class="sv-t">${y2}</text>`;
+  const W=ox+TW+10,H=oy+TH+10;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="よこ${x1}と${x2}、たて${y1}と${y2}に分けた4つの部屋の面積図">${g}</svg>`;
+}
+function hissanSVG(p,solved){
+  const R=130,LX=150;let g='';const row=(y,txt,cls)=>`<text x="${R}" y="${y}" text-anchor="end" class="${cls}">${txt}</text>`;
+  g+=row(30,p.A,'sv-big')+`<text x="40" y="62" class="sv-big">×</text>`+row(62,p.m,'sv-big');
+  g+=`<line x1="34" y1="72" x2="${R+4}" y2="72" class="sv-rule"/>`;
+  g+=row(100,solved?p.u*p.m:'？','sv-big')+row(132,solved?p.t*p.m:'？','sv-bigb');
+  g+=`<line x1="34" y1="142" x2="${R+4}" y2="142" class="sv-rule"/>`;
+  g+=row(172,solved?p.A*p.m:'？','sv-big');
+  g+=`<text x="${LX}" y="98" class="sv-t">← 1段め${solved?`（${p.u}×${p.m}）`:''}</text><text x="${LX}" y="130" class="sv-tb">← 2段め${solved?`（${p.t}×${p.m}）`:''}</text>`;
+  return `<svg viewBox="0 0 330 185" width="330" height="185" role="img" aria-label="${p.A}かける${p.m}のくわしい筆算${solved?`。1段めが${p.u*p.m}、2段めが${p.t*p.m}`:''}">${g}</svg>`;
 }
 function diagram(p,ch,solved){
-  if(p.w===1)return dotsSVG(p.a,p.b,p.c,solved);
-  if(p.w===2)return areaSVG(p.a,p.b,p.c,p.form%2===1,solved);
-  if(p.w===3||p.w===4){if(ch==null)return '';const o=p.opts[ch];return areaSVG(p.m,o.x,o.y,o.op==='−',solved);}
-  if(ch==null)return '';return areaSVG(p.a,p.b,p.c,p.op==='−',solved);
+  const t=typ(p);
+  if(t==='dots')return dotsSVG(p.a,p.b,p.c,solved);
+  if(t==='paren')return rect2(p.a,p.b,p.c,p.form%2===1,solved);
+  if(t==='grid')return gridSVG(p,solved);
+  if(t==='hissan')return hissanSVG(p,solved);
+  if(t==='dec')return areaN(fmt(p.a10),[{v:p.b,lab:p.b,area:p.a10*p.b/10},{v:p.c10/10,lab:fmt(p.c10),area:p.a10*p.c10/100}],solved);
+  if(ch==null)return '';
+  if(t==='split'){const o=p.opts[ch];return rect2(p.m,o.x,o.y,o.op==='−',solved);}
+  if(t==='group')return rect2(p.a,p.b,p.c,p.op==='−',solved);
+  return areaN(p.a,[p.b,p.c,p.d].map(v=>({v,lab:v,area:p.a*v})),solved);
 }
 
 /* ===== セッション ===== */
 let view='home', ses=null, cur=null, timerId=null;
+const today=()=>dkey(new Date());
+const dueReviews=()=>state.review.filter(r=>r.due<=today()&&unlocked(r.w));
+function weightedWorld(U){const ws=U.map(id=>MASTER+20-wstat(id).pts);let r=Math.random()*ws.reduce((a,b)=>a+b,0),i=0;while(r>=ws[i]&&i<ws.length-1){r-=ws[i];i++;}return U[i];}
+function genTA(){return gen(pick(WORLDS.filter(x=>x.id<=5&&unlocked(x.id)).map(x=>x.id)));}
 function newSession(mode,w){
   const list=[];
-  if(mode==='world'){for(let i=0;i<PRACTICE_N;i++)list.push(gen(w));}
+  if(mode==='world'){for(let i=0;i<PRACTICE_N-1;i++)list.push(gen(w));list.push(Object.assign(gen(w,{hard:true}),{boss:true}));}
+  else if(mode==='ta'){list.push(genTA());}
   else{
+    for(const r of dueReviews().slice(0,REVIEW_MAX))list.push(Object.assign(gen(r.w,{k:r.k}),{rev:true}));
     const U=WORLDS.filter(x=>unlocked(x.id)).map(x=>x.id);
-    for(let i=0;i<MISSION_N;i++){
-      const ws=U.map(id=>MASTER+20-wstat(id).pts);let r=Math.random()*ws.reduce((a,b)=>a+b,0),pi=0;
-      while(r>=ws[pi]&&pi<ws.length-1){r-=ws[pi];pi++;}
-      list.push(gen(U[pi]));
-    }
+    while(list.length<MISSION_N)list.push(gen(weightedWorld(U)));
   }
-  ses={mode,w:w||0,list,idx:0,results:[],xp0:state.xp,pts0:Object.fromEntries(WORLDS.map(x=>[x.id,wstat(x.id).pts])),unl0:WORLDS.filter(x=>unlocked(x.id)).map(x=>x.id),day:dkey(new Date())};
+  ses={id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),mode,w:w||0,list,idx:0,results:[],newCards:[],xp0:state.xp,taBest0:state.ta.best,pts0:Object.fromEntries(WORLDS.map(x=>[x.id,wstat(x.id).pts])),unl0:WORLDS.filter(x=>unlocked(x.id)).map(x=>x.id),day:today()};
+  if(mode==='ta')ses.endAt=Date.now()+TA_SEC*1000;
   cur=null;startProblem();go('play');
 }
-function saveSes(){if(ses){if(cur)ses.cur=Object.assign({idx:ses.idx},cur);lsSet(SES,JSON.stringify(ses));}}
+function saveSes(){
+  if(!ses)return;
+  if(ses.id){let st=null;try{st=JSON.parse(lsGet(SES)||'null')}catch(e){}
+    // 別のタブで同じセッションが先に進んでいる・別のセッションに替わった時は上書きしない
+    if(st&&st.id===ses.id&&Array.isArray(st.results)&&st.results.length>ses.results.length)return;
+    if(ses.results.length>0&&(!st||st.id!==ses.id))return;}
+  if(cur)ses.cur=Object.assign({idx:ses.idx},cur);lsSet(SES,JSON.stringify(ses));
+}
+function loadSes(){
+  try{const s=JSON.parse(lsGet(SES)||'null');
+    if(!s||!['mission','world','ta'].includes(s.mode)||!Array.isArray(s.list)||!s.list.length||!s.list.every(validP)||!num(s.idx)||s.idx<0||s.idx>=s.list.length||!Array.isArray(s.results))return null;
+    if(!num(s.xp0)||!s.pts0||!Array.isArray(s.unl0))return null;
+    if(s.mode==='ta'&&!num(s.endAt))return null;
+    if(!isDate(s.day))s.day=today();
+    if(!Array.isArray(s.newCards))s.newCards=[];
+    s.newCards=s.newCards.filter(id=>CARD_IDS.includes(id));
+    if(!num(s.taBest0))s.taBest0=state.ta.best;
+    return s;}catch(e){return null}
+}
 function restoreCur(s){
   const c=s.cur;if(!c||c.idx!==s.idx||!num(c.start)||!num(c.miss))return null;
-  const p=s.list[s.idx];const n=(c.ch==null)?0:build(p,c.ch).ans.length;
+  const p=s.list[s.idx];
   if(c.ch!=null&&!(num(c.ch)&&c.ch>=0&&c.ch<3))return null;
+  const n=(c.ch==null)?0:build(p,c.ch).ans.length;
   const arr=(a,f)=>Array.isArray(a)&&a.length===n&&a.every(f);
   if(c.ch!=null&&!(arr(c.vals,v=>typeof v==='string'&&/^\d{0,7}$/.test(v))&&arr(c.okb,v=>typeof v==='boolean')&&arr(c.bad,v=>typeof v==='boolean')&&arr(c.tries,num)))return null;
   if(c.done&&!(c.stars&&num(c.stars.stars)))return null;
   return {ch:c.ch,wrongOpts:Array.isArray(c.wrongOpts)?c.wrongOpts.filter(num):[],vals:c.vals||[],okb:c.okb||[],bad:c.bad||[],tries:c.tries||[],
-    active:num(c.active)&&c.active>=0&&c.active<Math.max(n,1)?c.active:0,miss:c.miss,start:c.start,done:c.done===true,stars:c.stars||null,fb:'',fbc:''};
+    active:num(c.active)&&c.active>=0&&c.active<Math.max(n,1)?c.active:0,miss:c.miss,start:c.start,done:c.done===true,stars:c.stars||null,
+    newCards:Array.isArray(c.newCards)?c.newCards.filter(id=>CARD_IDS.includes(id)):[],fb:'',fbc:''};
 }
-function loadSes(){
-  try{const s=JSON.parse(lsGet(SES)||'null');
-    if(!s||!['mission','world'].includes(s.mode)||!Array.isArray(s.list)||!s.list.length||!s.list.every(validP)||!num(s.idx)||s.idx<0||s.idx>=s.list.length||!Array.isArray(s.results))return null;
-    if(!num(s.xp0)||!s.pts0||!Array.isArray(s.unl0))return null;
-    if(typeof s.day!=='string')s.day=dkey(new Date());
-    return s;}catch(e){return null}
-}
-function startProblem(){
+function startProblem(fb,fbc){
   const p=ses.list[ses.idx];const c=choiceOf(p);
-  cur={ch:c?null:0,wrongOpts:[],vals:[],okb:[],bad:[],tries:[],active:0,miss:0,start:Date.now(),done:false,stars:null,fb:'',fbc:''};
+  cur={ch:c?null:0,wrongOpts:[],vals:[],okb:[],bad:[],tries:[],active:0,miss:0,start:Date.now(),done:false,stars:null,newCards:[],fb:fb||'',fbc:fbc||''};
   if(!c)setupBlanks();
   saveSes();
 }
 function setupBlanks(){const b=build(ses.list[ses.idx],cur.ch);cur.vals=b.ans.map(()=> '');cur.okb=b.ans.map(()=>false);cur.bad=b.ans.map(()=>false);cur.tries=b.ans.map(()=>0);cur.active=0;}
 function chooseOpt(i){
-  if(cur.done||cur.ch!=null)return;const p=ses.list[ses.idx];
-  if(p.w===5){
-    if(p.opts[i]!==p.a){cur.wrongOpts.push(i);cur.miss++;cur.fb=`${p.opts[i]} は、片方のかけ算にしかないよ。両方にある数をさがそう。`;cur.fbc='ng';saveSes();render();return;}
-    cur.ch=i;cur.fb='そのとおり！ かっこの中を考えよう。';cur.fbc='ok';
+  if(cur.done||cur.ch!=null||cur.wrongOpts.includes(i))return;const p=ses.list[ses.idx],t=typ(p);
+  if(GATE.includes(t)){
+    const ok=t==='hissan'?i===p.ci:p.opts[i]===p.a;
+    if(!ok){cur.wrongOpts.push(i);cur.miss++;
+      cur.fb=t==='hissan'?'ちがうよ。くわしい筆算は、1段めが「一の位×」、2段めが「十の位×」の答えだよ。':`${p.opts[i]} は、全部のかけ算にはないよ。どのかけ算にもある数をさがそう。`;
+      cur.fbc='ng';saveSes();render();return;}
+    cur.ch=i;cur.fb=t==='hissan'?'そのとおり！ 筆算を式で書いてみよう。':'そのとおり！ かっこの中を考えよう。';cur.fbc='ok';
   }else{cur.ch=i;cur.fb=i===p.best?'いい分け方！':'その分け方でも計算できる。やってみよう。';cur.fbc='ok';}
   setupBlanks();saveSes();render();
 }
@@ -399,40 +576,91 @@ function check(i){
   cur.fb='おしい！ '+b.hints[i]+(cur.tries[i]>=2?`（答えは ${b.ans[i]}）`:'');cur.fbc='ng';
   saveSes();render(true);
 }
+function award(id){if(state.cards[id]||!CARD_IDS.includes(id))return;state.cards[id]=today();if(cur&&!cur.newCards.includes(id))cur.newCards.push(id);if(ses&&!ses.newCards.includes(id))ses.newCards.push(id);}
+function problemCards(p,stars,best,sec,clean){
+  const t=typ(p);
+  if(clean){
+  if(t==='dots'&&stars===3)award('dots');
+  if(t==='paren'){if(!state.forms.includes(p.form))state.forms.push(p.form);if(state.forms.length>=4)award('paren4');}
+  if(t==='split'&&best){const o=p.opts[p.best];
+    if(p.w===3&&o.x===100)award('r100'); if(p.w===3&&o.x>=1000)award('r1000'); if(p.w===4)award('minus');
+    if(p.w===7&&p.k===0)award('n99'); if(p.w===7&&p.k===1)award('q25'); if(p.w===7&&p.k===4)award('n1001');}
+  if(t==='group'){award('group');if(p.T===100)award('group100');}
+  if(t==='grid')award('grid'); if(t==='hissan')award('hissan'); if(t==='dec')award('dec'); if(t==='group3')award('g3');
+  if(sec<=10)award('speed');
+  }
+  if(p.boss&&stars>=2){state.bossWins++;award('boss');if(state.bossWins>=5)award('boss5');}
+  if(p.rev&&stars===3)award('review');
+  if(WORLDS.some(w=>mastery(w.id).lv===4))award('master');
+  if(levelOf(state.xp)>=10)award('lv10');
+}
+function updateReview(p,stars){
+  const k=kOf(p),q=state.review,ix=q.findIndex(r=>r.w===p.w&&r.k===k);
+  if(stars<3){const it={w:p.w,k,due:dkey(addDays(new Date(),REVIEW_STEPS[0])),step:0};if(ix>=0)q[ix]=it;else{q.push(it);if(q.length>30)q.shift();}}
+  else if(p.rev&&ix>=0){const st=q[ix].step+1;if(st>=REVIEW_STEPS.length)q.splice(ix,1);else{q[ix].step=st;q[ix].due=dkey(addDays(new Date(),REVIEW_STEPS[st]));}}
+}
+/* 別のタブで同じセッションが先に進んでいたら、点を足さずにそちらに合わせる */
+function sessionMovedElsewhere(){
+  if(!ses||!ses.id)return false;
+  let st=null;try{st=JSON.parse(lsGet(SES)||'null')}catch(e){}
+  if(!st||st.id!==ses.id){toast('別の画面でこの練習が終わっていました');ses=null;cur=null;go('home');return true;}
+  if(Array.isArray(st.results)&&st.results.length!==ses.results.length){const s=loadSes();if(!s){ses=null;cur=null;go('home');return true;}
+    ses=s;cur=restoreCur(s);if(!cur)startProblem();toast('別の画面で進んでいたので、そちらに合わせました');render();return true;}
+  return false;
+}
 function finish(){
+  if(sessionMovedElsewhere())return;
   const p=ses.list[ses.idx],w=WORLDS[p.w-1];
   const sec=Math.round((Date.now()-cur.start)/1000);
-  const best=(p.w===3||p.w===4)?cur.ch===p.best:true;
+  const best=typ(p)==='split'?cur.ch===p.best:true;
   const s2=cur.miss===0&&best, s3=sec<=w.target;
   const stars=1+(s2?1:0)+(s3?1:0);
   cur.done=true;cur.stars={stars,s2,s3,sec,best};
-  const gain=10+5*(stars-1);
+  const gain=(10+5*(stars-1))*(p.boss?2:1);
   refreshState();
   state.xp+=gain;
   const ws=state.worlds[p.w]||(state.worlds[p.w]={pts:0,n:0,three:0,days:0,last:''});
   ws.n++;if(stars===3)ws.three++;ws.pts=Math.min(MASTER,ws.pts+2+(s2?2:0)+(s3?2:0));
-  const today=dkey(new Date());if(ws.last!==today){ws.days++;ws.last=today;}
+  const dk=today();if(ws.last!==dk){ws.days++;ws.last=dk;}
   state.total.solved++;state.total.stars+=stars;
-  const dk=dkey(new Date());const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});dd.solved++;dd.stars+=stars;
+  const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});dd.solved++;dd.stars+=stars;
+  if(ses.mode!=='ta')updateReview(p,stars);
+  problemCards(p,stars,best,sec,s2);
   ses.results.push({w:p.w,stars,sec,gain});
-  saveState();saveSes();
-  cur.fb='';render();
+  saveState();
+  if(ses.mode==='ta'){
+    if(Date.now()>=ses.endAt){endSession();return;}
+    const nc=cur.newCards.map(cardName);
+    ses.list.push(genTA());ses.idx++;
+    startProblem(`⭕ ${ses.results.length}問め クリア！`+(nc.length?`　🃏 ${nc.join('・')}`:''),'ok');render();return;
+  }
+  saveSes();cur.fb='';render();
 }
 function next(){
   if(!cur||!cur.done)return;
   ses.idx++;
   if(ses.idx<ses.list.length){startProblem();render();window.scrollTo(0,0);return;}
-  let bonus=0;const dk=ses.day||dkey(new Date());refreshState();
-  if(ses.mode==='mission'){const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});if(!dd.mission){dd.mission=true;bonus=MISSION_BONUS;state.xp+=bonus;}}
+  endSession();
+}
+function endSession(){
+  let bonus=0;const dk=ses.day||today();refreshState();
+  if(ses.mode==='mission'){const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});if(!dd.mission){dd.mission=true;bonus=MISSION_BONUS;state.xp+=bonus;}
+    if(ses.results.length===MISSION_N&&ses.results.every(r=>r.stars===3))award('perfect');
+    const sc=streakInfo().count;if(sc>=3)award('st3');if(sc>=7)award('st7');if(sc>=30)award('st30');}
+  let ta=null;
+  if(ses.mode==='ta'){const n=ses.results.length;state.ta.best=Math.max(state.ta.best,n);state.ta.recent=state.ta.recent.concat(ses.results.map(r=>r.sec)).slice(-10);
+    if(n>=8)award('ta8');ta={n,best:state.ta.best,newBest:n>0&&n>(ses.taBest0||0)};}
+  if(levelOf(state.xp)>=10)award('lv10');
   saveState();
   const res={mode:ses.mode,w:ses.w,n:ses.results.length,stars:ses.results.reduce((a,r)=>a+r.stars,0),three:ses.results.filter(r=>r.stars===3).length,
-    xp:ses.results.reduce((a,r)=>a+r.gain,0)+bonus,bonus,lv0:levelOf(ses.xp0),lv1:levelOf(state.xp),
+    xp:ses.results.reduce((a,r)=>a+r.gain,0)+bonus,bonus,lv0:levelOf(ses.xp0),lv1:levelOf(state.xp),ta,cards:ses.newCards.slice(),
     worlds:[...new Set(ses.results.map(r=>r.w))].map(id=>({id,p0:ses.pts0[id]||0,p1:wstat(id).pts})),
     newly:WORLDS.filter(x=>unlocked(x.id)&&!ses.unl0.includes(x.id)).map(x=>x.id)};
   lsSet(LAST,JSON.stringify(res));lsDel(SES);ses=null;cur=null;go('result');
 }
 function quit(){
-  if(ses&&ses.results.length<ses.list.length&&!(cur&&cur.done&&ses.idx===ses.list.length-1)&&!confirm('とちゅうでやめますか？（解いた問題の点はのこります）'))return;
+  if(ses&&ses.mode!=='ta'&&ses.results.length<ses.list.length&&!(cur&&cur.done&&ses.idx===ses.list.length-1)&&!confirm('とちゅうでやめますか？（解いた問題の点はのこります）'))return;
+  if(ses&&ses.mode==='ta'&&!confirm('タイムアタックをやめますか？（記録はのこりません。解いた問題の点はのこります）'))return;
   lsDel(SES);ses=null;cur=null;go('home');
 }
 
@@ -442,50 +670,69 @@ const app=$('app');
 function go(v){view=VIEWS.includes(v)?v:'home';lsSet(VIEW,view);render();window.scrollTo(0,0);}
 function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(()=>{t.style.display='none'},3200);}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+const cardName=id=>{const c=CARDS.find(x=>x.id===id);return c?c.e+' '+c.n:''};
 function render(shake){
   clearInterval(timerId);timerId=null;
   if(view==='play'&&ses&&cur)renderPlay(shake);
   else if(view==='result')renderResult();
+  else if(view==='cards')renderCards();
   else{view='home';renderHome();}
 }
 function renderHome(){
   const L=levelOf(state.xp),lo=need(L),hi=need(L+1),pct=Math.round((state.xp-lo)/(hi-lo)*100);
-  const st=streakInfo();
+  const st=streakInfo(),due=dueReviews().length,rk=rankOf(),nCards=Object.keys(state.cards).length;
   let h=`<div class="topbar"><h1>分配法則ラボ</h1><a class="back" href="./index.html">← 学習ツールの入口</a></div>`;
   h+=`<section class="card" aria-label="レベルと連続日数"><div class="row" style="justify-content:space-between"><div class="lv"><span>レベル</span><b>${L}</b><span class="chip">${esc(titleOf(L))}</span></div>
     <div class="streak">🔥 ${st.count}日れんぞく</div></div>
     <div class="row" style="margin-top:8px"><div class="bar" role="progressbar" aria-label="つぎのレベルまで" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span class="muted">あと ${hi-state.xp} 点</span></div>
     <p class="muted" style="margin:8px 0 0">合計 ${state.total.solved}問・★${state.total.stars}　｜　お休み券 今週のこり ${st.freezeLeft}枚（1日休んでも連続がつながる）</p></section>`;
-  h+=`<section class="card"><h2 style="margin:0 0 4px;font-size:1.1rem">今日のミッション</h2><p class="muted" style="margin:0 0 10px">${MISSION_N}問・約5分。クリアで連続日数がのびて、ボーナス ${MISSION_BONUS}点。</p>
+  h+=`<section class="card"><h2>今日のミッション</h2><p class="muted" style="margin:0 0 10px">${MISSION_N}問・約5分。クリアで連続日数がのびて、ボーナス ${MISSION_BONUS}点。${due?`<br>🔁 ふくしゅうが ${due}問 待っています（最初に${Math.min(due,REVIEW_MAX)}問出ます）`:''}</p>
     <button class="btn primary big" id="bMission">${st.todayDone?'✅ 今日はクリア！ もう一度やる':'▶ ミッションをはじめる'}</button></section>`;
-  h+=`<section class="card"><h2 style="margin:0 0 10px;font-size:1.1rem">ワールド</h2><div class="worlds">`;
+  h+=`<div class="grid2" style="margin-bottom:14px"><section class="card"><h2>⚡ タイムアタック</h2><p class="muted" style="margin:0 0 10px">${TA_SEC}秒で何問解ける？（ワールド1〜5から）<br>自己ベスト <b>${state.ta.best}問</b>${rk?`　ランク <b>${esc(rk.name)}</b>（平均${rk.avg}秒）`:'　ランクは3問解くと出ます'}</p>
+    <button class="btn" id="bTA" style="width:100%">⚡ スタート</button></section>
+    <section class="card"><h2>🃏 技カード図鑑</h2><p class="muted" style="margin:0 0 10px">集めたカード <b>${nCards} / ${CARDS.length}</b> 枚<br>新しい技を使うとカードが手に入る</p>
+    <button class="btn" id="bCards" style="width:100%">図鑑を見る</button></section></div>`;
+  h+=`<section class="card"><h2>ワールド</h2><div class="worlds">`;
   for(const w of WORLDS){
     const u=unlocked(w.id),m=mastery(w.id),s=wstat(w.id);
     h+=`<div class="world ${u?'':'locked'}"><div class="wnum" aria-hidden="true">${u?w.id:'🔒'}</div><div><h3>ワールド${w.id}　${esc(w.name)}<span class="badge m${m.lv}">${m.name}</span></h3>
       <div class="ex">${esc(w.sub)}（例 ${esc(w.ex)}）</div>
       <div class="row" style="margin-top:4px"><div class="bar" role="progressbar" aria-label="ワールド${w.id}の習熟" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${s.pts}"><i style="width:${s.pts}%"></i></div><span class="muted">${s.pts}/100・${s.days||0}日</span></div>
       ${u?'':`<div class="muted">ワールド${w.id-1}を「できた」（30点）にすると開く</div>`}</div>
-      <div class="act-col"><button class="btn" data-w="${w.id}" ${u?'':'disabled'} aria-label="ワールド${w.id}を${PRACTICE_N}問練習">練習 ${PRACTICE_N}問</button></div></div>`;
+      <div class="act-col"><button class="btn" data-w="${w.id}" ${u?'':'disabled'} aria-label="ワールド${w.id}を${PRACTICE_N}問練習（最後はボス問題）">練習 ${PRACTICE_N}問</button></div></div>`;
   }
-  h+=`</div><p class="muted" style="margin:10px 0 0">★の取り方：正解で★1、まちがえず工夫した分け方で★2、目標時間内で★3。まちがえても点は減りません。習熟は「とくい」に2日、「マスター」に3日、別の日の練習が必要です。</p></section>`;
+  h+=`</div><p class="muted" style="margin:10px 0 0">★の取り方：正解で★1、まちがえず工夫した分け方で★2、目標時間内で★3。まちがえても点は減りません。練習の5問めは 👑ボス問題（点が2倍）。★3がとれなかった型は、次の日から ふくしゅう に出ます。習熟は「とくい」に2日、「マスター」に3日、別の日の練習が必要です。</p></section>`;
   // カレンダー（4週）
-  const today=new Date(),start=addDays(today,-((today.getDay()+6)%7)-21);
-  h+=`<section class="card"><h2 style="margin:0 0 10px;font-size:1.1rem">4週間の記録</h2><div class="cal">`+['月','火','水','木','金','土','日'].map(x=>`<div class="h">${x}</div>`).join('');
-  for(let i=0;i<28;i++){const d=addDays(start,i),k=dkey(d),dd=state.days[k];const fut=d>today&&k!==dkey(today);
-    const cls=['d',isDone(k)?'done':'',st.frozen[k]?'frz':'',k===dkey(today)?'today':'',fut?'fut':''].join(' ');
+  const now=new Date(),start=addDays(now,-((now.getDay()+6)%7)-21);
+  h+=`<section class="card"><h2>4週間の記録</h2><div class="cal">`+['月','火','水','木','金','土','日'].map(x=>`<div class="h">${x}</div>`).join('');
+  for(let i=0;i<28;i++){const d=addDays(start,i),k=dkey(d),dd=state.days[k];const fut=d>now&&k!==today();
+    const cls=['d',isDone(k)?'done':'',st.frozen[k]?'frz':'',k===today()?'today':'',fut?'fut':''].join(' ');
     const lab=`${d.getMonth()+1}月${d.getDate()}日${isDone(k)?' ミッションクリア':st.frozen[k]?' お休み券':''}`;
     h+=`<div class="${cls}" aria-label="${lab}"><span>${d.getDate()}</span><span aria-hidden="true">${isDone(k)?'✓':st.frozen[k]?'❄︎':(dd&&dd.solved?'・':'')}</span></div>`;}
   h+=`</div><p class="muted" style="margin:8px 0 0">✓ ミッションクリア　❄︎ お休み券　・ 練習だけした日</p></section>`;
   app.innerHTML=h;
   $('bMission').onclick=()=>newSession('mission');
+  $('bTA').onclick=()=>newSession('ta');
+  $('bCards').onclick=()=>go('cards');
   app.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>newSession('world',Number(b.dataset.w)));
 }
+function renderCards(){
+  const n=Object.keys(state.cards).length;
+  let h=`<div class="topbar"><h1>🃏 技カード図鑑</h1><button class="btn" id="bBack">← ホームへ</button></div>
+    <section class="card"><p style="margin:0 0 10px">集めたカード <b>${n} / ${CARDS.length}</b> 枚（技のカードは、まちがえずに解いた時に手に入る）</p><div class="cards">`;
+  for(const c of CARDS){const on=!!state.cards[c.id];
+    h+=`<div class="tcard ${on?'on':'off'}" aria-label="${esc(c.n)}${on?' 入手済み':' まだ'}"><div class="e" aria-hidden="true">${on?c.e:'❓'}</div><b>${on?esc(c.n):'？？？'}</b><span class="muted">${esc(c.d)}</span>${on?`<div class="muted">${esc(state.cards[c.id])}</div>`:''}</div>`;}
+  h+=`</div></section>`;
+  app.innerHTML=h;$('bBack').onclick=()=>go('home');
+}
 function renderPlay(shake){
-  const p=ses.list[ses.idx],w=WORLDS[p.w-1],c=choiceOf(p);
-  let h=`<div class="playhead"><button class="btn" id="bQuit">← やめる</button>
-    <div class="prog" aria-label="${ses.list.length}問中${ses.idx+1}問め">${ses.list.map((_,i)=>`<i class="${i<ses.idx||(i===ses.idx&&cur.done)?'d':''} ${i===ses.idx?'c':''}"></i>`).join('')}</div>
+  const p=ses.list[ses.idx],w=WORLDS[p.w-1],c=choiceOf(p),ta=ses.mode==='ta';
+  const remain=()=>Math.max(0,Math.ceil((ses.endAt-Date.now())/1000));
+  let h=`<div class="playhead"><button class="btn" id="bQuit">← やめる</button>`;
+  h+=ta?`<div class="muted">解いた数 <b>${ses.results.length}</b>問</div><div class="timer ta" aria-live="off">⚡ のこり <span id="tm">${remain()}</span>秒</div></div>`
+    :`<div class="prog" aria-label="${ses.list.length}問中${ses.idx+1}問め">${ses.list.map((q,i)=>`<i class="${i<ses.idx||(i===ses.idx&&cur.done)?'d':''} ${i===ses.idx?'c':''} ${q.boss?'boss':''}"></i>`).join('')}</div>
     <div class="timer" aria-hidden="true">⏱ <span id="tm">0</span>秒 / 目標${w.target}秒</div></div>`;
-  h+=`<section class="card ${cur.done?'done-panel':''}"><div class="muted">${ses.mode==='mission'?'今日のミッション':'練習'}　ワールド${w.id}　${esc(w.name)}</div>
+  h+=`<section class="card ${cur.done?'done-panel':(p.boss?'boss-panel':'')}"><div class="muted">${ta?'タイムアタック':ses.mode==='mission'?'今日のミッション':'練習'}　ワールド${w.id}　${esc(w.name)}</div>
     <p class="qtitle">${esc(qTitle(p))}</p>`;
   const dg=diagram(p,cur.ch,cur.done);if(dg)h+=`<div class="diagram">${dg}</div>`;
   if(cur.ch==null&&c){
@@ -501,9 +748,10 @@ function renderPlay(shake){
   }
   h+=`<div class="fb ${cur.fbc}" role="status" aria-live="polite">${esc(cur.fb)}</div>`;
   if(cur.done){
-    const s=cur.stars,two=(p.w===3||p.w===4)?'工夫した分け方でノーミス':'ノーミス';
+    const s=cur.stars,two=typ(p)==='split'?'工夫した分け方でノーミス':'ノーミス';
     h+=`<div class="stars pop" aria-label="★${s.stars}つ">${[1,2,3].map(i=>`<span class="${i<=s.stars?'on':'off'}">★</span>`).join('')}</div>
-      <ul class="starlist"><li>★ 正解</li><li>${s.s2?'★':'☆'} ${two}${!s.best?'（もっと楽な分け方があるよ）':''}</li><li>${s.s3?'★':'☆'} 目標時間内（${s.sec}秒）</li></ul>
+      <ul class="starlist"><li>★ 正解</li><li>${s.s2?'★':'☆'} ${two}${!s.best?'（もっと楽な分け方があるよ）':''}</li><li>${s.s3?'★':'☆'} 目標時間内（${s.sec}秒）</li>${p.boss?'<li>👑 ボス問題なので点が2倍！</li>':''}</ul>
+      ${cur.newCards.map(id=>`<p class="newcard pop">🃏 新しい技カード「${esc(cardName(id))}」を手に入れた！</p>`).join('')}
       <p class="explain">${esc(explain(p,cur.ch,s.best))}</p>
       <button class="btn primary big" id="bNext">${ses.idx+1<ses.list.length?'つぎの問題へ ▶':'結果を見る ▶'}</button>`;
   }
@@ -520,15 +768,19 @@ function renderPlay(shake){
   app.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>press(b.dataset.k));
   app.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.b);if(!cur.done&&!cur.okb[i]){cur.active=i;cur.fb='';cur.fbc='';render();}});
   const bn=$('bNext');if(bn){bn.onclick=next;bn.focus();}
-  if(!cur.done){const tick=()=>{const e=$('tm');if(e)e.textContent=Math.floor((Date.now()-cur.start)/1000)};tick();timerId=setInterval(tick,1000);}
+  if(ta){const tick=()=>{if(Date.now()>=ses.endAt){clearInterval(timerId);timerId=null;endSession();return;}const e=$('tm');if(e)e.textContent=remain();};timerId=setInterval(tick,250);}
+  else if(!cur.done){const tick=()=>{const e=$('tm');if(e)e.textContent=Math.floor((Date.now()-cur.start)/1000)};tick();timerId=setInterval(tick,1000);}
   else{const e=$('tm');if(e)e.textContent=cur.stars.sec;}
 }
 function renderResult(){
   let r=null;try{r=JSON.parse(lsGet(LAST)||'null')}catch(e){}
   if(!r||!num(r.n)||!num(r.stars)||!Array.isArray(r.worlds)){view='home';lsSet(VIEW,'home');renderHome();return;}
-  let h=`<div class="topbar"><h1>分配法則ラボ</h1></div><section class="card pop"><p class="res-big">${r.mode==='mission'?'🎉 ミッションクリア！':'練習おわり！'}</p>
-    <p>★ ${r.stars} / ${r.n*3}　（★3つは ${r.three}問）</p><p>もらった点 <b>+${r.xp}</b>${r.bonus?`（ミッションボーナス ${r.bonus}点をふくむ）`:''}</p>`;
+  const ta=r.mode==='ta'&&r.ta&&num(r.ta.n)?r.ta:null, rk=ta?rankOf():null;
+  let h=`<div class="topbar"><h1>分配法則ラボ</h1></div><section class="card pop"><p class="res-big">${r.mode==='mission'?'🎉 ミッションクリア！':ta?`⚡ ${TA_SEC}秒で ${ta.n}問！`:'練習おわり！'}</p>`;
+  if(ta)h+=`<p>${ta.newBest?'<b>🏅 自己ベスト更新！</b>　':''}自己ベスト ${num(ta.best)?ta.best:0}問${rk?`　ランク <b>${esc(rk.name)}</b>（直近の平均 ${rk.avg}秒）`:''}</p>`;
+  h+=`<p>★ ${r.stars} / ${r.n*3}　（★3つは ${num(r.three)?r.three:0}問）</p><p>もらった点 <b>+${num(r.xp)?r.xp:0}</b>${r.bonus?`（ミッションボーナス ${r.bonus}点をふくむ）`:''}</p>`;
   if(r.lv1>r.lv0)h+=`<p class="res-big" style="color:var(--accent)">⬆ レベル${r.lv1}になった！ 「${esc(titleOf(r.lv1))}」</p>`;
+  for(const id of (Array.isArray(r.cards)?r.cards:[])){const nm=cardName(id);if(nm)h+=`<p class="newcard">🃏 新しい技カード「${esc(nm)}」</p>`;}
   for(const x of r.worlds){const w=WORLDS[x.id-1];if(!w)continue;h+=`<p class="muted" style="margin:2px 0">ワールド${w.id} ${esc(w.name)}：習熟 ${x.p0} → <b>${x.p1}</b></p>`;}
   for(const id of (Array.isArray(r.newly)?r.newly:[])){const w=WORLDS[id-1];if(w)h+=`<p class="res-big" style="color:var(--accent)">🔓 ワールド${w.id}「${esc(w.name)}」が開いた！</p>`;}
   h+=`<div class="row" style="margin-top:12px"><button class="btn primary" id="bAgain">もう一度</button><button class="btn" id="bHome">ホームへ</button></div></section>`;
@@ -546,8 +798,11 @@ document.addEventListener('keydown',e=>{
 /* ===== 起動：直前の画面に戻す ===== */
 (function boot(){
   const v=lsGet(VIEW);
-  if(v==='play'){const s=loadSes();if(s){ses=s;cur=restoreCur(s);if(!cur)startProblem();view='play';render();return;}}
+  if(v==='play'){const s=loadSes();if(s){ses=s;
+    if(s.mode==='ta'&&Date.now()>=s.endAt){cur=null;endSession();return;}
+    cur=restoreCur(s);if(!cur)startProblem();view='play';render();return;}}
   if(v==='result'){view='result';render();return;}
+  if(v==='cards'){view='cards';render();return;}
   view='home';render();
 })();
 </script>
