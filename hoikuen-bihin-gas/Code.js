@@ -338,7 +338,14 @@ function op_(r) {
 const isObj_ = v => v != null && typeof v === 'object' && !Array.isArray(v);
 function merge_(cur, set, inc, arr) {
   const nd = Object.assign({}, cur || {});
-  if (isObj_(set)) Object.keys(set).forEach(k => { const v = set[k]; nd[k] = (DEEP_FIELDS.indexOf(k) >= 0 && isObj_(v)) ? Object.assign({}, isObj_(nd[k]) ? nd[k] : {}, v) : v; });
+  if (isObj_(set)) Object.keys(set).forEach(k => {
+    const v = set[k];
+    if (!(DEEP_FIELDS.indexOf(k) >= 0 && isObj_(v))) { nd[k] = v; return; }
+    const o = Object.assign({}, isObj_(nd[k]) ? nd[k] : {});
+    // manuals: each model's entry merges field by field (a URL from one device and a PDF from another both stay)
+    Object.keys(v).forEach(kk => { o[kk] = (k === 'manuals' && isObj_(v[kk]) && isObj_(o[kk])) ? Object.assign({}, o[kk], v[kk]) : v[kk]; });
+    nd[k] = o;
+  });
   if (isObj_(inc)) Object.keys(inc).forEach(k => {
     const v = inc[k]; if (typeof v !== 'number' || !isFinite(v)) return;
     const b = typeof nd[k] === 'number' ? nd[k] : (/^-?\d+(\.\d+)?$/.test(String(nd[k] == null ? '' : nd[k])) ? Number(nd[k]) : 0);

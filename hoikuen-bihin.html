@@ -370,7 +370,12 @@ const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v);
 const stable = v => JSON.stringify(v, (k, x) => isObj(x) ? Object.keys(x).sort().reduce((o, kk) => (o[kk] = x[kk], o), {}) : x) ?? 'undefined';
 function mergeJS(cur, set, inc, arr){
   const nd = { ...(cur || {}) };
-  if (isObj(set)) for (const [k, v] of Object.entries(set)) nd[k] = (DEEP_FIELDS.has(k) && isObj(v)) ? { ...(isObj(nd[k]) ? nd[k] : {}), ...v } : v;
+  if (isObj(set)) for (const [k, v] of Object.entries(set)) {
+    if (!(DEEP_FIELDS.has(k) && isObj(v))) { nd[k] = v; continue; }
+    const o = { ...(isObj(nd[k]) ? nd[k] : {}) };
+    for (const [kk, vv] of Object.entries(v)) o[kk] = (k === 'manuals' && isObj(vv) && isObj(o[kk])) ? { ...o[kk], ...vv } : vv;   // same rule as the server
+    nd[k] = o;
+  }
   if (isObj(inc)) for (const [k, v] of Object.entries(inc)) { if (typeof v !== 'number') continue; const b = typeof nd[k] === 'number' ? nd[k] : (/^-?\d+(\.\d+)?$/.test(String(nd[k] ?? '')) ? Number(nd[k]) : 0); nd[k] = b + v; }
   if (isObj(arr)) for (const [k, v] of Object.entries(arr)) {
     if (!isObj(v)) continue;
@@ -466,7 +471,7 @@ let ME = null, ORG = null, ORGS = [], AUTH = null;
 const LS_ORG = 'hbk_org', LS_LEGACY = 'hbk_legacy', LS_AUTH = 'hbk-auth';
 // one POST per call; text/plain keeps it a "simple" request (the GAS web app cannot answer CORS preflights)
 async function api(action, body = {}){
-  const r = await fetchT(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body:JSON.stringify({ ...body, action, token:AUTH ? AUTH.token : undefined }) }, /^photo/.test(action) ? 180000 : 45000);
+  const r = await fetchT(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body:JSON.stringify({ ...body, action, token:AUTH ? AUTH.token : undefined }) }, /^(photo|fetchPdf)/.test(action) ? 180000 : 45000);
   if (!r.ok) { const e = new Error('サーバーが応答しませんでした（' + r.status + '）'); e.code = 'http'; throw e; }
   let j; try { j = await r.json(); } catch(err) { const e = new Error('サーバーの応答を読めませんでした（準備中の可能性があります）'); e.code = 'bad_response'; throw e; }
   if (!isObj(j)) { const e = new Error('サーバーの応答の形が正しくありません'); e.code = 'bad_response'; throw e; }
@@ -923,7 +928,11 @@ async function openManual(a){
   if (m.pdfId && await getOne('photos', m.pdfId)) u = await photoUrl(m.pdfId, true);
   if (!u) u = m.url;
   if (!u) { if (w) w.close(); toast('取説を開けませんでした（通信を確かめてください）'); return; }
-  if (w) w.location.href = u; else location.href = u;
+  if (w) { w.location.href = u; return; }
+  // pop-ups blocked: keep the ledger open; the PDF is saved as a file, a web page opens through a link in a new tab
+  const el = Object.assign(document.createElement('a'), { href:u, target:'_blank', rel:'noopener noreferrer' });
+  if (u.startsWith('blob:')) el.download = '取扱説明書.pdf';
+  document.body.appendChild(el); el.click(); el.remove();
 }
 function wireMan(root){ $$('[data-man]', root).forEach(b => b.onclick = e => { e.stopPropagation(); openManual(S.assets.find(x => x.id === b.dataset.man)); }); }
 function openManualForm(assetId){
@@ -931,7 +940,7 @@ function openManualForm(assetId){
   const it = S.items.find(i => i.id === a.itemId); if (!it) { toast('品目が見つかりません'); return; }
   const key = manKey(a.model), cur = (isObj(it.manuals) && it.manuals[key]) || {};
   const same = S.assets.filter(x => x.itemId === a.itemId && manKey(x.model) === key).length;
-  let pdfId = cur.pdfId || '', newPdf = null;
+  let pdfId = cur.pdfId || '', newPdf = null, fetchId = '', fetchUrl = '';
   openDlg(`<div class="dh"><h2>取扱説明書 — ${esc(it.name)}${a.model ? '（' + esc(a.model) + '）' : ''}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
     <div class="db"><p class="muted" style="margin-top:0">${a.model ? `型番「${esc(a.model)}」の${esc(it.name)}` : `型番の無い${esc(it.name)}`}（${same}件）に共通で登録します。</p>
     <div class="row" style="margin-bottom:12px">${manualSearch(a).map(l => `<a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join('')}</div>
@@ -945,10 +954,12 @@ function openManualForm(assetId){
     const url = $('#mUrl').value.trim();
     if (!okUrl(url)) { toast('先に PDF の URL を入れてください'); $('#mUrl').focus(); return; }
     if (!navigator.onLine) { toast('通信できる所で行ってください'); return; }
-    const id = uid(); $('#mFetch').disabled = true; $('#mPdfInfo').textContent = 'サーバーに保存しています…';
+    if (fetchUrl !== url) { fetchId = uid(); fetchUrl = url; }   // pressing again for the same URL re-uses the id: no duplicate copy
+    const id = fetchId; $('#mFetch').disabled = true; $('#mPdfInfo').textContent = 'サーバーに保存しています…';
     try {
       await api('fetchPdf', { org:ORG.id, id, url });
-      const name = decodeURIComponent((url.split('?')[0].split('/').pop() || 'manual.pdf')).slice(0, 120);
+      let name = url.split('?')[0].split('/').pop() || 'manual.pdf'; try { name = decodeURIComponent(name); } catch(e) {}
+      name = name.slice(0, 120);
       await writeOps([['photos','put',{ id, kind:'pdf', name, label:'取扱説明書', createdAt:new Date().toISOString(), uploaded:true }]]);
       pdfId = id; newPdf = null; $('#mPdfInfo').textContent = 'PDF を台帳に保存しました（保存すると登録されます）';
     } catch(err) { $('#mPdfInfo').textContent = isNetErr(err) ? '通信できませんでした' : err.message; }
@@ -965,7 +976,12 @@ function openManualForm(assetId){
     const url = $('#mUrl').value.trim();
     if (url && !okUrl(url)) { toast('URL は https:// から始まる形で入れてください'); $('#mUrl').focus(); return; }
     if (!url && !pdfId) { toast('URL を入れるか PDF を添付してください'); return; }
-    save({ url, pdfId, note:$('#mNote').value.trim(), model:a.model || '', at:new Date().toISOString(), by:ME ? ME.email : '' });
+    // only what was changed in this form is sent: a link registered meanwhile on another device stays
+    const note = $('#mNote').value.trim(), entry = { model:a.model || '', at:new Date().toISOString(), by:ME ? ME.email : '' };
+    if (url !== (cur.url || '')) entry.url = url;
+    if (pdfId !== (cur.pdfId || '')) entry.pdfId = pdfId;
+    if (note !== (cur.note || '')) entry.note = note;
+    save(entry);
   };
   const del = $('#mDel'); if (del) del.onclick = () => { if (confirm('この型番の取説の登録を外します（保存した PDF は残ります）。よろしいですか？')) save(null); };
 }
