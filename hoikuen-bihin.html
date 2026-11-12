@@ -693,7 +693,10 @@ async function makePhoto(file){
 const photoRefCount = (pid, exceptAssetId) => S.assets.filter(a => a.id !== exceptAssetId && (a.photoIds || []).includes(pid)).length;
 
 /* ---------- logs ---------- */
-function newLog(o){ return { id: uid(), at: new Date().toISOString(), date: today(), by:'', detail:'', ...o }; }
+const SUPPORT_LABEL = '運営サポート（シルバーユニックス）';
+const roleLabel = r => r === 'admin' ? '管理者' : r === 'support' ? SUPPORT_LABEL : '職員';
+// records written while the operator supports a 園 say so, so the 園 can see who changed what
+function newLog(o){ const l = { id: uid(), at: new Date().toISOString(), date: today(), by:'', detail:'', ...o }; if (ORG && ORG.role === 'support' && !l.by) l.by = SUPPORT_LABEL; return l; }
 
 /* ---------- navigation (restores the view on reload) ---------- */
 let curView = 'home';
@@ -1727,7 +1730,7 @@ async function renderSettings(){
   const lg = legacyState;
   $('#v-settings').innerHTML = `<h2>設定</h2>
     <div class="card"><h3 style="margin-top:0">アカウントと同期</h3>
-      <p style="margin-top:0">ログイン中：<b>${esc(ME ? ME.email : '')}</b><br>園：${esc(S.settings.orgName || (ORG && ORG.name) || '')}（${admin ? '管理者' : '職員'}）</p>
+      <p style="margin-top:0">ログイン中：<b>${esc(ME ? ME.email : '')}</b><br>園：${esc(S.settings.orgName || (ORG && ORG.name) || '')}（${esc(roleLabel(ORG && ORG.role))}）</p>
       <p class="muted" id="syncInfo" role="status"></p>
       <div class="row"><button type="button" class="btn" id="aSync">↻ 今すぐ同期</button><button type="button" class="btn" id="aJoin">招待コードで別の園に参加</button>${ORGS.length > 1 ? '<button type="button" class="btn" id="aSwitch">園を切り替える</button>' : ''}<button type="button" class="btn" id="aOut">ログアウト</button></div>
       <div class="hint">台帳はサーバーに保存され、同じ園の人が使うすべての端末で同じ内容が見えます。通信できない間の変更はこの端末に保存し、通信が戻ったら自動で送ります。</div></div>
@@ -1792,8 +1795,8 @@ async function renderMembers(){
   if (!$('#memList')) return;
   if (!Array.isArray(data)) { box.textContent = '読み込めませんでした（通信を確かめてください）'; return; }
   box.classList.remove('muted');
-  box.innerHTML = data.map(m => `<div class="mrow"><span class="e">${esc(m.email)}${m.user_id === ME.uid ? '（自分）' : ''}<br><span class="chip">${m.role === 'admin' ? '管理者' : '職員'}</span></span>
-    <span class="row"><button type="button" class="btn sm" data-reset="${esc(m.email)}">パスワード再設定コード</button>${m.user_id === ME.uid ? '' : `<button type="button" class="btn sm" data-role="${esc(m.user_id)}|${m.role === 'admin' ? 'member' : 'admin'}">${m.role === 'admin' ? '職員にする' : '管理者にする'}</button><button type="button" class="btn sm ng" data-rm="${esc(m.user_id)}|${esc(m.email)}">外す</button>`}</span></div>`).join('') || 'まだいません';
+  box.innerHTML = data.map(m => `<div class="mrow"><span class="e">${esc(m.email)}${m.user_id === ME.uid ? '（自分）' : ''}<br><span class="chip">${esc(roleLabel(m.role))}</span>${m.role === 'support' && m.expires ? `<span class="muted"> ${esc(new Date(m.expires).toLocaleDateString('ja-JP'))}まで（調整・改善のため一時的に参加）</span>` : ''}</span>
+    <span class="row">${m.role === 'support' ? `<button type="button" class="btn sm ng" data-rm="${esc(m.user_id)}|${esc(m.email)}">外す</button>` : `<button type="button" class="btn sm" data-reset="${esc(m.email)}">パスワード再設定コード</button>${m.user_id === ME.uid ? '' : `<button type="button" class="btn sm" data-role="${esc(m.user_id)}|${m.role === 'admin' ? 'member' : 'admin'}">${m.role === 'admin' ? '職員にする' : '管理者にする'}</button><button type="button" class="btn sm ng" data-rm="${esc(m.user_id)}|${esc(m.email)}">外す</button>`}`}</span></div>`).join('') || 'まだいません';
   $$('[data-reset]', box).forEach(b => b.onclick = () => issueCode(b.dataset.reset, 'member', 'reset'));
   $$('[data-role]', box).forEach(b => b.onclick = async () => { const [u, r] = b.dataset.role.split('|'); try { await api('setMember', { org:ORG.id, user:u, role:r }); toast('変更しました'); renderMembers(); } catch(e) { alert(e.message); } });
   $$('[data-rm]', box).forEach(b => b.onclick = async () => { const [u, em] = b.dataset.rm.split('|'); if (!confirm(`${em} をこの園から外します。この人はこの園の台帳を見られなくなります。よろしいですか？`)) return; try { await api('setMember', { org:ORG.id, user:u, role:null }); toast('外しました'); renderMembers(); } catch(e) { alert(e.message); } });
@@ -2019,7 +2022,7 @@ async function startSession(user, knownOrgs){
     const o = ORGS.find(x => saved && x.org_id === saved.id) || (ORGS.length === 1 ? ORGS[0] : null);
     if (!o) {
       showAuth('pick', 'この台帳を使う園を選んでください。');
-      $('#orgPick').innerHTML = ORGS.map((x, i) => `<button type="button" class="btn" style="width:100%;margin-bottom:8px" data-pick="${i}">${esc(x.name)}（${x.role === 'admin' ? '管理者' : '職員'}）</button>`).join('');
+      $('#orgPick').innerHTML = ORGS.map((x, i) => `<button type="button" class="btn" style="width:100%;margin-bottom:8px" data-pick="${i}">${esc(x.name)}（${esc(roleLabel(x.role))}）</button>`).join('');
       $$('[data-pick]').forEach(b => b.onclick = () => { const x = ORGS[Number(b.dataset.pick)]; try { localStorage.setItem(LS_ORG, JSON.stringify({ uid:ME.uid, id:x.org_id, role:x.role })); } catch(e) {} startSession(user, ORGS); });
       return;
     }
