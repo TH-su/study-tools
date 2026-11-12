@@ -140,6 +140,23 @@ button{font:inherit;color:inherit}
 .btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .mylist{list-style:none;padding:0;margin:8px 0;display:grid;gap:8px}
 .vx{font-style:italic;font-family:'Times New Roman',Times,serif;font-size:1.15em;padding:0 .04em}
+/* 成績の記録 */
+.chbox{margin:0 0 18px}
+.chbox h3{margin:0 0 4px;font-size:1rem}
+.ch{width:100%;max-width:520px;height:auto}
+.ch-grid{stroke:var(--line);stroke-width:1}
+.ch-ax{stroke:var(--sub);stroke-width:1.5}
+.ch-line{fill:none;stroke-width:2.5;stroke-linejoin:round}
+.ch-t{fill:var(--sub);font-size:12px;font-weight:700}
+.ch-u{fill:var(--ink);font-size:12px;font-weight:700}
+.ch-l{font-size:12px;font-weight:800}
+.lg{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.tblw{overflow-x:auto}
+.tbl{border-collapse:collapse;width:100%;font-size:.95rem;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{border-bottom:1px solid var(--line);padding:6px 6px;text-align:left;vertical-align:top}
+.tbl tbody th{min-width:5.5em}
+.tbl thead th{color:var(--sub);font-size:.85rem}
+.up{color:var(--ok)}
 .mylist li{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:6px 10px;font-variant-numeric:tabular-nums;font-weight:700}
 </style>
 </head>
@@ -150,7 +167,8 @@ button{font:inherit;color:inherit}
 'use strict';
 /* ===== 定数 ===== */
 const KEY='dl_state_v1', BAK='dl_state_v1_bak', SES='dl_session_v1', LAST='dl_last_result_v1', VIEW='dlcfg_view';
-const VIEWS=['home','play','result','cards','make'];
+const VIEWS=['home','play','result','cards','make','history'];
+const LOG_MAX=1000, LOG_MODES=['mission','world','ta','daily','my']; // 成績の記録（1回の練習＝1件。新しい1000件まで）
 const WORLDS=[
   {id:1,name:'見える分配',sub:'点の図を2つに分けてかける',ex:'4×(3＋5)',target:30},
   {id:2,name:'かっこを開く',sub:'4つの形を使いこなす',ex:'6×(20−3)',target:35},
@@ -217,48 +235,107 @@ const num=v=>typeof v==='number'&&isFinite(v);
 const isDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
 /* 前の版のタブが読んでも段3の記録が残るように、段3の値を前の形（best・recent）でも持つ。読む時は段ごとの方を優先 */
 function syncTaMirror(ta){ta.best=ta[3].best;ta.recent=ta[3].recent.slice();return ta;}
-function defaultState(){return {v:1,xp:0,worlds:{},days:{},total:{solved:0,stars:0},cards:{},review:[],ta:syncTaMirror(Object.fromEntries(DIFFS.map(L=>[L,{best:0,recent:[]}]))),bossWins:0,forms:[],daily:{last:'',count:0,pick:null},myProblems:[]}}
+function defaultState(){return {v:1,xp:0,worlds:{},days:{},total:{solved:0,stars:0},cards:{},review:[],ta:syncTaMirror(Object.fromEntries(DIFFS.map(L=>[L,{best:0,recent:[]}]))),bossWins:0,forms:[],daily:{last:'',count:0,pick:null},myProblems:[],log:[]}}
 /* マイ問題1件の検査（N×m、N＝x op y） */
 const isInt=(v,a,b)=>num(v)&&Math.floor(v)===v&&v>=a&&v<=b;
 const validMy=q=>!!q&&typeof q==='object'&&isInt(q.N,2,9999)&&isInt(q.m,2,9999)&&isInt(q.x,1,9999)&&isInt(q.y,1,9999)&&(q.op==='+'||q.op==='−')&&(q.op==='+'?q.x+q.y:q.x-q.y)===q.N;
+const cmpS=(a,b)=>a<b?-1:a>b?1:0;
+const jsonMax=(x,y)=>JSON.stringify(x)>=JSON.stringify(y)?x:y; // 引き分けを決める（どちらから合わせても同じ側を選ぶ）
+/* 同じものが2つある時にどちらを残すか（normalize と mergeState で同じきまり） */
+const betterRev=(r,p)=>!p?r:r.due!==p.due?(r.due>p.due?r:p):r.step!==p.step?(r.step>p.step?r:p):jsonMax(r,p); // ふくしゅう: 出す日が新しい方、同じなら段が進んだ方
+const betterLog=(e,p)=>!p?e:e.n!==p.n?(e.n>p.n?e:p):jsonMax(e,p);
+const myKey=q=>[q.N,q.m,q.x,q.y,q.op].join('|');
+function dedupe(list,key,better){const m=new Map();for(const x of list){const k=key(x);m.set(k,better(x,m.get(k)));}return [...m.values()];}
+/* 成績の記録1件の検査（pw: ワールドごとの [問題数, 秒の合計, ノーミス数]。マイ問題・きょうの難問はふくめない） */
+function normLog(e){
+  if(!e||typeof e!=='object')return null;
+  if(!(typeof e.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(e.id)&&typeof e.t==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(e.t)&&isDate(e.day)&&LOG_MODES.includes(e.mode)))return null;
+  if(!(isInt(e.w,0,WORLDS.length)&&isLv(e.level)&&isInt(e.n,0,1e4)&&isInt(e.stars,0,3e4)&&isInt(e.three,0,e.n)&&isInt(e.nomiss,0,e.n)&&num(e.sec)&&e.sec>=0&&e.sec<1e5&&isInt(e.xp,0,1e7)&&isInt(e.xpTotal,0,1e9)&&isInt(e.lv,1,1e4)))return null;
+  const o={id:e.id,t:e.t,day:e.day,mode:e.mode,w:e.w,level:e.level,n:e.n,stars:e.stars,three:e.three,nomiss:e.nomiss,sec:Math.round(e.sec*10)/10,xp:e.xp,xpTotal:e.xpTotal,lv:e.lv};
+  if(e.pw&&typeof e.pw==='object'){const pw={};for(const w of WORLDS){const v=e.pw[w.id];if(Array.isArray(v)&&v.length===3&&isInt(v[0],1,1e4)&&isInt(v[1],0,1e8)&&isInt(v[2],0,v[0]))pw[w.id]=[v[0],v[1],v[2]];}if(Object.keys(pw).length)o.pw=pw;}
+  return o;
+}
 function normalize(s){
   const o=defaultState();
   o.xp=num(s.xp)&&s.xp>=0?Math.floor(s.xp):0;
   if(s.total&&typeof s.total==='object'){o.total.solved=num(s.total.solved)?s.total.solved:0;o.total.stars=num(s.total.stars)?s.total.stars:0;}
   for(const w of WORLDS){const x=s.worlds&&s.worlds[w.id];if(x&&typeof x==='object'){o.worlds[w.id]={pts:num(x.pts)?Math.max(0,Math.min(MASTER,x.pts)):0,n:num(x.n)?x.n:0,three:num(x.three)?x.three:0,days:num(x.days)?x.days:0,last:isDate(x.last)?x.last:''};}}
-  if(s.days&&typeof s.days==='object'){for(const k of Object.keys(s.days)){if(isDate(k)){const d=s.days[k]||{};o.days[k]={mission:d.mission===true,solved:num(d.solved)?d.solved:0,stars:num(d.stars)?d.stars:0};}}}
+  // xp: その日にもらった点の合計、lv: その日の終わりのレベル（前の版の日は 0＝わからない）。日付の順にならべる（合わせた結果を同じ形にするため）
+  if(s.days&&typeof s.days==='object'){for(const k of Object.keys(s.days).filter(isDate).sort()){const d=s.days[k]||{};o.days[k]={mission:d.mission===true,solved:num(d.solved)?d.solved:0,stars:num(d.stars)?d.stars:0,xp:num(d.xp)&&d.xp>=0?d.xp:0,lv:isInt(d.lv,1,1e4)?d.lv:0};}}
   if(s.cards&&typeof s.cards==='object'){for(const id of CARD_IDS){if(isDate(s.cards[id]))o.cards[id]=s.cards[id];}}
-  if(Array.isArray(s.review))o.review=s.review.filter(r=>r&&num(r.w)&&r.w>=1&&r.w<=WORLDS.length&&num(r.k)&&isDate(r.due)&&num(r.step)).slice(-30).map(r=>({w:r.w,k:r.k,due:r.due,step:r.step,lv:isLv(r.lv)?r.lv:3})); // lv: まちがえた時のむずかしさ（前の版の項目は3）
+  // ふくしゅうは出す日（due）の順にならべてから新しい30件（前の版は入れた順。入れた順もほぼ due の順）
+  if(Array.isArray(s.review))o.review=dedupe(s.review.filter(r=>r&&num(r.w)&&r.w>=1&&r.w<=WORLDS.length&&num(r.k)&&isDate(r.due)&&num(r.step)).map(r=>({w:r.w,k:r.k,due:r.due,step:r.step,lv:isLv(r.lv)?r.lv:3})),r=>r.w+'|'+r.k,betterRev).map((r,i)=>[r,i]).sort((a,b)=>cmpS(a[0].due,b[0].due)||a[0].w-b[0].w||a[0].k-b[0].k||a[1]-b[1]).map(x=>x[0]).slice(-30).map(r=>({w:r.w,k:r.k,due:r.due,step:r.step,lv:isLv(r.lv)?r.lv:3})); // lv: まちがえた時のむずかしさ（前の版の項目は3）
   // タイムアタックはむずかしさごと。前の形（{best,recent}）はむずかしさ3の記録として読む
   if(s.ta&&typeof s.ta==='object'){const one=x=>({best:num(x.best)?x.best:0,recent:Array.isArray(x.recent)?x.recent.filter(num).slice(-10):[]});
     for(const L of DIFFS){const x=s.ta[L];if(x&&typeof x==='object')o.ta[L]=one(x);}
     if(!(s.ta[3]&&typeof s.ta[3]==='object')&&('best' in s.ta||'recent' in s.ta))o.ta[3]=one(s.ta);}
   syncTaMirror(o.ta);
   o.bossWins=num(s.bossWins)?s.bossWins:0;
-  o.forms=Array.isArray(s.forms)?[...new Set(s.forms.filter(f=>[0,1,2,3].includes(f)))]:[];
+  o.forms=Array.isArray(s.forms)?[...new Set(s.forms.filter(f=>[0,1,2,3].includes(f)))].sort():[];
   if(s.daily&&typeof s.daily==='object'){o.daily.last=isDate(s.daily.last)?s.daily.last:'';o.daily.count=num(s.daily.count)&&s.daily.count>=0?Math.floor(s.daily.count):0;
     const pk=s.daily.pick;if(pk&&typeof pk==='object'&&isDate(pk.date)&&isInt(pk.w,1,WORLDS.length))o.daily.pick={date:pk.date,w:pk.w};}
-  if(Array.isArray(s.myProblems))o.myProblems=s.myProblems.filter(validMy).slice(-MY_MAX).map(q=>({N:q.N,m:q.m,x:q.x,y:q.y,op:q.op}));
+  // t: 入れた時刻（並び順を端末どうしで合わせるため）。前の版の問題には無いので、並び順どおりに 1,2,3… をつける。t の順にならべる
+  if(Array.isArray(s.myProblems))o.myProblems=dedupe(s.myProblems.filter(validMy).map((q,i)=>({N:q.N,m:q.m,x:q.x,y:q.y,op:q.op,t:isInt(q.t,1,9e15)?q.t:i+1})),myKey,(q,p)=>!p||q.t>p.t?q:p)
+    .sort((x,y)=>x.t-y.t||cmpS(myKey(x),myKey(y))).slice(-MY_MAX);
+  if(Array.isArray(s.log))o.log=dedupe(s.log.map(normLog).filter(Boolean),e=>e.id,betterLog).map((e,i)=>[e,i]).sort((a,b)=>cmpS(a[0].t,b[0].t)||cmpS(a[0].id,b[0].id)||a[1]-b[1]).map(x=>x[0]).slice(-LOG_MAX);
   return o;
 }
 function parseState(raw){if(!raw)return null;try{const s=JSON.parse(raw);if(!s||typeof s!=='object'||s.v!==1)return null;return normalize(s)}catch(e){return null}}
+/* 2つの記録を合わせる（a・b は normalize 済み。順序を入れ替えても、同じものを何度合わせても結果は同じ）。
+   きまり: 消えるより残る（数は大きい方・日付は新しい方・集めたものは両方） */
+function mergeState(a,b){
+  const o=defaultState(),mx=Math.max;
+  o.xp=mx(a.xp,b.xp);
+  o.total={solved:mx(a.total.solved,b.total.solved),stars:mx(a.total.stars,b.total.stars)};
+  for(const w of WORLDS){const x=a.worlds[w.id],y=b.worlds[w.id];
+    if(x&&y)o.worlds[w.id]={pts:mx(x.pts,y.pts),n:mx(x.n,y.n),three:mx(x.three,y.three),days:mx(x.days,y.days),last:x.last>=y.last?x.last:y.last};
+    else if(x||y)o.worlds[w.id]=Object.assign({},x||y);}
+  for(const k of new Set([...Object.keys(a.days),...Object.keys(b.days)])){const x=a.days[k],y=b.days[k];
+    o.days[k]=x&&y?{mission:x.mission||y.mission,solved:mx(x.solved,y.solved),stars:mx(x.stars,y.stars),xp:mx(x.xp,y.xp),lv:mx(x.lv,y.lv)}:Object.assign({},x||y);}
+  for(const id of CARD_IDS){const x=a.cards[id],y=b.cards[id];if(x||y)o.cards[id]=x&&y?(x<=y?x:y):(x||y);} // 同じカードは早い日
+  o.review=dedupe(a.review.concat(b.review),r=>r.w+'|'+r.k,betterRev).map(r=>Object.assign({},r));
+  for(const L of DIFFS){const x=a.ta[L],y=b.ta[L];
+    const pick=x.best!==y.best?(x.best>y.best?x:y):x.recent.length!==y.recent.length?(x.recent.length>y.recent.length?x:y):jsonMax(x.recent,y.recent)===x.recent?x:y;
+    o.ta[L]={best:mx(x.best,y.best),recent:pick.recent.slice()};}
+  syncTaMirror(o.ta);
+  o.bossWins=mx(a.bossWins,b.bossWins);
+  o.forms=[...new Set(a.forms.concat(b.forms))];
+  const pa=a.daily.pick,pb=b.daily.pick,pk=!pa||!pb?(pa||pb):pa.date!==pb.date?(pa.date>pb.date?pa:pb):{date:pa.date,w:Math.min(pa.w,pb.w)}; // 同じ日で別のワールドなら小さい方
+  o.daily={last:a.daily.last>=b.daily.last?a.daily.last:b.daily.last,count:mx(a.daily.count,b.daily.count),pick:pk?{date:pk.date,w:pk.w}:null};
+  o.myProblems=dedupe(a.myProblems.concat(b.myProblems),myKey,(q,p)=>!p||q.t>p.t?q:p).sort((x,y)=>x.t-y.t||cmpS(myKey(x),myKey(y))).slice(-MY_MAX).map(q=>Object.assign({},q)); // 同じ問題は新しい方の時刻（20件で切る時に、一度切れた問題が戻ってこないように）
+  o.log=dedupe(a.log.concat(b.log),e=>e.id,betterLog).sort((x,y)=>cmpS(x.t,y.t)||cmpS(x.id,y.id)).slice(-LOG_MAX);
+  return normalize(JSON.parse(JSON.stringify(o)));
+}
+/* 端末に保存されている記録の、このタブが最後に読んだ・書いた生の文字列。
+   変わっていなければ（ほかのタブが書いていなければ）このタブの記録をそのまま書く（消す操作も効く）。
+   変わっていたら、書く前に合わせる（古いタブが新しい記録を上書きしない） */
+let lastRaw=null;
 function loadState(){
   const raw=lsGet(KEY);
-  if(raw==null){return parseState(lsGet(BAK))||defaultState();}
-  const s=parseState(raw); if(s)return s;
+  if(raw==null){lsDel('dlcfg_sync_seen');return parseState(lsGet(BAK))||defaultState();} // 端末の記録が無い → 次の同期でクラウドと必ず合わせる
+  const s=parseState(raw); if(s){lastRaw=raw;return s;}
   lsSet(KEY+'_corrupt_'+Date.now(),raw); // 壊れた元データは消さずに別名で残す
+  lsDel('dlcfg_sync_seen');
   return parseState(lsGet(BAK))||defaultState();
 }
 let state=loadState();
-/* 変更の直前に呼ぶ：別タブで進んだデータがあれば、それに足す（上書きで消さない） */
-function refreshState(){const s=parseState(lsGet(KEY));if(s&&s.xp>=state.xp)state=s;}
-function saveState(){
-  const cur=lsGet(KEY); const curS=parseState(cur);
-  if(curS)lsSet(BAK,cur);
-  if(!lsSet(KEY,JSON.stringify(state))){toast('保存できませんでした（このブラウザの保存領域が使えません）');return false;}
-  return true;
+/* 変更の直前に呼ぶ：別タブで進んだデータがあれば、それと合わせる（上書きで消さない） */
+function refreshState(){const raw=lsGet(KEY);if(raw===lastRaw||raw==null)return;const s=parseState(raw);if(s){state=mergeState(normalize(state),s);lastRaw=raw;}}
+/* 本体キーへの書き込みはすべてここを通す。
+   o.bak=false: 前の版を BAK に回さない（画面を出すだけの保存・クラウドから合わせた時。読み込み直後の控えを上書きしない）
+   o.replace=true: 合わせずに置きかえる（記録の読み込みだけ）。o.quiet: 失敗してもトーストを出さない */
+let saveGen=0;
+function writeState(o){
+  o=o||{};
+  const raw=lsGet(KEY),s=raw!=null&&raw!==lastRaw?parseState(raw):null;
+  if(s&&!o.replace)state=mergeState(normalize(state),s);
+  if(o.bak!==false&&parseState(raw))lsSet(BAK,raw);
+  const out=JSON.stringify(state);
+  if(!lsSet(KEY,out)){if(!o.quiet)toast('保存できませんでした（このブラウザの保存領域が使えません）');return false;}
+  lastRaw=out;return true;
 }
-window.addEventListener('storage',e=>{if(e.key===KEY){const s=parseState(e.newValue);if(s&&s.xp>=state.xp){state=s;if(view==='home'||view==='cards')render();}}});
+function saveState(o){const ok=writeState(o);if(ok){saveGen++;markPending();}return ok;} // 記録が変わった → 送信待ちの印（送るのはセッションの終わりなど）
+window.addEventListener('storage',e=>{if(e.key===KEY&&e.newValue!=null){const s=parseState(e.newValue);if(s){state=mergeState(normalize(state),s);lastRaw=e.newValue;if(view==='home'||view==='cards'||view==='history')render();}}});
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
 
 /* ===== 日付・連続日数 ===== */
@@ -267,9 +344,9 @@ const dkey=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const addDays=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
 const weekKey=d=>dkey(addDays(d,-((d.getDay()+6)%7)));
 const isDone=k=>!!(state.days[k]&&state.days[k].mission);
-function streakInfo(){
-  const now=new Date(); const todayDone=isDone(dkey(now));
-  let d=todayDone?now:addDays(now,-1); let count=0; const used={}, frozen={};
+/* d から前へ数える連続（ミッション達成日＋週に1回のお休み券）。ホームの連続と成績の記録で同じ数え方を使う */
+function streakBack(d){
+  let count=0; const used={}, frozen={};
   for(let i=0;i<3000;i++){
     const k=dkey(d);
     if(isDone(k)){count++;d=addDays(d,-1);continue;}
@@ -277,7 +354,18 @@ function streakInfo(){
     if(!used[wk]&&isDone(dkey(addDays(d,-1)))){used[wk]=true;frozen[k]=true;d=addDays(d,-1);continue;}
     break;
   }
-  return {count,frozen,todayDone,freezeLeft:used[weekKey(now)]?0:1};
+  return {count,frozen,used};
+}
+function streakInfo(){
+  const now=new Date(); const todayDone=isDone(dkey(now));
+  const r=streakBack(todayDone?now:addDays(now,-1));
+  return {count:r.count,frozen:r.frozen,todayDone,freezeLeft:r.used[weekKey(now)]?0:1};
+}
+/* いちばん長い連続: ミッション達成日のどれかで終わる連続を、ホームと同じ数え方で数えた中の最大（今の連続もふくむ） */
+function longestStreak(){
+  let best=streakInfo().count;
+  for(const k of Object.keys(state.days))if(state.days[k].mission)best=Math.max(best,streakBack(dOf(k)).count);
+  return best;
 }
 
 /* ===== レベル・習熟・ランク ===== */
@@ -637,7 +725,7 @@ function dailyProblem(dk){
   const pk=state.daily.pick,keep=pk&&pk.date===dk&&unlocked(pk.w)?pk.w:0;
   const p=withSeed(seedOf('dl-daily-'+dk),()=>{const r=Math.random();const w=keep||U[Math.floor(r*U.length)];return Object.assign(gen(w,{hard:true}),{daily:true});});
   if(!keep){refreshState();const q=state.daily.pick;if(q&&q.date===dk&&unlocked(q.w))return dailyProblem(dk); // 別タブが先に決めていたらそれに合わせる
-    state.daily.pick={date:dk,w:p.w};lsSet(KEY,JSON.stringify(state));} // 画面を出すだけの保存なので BAK は回さない（読み込み直後の控えを上書きしない）
+    state.daily.pick={date:dk,w:p.w};writeState({bak:false,quiet:true});} // 画面を出すだけの保存なので BAK は回さない（読み込み直後の控えを上書きしない）。保存済みの記録と合わせてから書く
   return p;
 }
 const dailyDone=dk=>state.daily.last>=dk;
@@ -772,6 +860,23 @@ function updateReview(p,stars){
   if(stars<3){const it={w:p.w,k,due:dkey(addDays(new Date(),REVIEW_STEPS[0])),step:0,lv:lvOf(p)};if(ix>=0)q[ix]=it;else{q.push(it);if(q.length>30)q.shift();}}
   else if(p.rev&&ix>=0){const st=q[ix].step+1;if(st>=REVIEW_STEPS.length)q.splice(ix,1);else{q[ix].step=st;q[ix].due=dkey(addDays(new Date(),REVIEW_STEPS[st]));}}
 }
+const dayRec=dk=>state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0,xp:0,lv:0});
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const avg1=(a,b)=>b?Math.round(a/b*10)/10:0;
+/* 終わったセッションを成績の記録に1件足す。前回の同じモード・同じワールドと比べた結果を返す（初回・0問は null） */
+function addLog(bonus){
+  if(!ses||!Array.isArray(ses.results)||!ses.results.length)return null;
+  const R=ses.results,n=R.length,mode=ses.mode;
+  const w=mode==='world'?ses.w:mode==='daily'&&ses.list[0]?ses.list[0].w:0;
+  const pw={};if(mode==='world'||mode==='mission'||mode==='ta')for(const r of R){const v=pw[r.w]||(pw[r.w]=[0,0,0]);v[0]++;v[1]+=Math.round(r.sec);if(r.nm)v[2]++;}
+  const e=normLog({id:typeof ses.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(ses.id)?ses.id:newId(),t:new Date().toISOString(),day:today(),mode,w,
+    level:mode==='daily'||mode==='my'?3:(isLv(ses.level)?ses.level:3),n,stars:R.reduce((a,r)=>a+r.stars,0),three:R.filter(r=>r.stars===3).length,nomiss:R.filter(r=>r.nm===true).length,
+    sec:avg1(R.reduce((a,r)=>a+(num(r.sec)?r.sec:0),0),n),xp:R.reduce((a,r)=>a+(num(r.gain)?r.gain:0),0)+bonus,xpTotal:state.xp,lv:levelOf(state.xp),pw});
+  if(!e)return null;
+  const prev=state.log.filter(x=>x.id!==e.id&&x.mode===e.mode&&x.w===e.w&&x.n>0).pop();
+  state.log=state.log.filter(x=>x.id!==e.id).concat(e).slice(-LOG_MAX);
+  return prev?{day0:prev.day,sec0:prev.sec,sec1:e.sec,st0:avg1(prev.stars,prev.n),st1:avg1(e.stars,e.n)}:null;
+}
 /* 別のタブで同じセッションが先に進んでいたら、点を足さずにそちらに合わせる */
 function sessionMovedElsewhere(){
   if(!ses||!ses.id)return false;
@@ -800,11 +905,12 @@ function finish(){
   ws.pts=L<=2?(ws.pts>=EASY_CAP?ws.pts:Math.min(EASY_CAP,ws.pts+gl)):Math.min(MASTER,ws.pts+gl); // 段1・2 は29まで（すでに29より上なら下げない）
   if(L>=SKILL_MIN&&ws.last!==dk){ws.days++;ws.last=dk;} // とくい・マスターの日数は段3以上で解いた日だけ
   state.total.solved++;state.total.stars+=stars;
-  const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});dd.solved++;dd.stars+=stars;
+  const dd=dayRec(dk);dd.solved++;dd.stars+=stars;dd.xp+=gain;
   if(ses.mode!=='ta')updateReview(p,stars);
   problemCards(p,stars,best,sec,s2);
+  dd.lv=levelOf(state.xp);
   }
-  ses.results.push(free?{w:p.w,stars,sec,gain,free:true}:{w:p.w,stars,sec,gain});
+  ses.results.push(free?{w:p.w,stars,sec,gain,free:true,nm:cur.miss===0}:{w:p.w,stars,sec,gain,nm:cur.miss===0}); // nm: ノーミス（成績の記録に使う）
   if(!free)saveState();
   if(ses.mode==='ta'){
     if(Date.now()>=ses.endAt){endSession();return;}
@@ -823,27 +929,131 @@ function next(){
 function endSession(){
   let bonus=0;const dk=ses.day||today();refreshState();
   const free=ses.mode==='my'||ses.practice===true; // 点なしの練習: ボーナス・カード・保存なし
-  if(!free&&ses.mode==='mission'){const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});if(!dd.mission){dd.mission=true;bonus=MISSION_BONUS;state.xp+=bonus;}
+  if(!free&&ses.mode==='mission'){const dd=dayRec(dk);if(!dd.mission){dd.mission=true;bonus=MISSION_BONUS;state.xp+=bonus;dd.xp+=bonus;}
     if(ses.results.length===MISSION_N&&ses.results.every(r=>r.stars===3)&&(isLv(ses.level)?ses.level:3)>=SKILL_MIN)award('perfect');
     const sc=streakInfo().count;if(sc>=3)award('st3');if(sc>=7)award('st7');if(sc>=30)award('st30');}
   // きょうの難問: その日（はじめた日）に初めて解き終えた時だけボーナス。日またぎ・別タブで二重にならないよう「より新しい日」だけ記録
-  if(!free&&ses.mode==='daily'&&ses.results.length>0&&!dailyDone(dk)){state.daily.last=dk;state.daily.count++;bonus=DAILY_BONUS;state.xp+=bonus;
+  if(!free&&ses.mode==='daily'&&ses.results.length>0&&!dailyDone(dk)){state.daily.last=dk;state.daily.count++;bonus=DAILY_BONUS;state.xp+=bonus;dayRec(dk).xp+=bonus;
     award('daily');if(state.daily.count>=7)award('daily7');}
   let ta=null;
   if(ses.mode==='ta'){const n=ses.results.length,T=state.ta[isLv(ses.level)?ses.level:3];T.best=Math.max(T.best,n);T.recent=T.recent.concat(ses.results.map(r=>r.sec)).slice(-10);
     syncTaMirror(state.ta);if(n>=8&&(isLv(ses.level)?ses.level:3)>=SKILL_MIN)award('ta8');ta={n,best:T.best,newBest:n>0&&n>(ses.taBest0||0)};}
-  if(!free){if(levelOf(state.xp)>=10)award('lv10');
-  saveState();}
-  const res={mode:ses.mode,level:isLv(ses.level)?ses.level:3,free,w:ses.w,n:ses.results.length,stars:ses.results.reduce((a,r)=>a+r.stars,0),three:ses.results.filter(r=>r.stars===3).length,
+  if(!free){if(levelOf(state.xp)>=10)award('lv10');if(bonus)dayRec(dk).lv=levelOf(state.xp);}
+  const cmp=addLog(bonus); // 点なしの練習も成績の記録には残す（点は0。ほかの記録は動かさない）
+  saveState();
+  const res={cmp,mode:ses.mode,level:isLv(ses.level)?ses.level:3,free,w:ses.w,n:ses.results.length,stars:ses.results.reduce((a,r)=>a+r.stars,0),three:ses.results.filter(r=>r.stars===3).length,
     xp:ses.results.reduce((a,r)=>a+r.gain,0)+bonus,bonus,lv0:levelOf(ses.xp0),lv1:levelOf(state.xp),ta,cards:ses.newCards.slice(),
     worlds:[...new Set(ses.results.filter(r=>!r.my&&!r.free).map(r=>r.w))].map(id=>({id,p0:ses.pts0[id]||0,p1:wstat(id).pts})),
     newly:WORLDS.filter(x=>unlocked(x.id)&&!ses.unl0.includes(x.id)).map(x=>x.id)};
   lsSet(LAST,JSON.stringify(res));lsDel(SES);ses=null;cur=null;go('result');
+  syncSoon(); // セッションが終わった → 3秒後にクラウドへ
 }
 function quit(){
   if(ses&&ses.mode!=='ta'&&ses.results.length<ses.list.length&&!(cur&&cur.done&&ses.idx===ses.list.length-1)&&!confirm('とちゅうでやめますか？（解いた問題の点はのこります）'))return;
   if(ses&&ses.mode==='ta'&&!confirm('タイムアタックをやめますか？（記録はのこりません。解いた問題の点はのこります）'))return;
+  if(ses&&ses.mode!=='ta'&&ses.results.length>0){refreshState();addLog(0);saveState();syncSoon();} // とちゅうまでの分も成績の記録に残す（タイムアタックは「記録はのこりません」のとおり残さない）
   lsDel(SES);ses=null;cur=null;go('home');
+}
+
+/* ===== クラウド保存（専用 GAS。送るのは学習の記録 state だけ。合言葉は画面・ログに出さない） =====
+   正本は gas/distributive-law-sync.js。端末には必ず先に保存し、通信の失敗では端末の保存を止めない */
+const SYNC='dlcfg_sync', PEND='dlcfg_sync_pending', SEEN='dlcfg_sync_seen';
+/* SEEN: この端末が最後にクラウドで見た（読んだ・書いた）記録の指紋。クラウドがそれから変わっていなければ、
+   この端末の記録をそのまま送る（この端末で消したマイ問題・終わったふくしゅうがクラウドの古い控えから戻らないように）。
+   変わっていれば（ほかの端末が書いた・この端末の記録が消えた後など）合わせてから送る */
+const fp=j=>seedOf(j)+':'+j.length;
+const SYNC_U=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/, SYNC_T=/^[A-Za-z0-9_-]{24,}$/;
+const okCfg=c=>!!c&&typeof c==='object'&&typeof c.u==='string'&&typeof c.t==='string'&&SYNC_U.test(c.u)&&SYNC_T.test(c.t);
+function syncCfg(){let c=null;try{c=JSON.parse(lsGet(SYNC)||'null')}catch(e){}return okCfg(c)?{u:c.u,t:c.t}:null;}
+let syncSt=syncCfg()?(lsGet(PEND)?'wait':'idle'):'off', syncAt=0, syncBusy=false, syncAgain=false, syncT=null, syncP=null;
+function syncText(){
+  if(syncSt==='off')return '未設定';
+  if(syncSt==='busy')return '⏳ 送信中…';
+  if(syncSt==='ok'){const d=new Date(syncAt);return `✓ 保存済み（${d.getHours()}時${pad(d.getMinutes())}分）`;}
+  if(syncSt==='err')return '⚠ つながりません（端末には保存済み・あとで自動で送り直します）';
+  if(syncSt==='wait')return '⏳ 送信待ち（端末には保存済み）';
+  return 'これから保存します';
+}
+function setSync(st){syncSt=st;if(st==='ok')syncAt=Date.now();const e=document.getElementById('syncSt');if(e)e.textContent=syncText();}
+/* 記録が変わった時: 送信待ちの印だけ残す（1問ごとには送らない。送るのはセッションの終わり・画面を隠した時・起動時・今すぐ保存・再送） */
+function markPending(){if(!syncCfg())return;lsSet(PEND,'1');if(!syncBusy)setSync('wait');}
+/* セッションが終わった時: 3秒待ってまとめて送る（書き込みだけ） */
+function syncSoon(){if(!syncCfg())return;markPending();clearTimeout(syncT);syncT=setTimeout(()=>{cloudSync();},3000);}
+/* クラウドから届いた記録は parseState と同じ検査を通す。形が違えば使わない */
+function cloudOf(x){if(!x||typeof x!=='object'||Array.isArray(x)||x.v!==1)return null;try{return normalize(x)}catch(e){return null}}
+/* 読み取りも書き込みも POST（合言葉を URL に載せない）。text/plain なので事前の確認通信（preflight）は起きない */
+const gasBody=(c,action,sj)=>'{"t":'+JSON.stringify(c.t)+',"action":"'+action+'"'+(sj?',"state":'+sj:'')+'}';
+async function gasPost(c,body,keepalive){const r=await fetch(c.u,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body,redirect:'follow',cache:'no-store',keepalive:!!keepalive});
+  const j=await r.json();if(!j||typeof j!=='object'||Array.isArray(j))throw new Error('bad');return j;}
+const canon=s=>JSON.stringify(normalize(s));
+/* クラウドの記録を端末の記録と合わせて端末に保存する（BAK は回さない）。練習中は画面を描き直さない */
+function takeCloud(cs){
+  refreshState();const before=canon(state);
+  state=mergeState(normalize(state),cs);
+  if(canon(state)===before)return false;
+  writeState({bak:false,quiet:true});
+  if(view==='home'||view==='cards'||view==='history')render();
+  return true;
+}
+/* 書き込み。'stale'（保存済みの方が進んでいる・保存済みの記録の一部が無い）なら、返ってきた記録と合わせて1回だけ送り直す */
+async function cloudPush(c,retry){
+  const g=saveGen,sj=canon(state);lsSet(PEND,'1');
+  const j=await gasPost(c,gasBody(c,'write',sj));
+  if(j.ok===true){lsSet(SEEN,fp(sj));if(g===saveGen)lsDel(PEND);return true;}
+  if(j.error==='stale'&&retry>0){const cs=cloudOf(j.state);if(cs){takeCloud(cs);return cloudPush(c,retry-1);}}
+  return false;
+}
+/* read=true（起動時・リンクを開いた時）: 読む → 合わせる → 端末の方が進んでいれば書く。
+   read=false（それ以外）: 書くだけ（stale の時だけ合わせる）。同時には1つだけ（途中で頼まれたら終わってからもう1回） */
+function cloudSync(read){
+  const c=syncCfg();if(!c){setSync('off');return Promise.resolve(false);}
+  if(syncBusy){syncAgain=syncAgain||'w';if(read)syncAgain='r';return syncP;} // 送信中に頼まれたら、今の送信の結果を返して、終わってからもう1回
+  syncBusy=true;clearTimeout(syncT);setSync('busy');
+  syncP=(async()=>{let ok=false;
+    try{
+      if(read){
+        const j=await gasPost(c,gasBody(c,'read'));
+        if(j.ok!==true)throw new Error('read');
+        const cs=cloudOf(j.state); // null はクラウドがまだ空
+        const cj=cs?JSON.stringify(cs):'';
+        if(cs&&lsGet(SEEN)!==fp(cj))takeCloud(cs); // この端末が最後に見た時からクラウドが変わっていたら合わせる
+        if(cs&&canon(state)===cj){lsSet(SEEN,fp(cj));lsDel(PEND);ok=true;} // クラウドと同じ → 送らない
+        else ok=await cloudPush(c,1);
+      }else ok=await cloudPush(c,1);
+    }catch(e){ok=false;}
+    syncBusy=false;
+    if(syncAgain){const r=syncAgain==='r';syncAgain=false;setTimeout(()=>{cloudSync(r);},0);}
+    setSync(ok?(lsGet(PEND)?'wait':'ok'):'err');
+    return ok;})();
+  return syncP;
+}
+/* 画面を閉じる・裏に回る時: 送信待ちがあれば書く（keepalive は約64KBまでなので、大きい時は keepalive なしで送ってみる） */
+function syncBeacon(){
+  const c=syncCfg();if(!c||!lsGet(PEND))return;
+  const sj=canon(state),body=gasBody(c,'write',sj),g=saveGen;
+  let size=body.length;try{size=new TextEncoder().encode(body).length;}catch(e){}
+  try{gasPost(c,body,size<60000).then(j=>{if(j.ok===true){lsSet(SEEN,fp(sj));if(g===saveGen){lsDel(PEND);setSync('ok');}}}).catch(()=>{});}catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')syncBeacon();else if(syncCfg()&&lsGet(PEND))cloudSync(false);});
+window.addEventListener('pagehide',syncBeacon);
+window.addEventListener('online',()=>{if(syncCfg()&&lsGet(PEND))cloudSync(false);});
+/* 専用リンク（#sync=<base64url の JSON {u,t}>）で接続設定を取り込む。受け付けても断っても # は消す */
+function b64urlJSON(s){const b=s.replace(/-/g,'+').replace(/_/g,'/');const bin=atob(b+'==='.slice((b.length+3)%4));return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,ch=>ch.charCodeAt(0))));}
+function takeSyncLink(){
+  let h='';try{h=String(location.hash||'')}catch(e){}
+  if(!/^#sync=/.test(h))return false;
+  let c=null;try{const o=b64urlJSON(decodeURIComponent(h.slice(6)));if(okCfg(o))c={u:o.u,t:o.t};}catch(e){}
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  if(!c){toast('このリンクは使えません。クラウド保存の設定は変えていません');return false;}
+  if(!lsSet(SYNC,JSON.stringify(c))){toast('クラウド保存の設定を保存できませんでした');return false;}
+  lsDel(SEEN); // 新しい保存先（または設定し直し）は、まずクラウドの記録と合わせる
+  toast('クラウド保存をはじめました。これからは自動でクラウドにも保存されます');
+  setSync('idle');cloudSync(true);return true;
+}
+window.addEventListener('hashchange',()=>{if(takeSyncLink()&&view==='home')render();});
+function stopSync(){
+  if(!confirm('クラウド保存をやめますか？（この端末の記録はそのまま残ります。クラウドに保存した記録も消えません）'))return;
+  lsDel(SYNC);lsDel(PEND);lsDel(SEEN);clearTimeout(syncT);setSync('off');render();toast('クラウド保存をやめました');
 }
 
 /* ===== 画面 ===== */
@@ -861,6 +1071,7 @@ function render(shake){
   else if(view==='result')renderResult();
   else if(view==='cards')renderCards();
   else if(view==='make')renderMake();
+  else if(view==='history')renderHistory();
   else{view='home';renderHome();}
 }
 function renderHome(){
@@ -903,11 +1114,19 @@ function renderHome(){
     const lab=`${d.getMonth()+1}月${d.getDate()}日${isDone(k)?' ミッションクリア':st.frozen[k]?' お休み券':''}`;
     h+=`<div class="${cls}" aria-label="${lab}"><span>${d.getDate()}</span><span aria-hidden="true">${isDone(k)?'✓':st.frozen[k]?'❄︎':(dd&&dd.solved?'・':'')}</span></div>`;}
   h+=`</div><p class="muted" style="margin:8px 0 0">✓ ミッションクリア　❄︎ お休み券　・ 練習だけした日</p></section>`;
+  h+=`<section class="card"><h2>📈 成績の記録</h2><p class="muted" style="margin:0 0 10px">合計点・速さ・ノーミスの変わり方をグラフで見られる。今週と先週もくらべられる。</p>
+    <button class="btn" id="bHist" style="width:100%">成績の記録を見る</button></section>`;
   h+=`<section class="card"><h2>📦 記録のひかえ</h2><p class="muted" style="margin:0 0 10px">記録をファイルにしておくと、ほかの iPad やパソコンにうつしたり、もしもの時にもどしたりできる。</p>
     <div class="row"><button class="btn" id="bExport">記録を書き出す</button><button class="btn" id="bImport">記録を読み込む</button>
     <input type="file" id="fImport" accept=".json,application/json" hidden aria-label="読み込む記録のファイル"></div>
     <p class="fb" id="ioMsg" role="status" aria-live="polite"></p></section>`;
+  const sc=syncCfg();
+  h+=`<section class="card" aria-labelledby="syncLab"><h2 id="syncLab">☁️ クラウド保存</h2>`+(sc?`<p style="margin:0 0 10px;font-weight:700" id="syncSt" role="status" aria-live="polite">${esc(syncText())}</p>
+    <div class="row"><button class="btn" id="bSyncNow">今すぐ保存</button><button class="btn" id="bSyncStop">クラウド保存をやめる</button></div>`
+    :`<p class="muted" style="margin:0">未設定：保護者の方が専用リンクを開くと、クラウドにも自動で保存されます。</p>`)+`</section>`;
   app.innerHTML=h;
+  $('bHist').onclick=()=>go('history');
+  if(sc){$('bSyncNow').onclick=()=>cloudSync(false).then(ok=>toast(ok?'クラウドに保存しました':'つながりませんでした。端末には保存済みです（あとで自動で送り直します）'));$('bSyncStop').onclick=stopSync;}
   $('bDaily').onclick=()=>newSession('daily');
   $('bMake').onclick=()=>go('make');
   $('bExport').onclick=exportState;
@@ -926,6 +1145,130 @@ function renderCards(){
   for(const c of CARDS){const on=!!state.cards[c.id];
     h+=`<div class="tcard ${on?'on':'off'}" aria-label="${esc(c.n)}${on?' 入手済み':' まだ'}"><div class="e" aria-hidden="true">${on?c.e:'❓'}</div><b>${on?vx(c.n):'？？？'}</b><span class="muted">${vx(c.d)}</span>${on?`<div class="muted">${esc(state.cards[c.id])}</div>`:''}</div>`;}
   h+=`</div></section>`;
+  app.innerHTML=h;$('bBack').onclick=()=>go('home');
+}
+/* ===== 成績の記録（グラフは外部の部品を使わずに SVG で描く。色は CSS 変数だけ） ===== */
+const dOf=k=>{const a=k.split('-').map(Number);return new Date(a[0],a[1]-1,a[2]);};
+const mdOf=k=>{const d=dOf(k);return (d.getMonth()+1)+'/'+d.getDate();};
+const MODE_NAMES={mission:'ミッション',world:'練習',ta:'タイムアタック',daily:'きょうの難問',my:'マイ問題'};
+const WCOL=['--accent','--orange','--ok','--ng','--gold','--blue','--sub','--ink']; // ワールド1〜8の線の色（線の端にワールドの番号も書く）
+const ceilNice=v=>{if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v))),m=v/p;return (m<=1?1:m<=2?2:m<=5?5:10)*p;};
+/* 折れ線: series=[{pts:[[i,y],…],col,lab}]、xl=[[i,'文字'],…]、n=横の数、unit=縦の単位 */
+function svgLine(o){
+  const W=340,H=200,l=46,r=34,t=22,b=30,iw=W-l-r,ih=H-t-b;
+  const ys=o.series.flatMap(s=>s.pts.map(p=>p[1]));let lo=o.min0?0:Math.min(...ys),hi=Math.max(...ys);
+  if(o.min0)hi=o.max!=null?o.max:ceilNice(hi);
+  else{const d=ceilNice(Math.max(1,(hi-lo)/2));lo=Math.max(0,Math.floor(lo/d)*d);hi=Math.ceil(hi/d)*d;if(hi<=lo)hi=lo+d;}
+  const X=i=>l+(o.n<=1?iw/2:i*iw/(o.n-1)),Y=v=>t+ih-(v-lo)/((hi-lo)||1)*ih,f=v=>Math.round(v*10)/10;
+  let g=`<svg class="ch" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(o.aria)}">`;
+  g+=`<text class="ch-u" x="4" y="13">${esc(o.unit)}</text>`;
+  for(const v of [lo,(lo+hi)/2,hi]){const y=f(Y(v));g+=`<line class="ch-grid" x1="${l}" x2="${W-r}" y1="${y}" y2="${y}"/><text class="ch-t" x="${l-4}" y="${y+4}" text-anchor="end">${esc(String(Math.round(v)))}</text>`;}
+  for(const [i,s] of o.xl)g+=`<text class="ch-t" x="${f(X(i))}" y="${H-8}" text-anchor="${i===0?'start':i===o.n-1?'end':'middle'}">${esc(s)}</text>`;
+  g+=`<line class="ch-ax" x1="${l}" x2="${W-r}" y1="${t+ih}" y2="${t+ih}"/>`;
+  const labs=o.series.filter(s=>s.lab).map(s=>{const e=s.pts[s.pts.length-1];return {s,x:X(e[0])+6,y:Y(e[1])+4};}).sort((a,b)=>a.y-b.y);
+  for(let i=1;i<labs.length;i++)if(Math.abs(labs[i].x-labs[i-1].x)<14&&labs[i].y-labs[i-1].y<13)labs[i].y=labs[i-1].y+13; // 線の端の番号が重ならないようにずらす
+  for(const s of o.series){const pts=s.pts.map(p=>`${f(X(p[0]))},${f(Y(p[1]))}`).join(' ');
+    if(s.pts.length>1)g+=`<polyline class="ch-line" style="stroke:var(${s.col})" points="${pts}"/>`;
+    for(const p of s.pts)g+=`<circle cx="${f(X(p[0]))}" cy="${f(Y(p[1]))}" r="3" style="fill:var(${s.col})"/>`;
+    for(const m of s.marks||[])g+=`<text class="ch-l" x="${f(X(m[0]))}" y="${f(Y(m[1])-8)}" text-anchor="middle" style="fill:var(${s.col})">${esc(m[2])}</text>`;}
+  for(const l of labs)g+=`<text class="ch-l" x="${f(l.x)}" y="${f(l.y)}" style="fill:var(${l.s.col})">${esc(l.s.lab)}</text>`;
+  return g+`</svg>`;
+}
+/* 棒（2本ずつ）: a・b は横の数だけの配列 */
+function svgBars(o){
+  const W=340,H=200,l=40,r=8,t=22,b=30,iw=W-l-r,ih=H-t-b,n=o.a.length,hi=ceilNice(Math.max(1,...o.a,...o.b)),cw=iw/n,bw=Math.max(2,cw/2-1);
+  const Y=v=>t+ih-v/hi*ih,f=v=>Math.round(v*10)/10;
+  let g=`<svg class="ch" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(o.aria)}"><text class="ch-u" x="4" y="13">${esc(o.unit)}</text>`;
+  for(const v of [0,hi/2,hi]){const y=f(Y(v));g+=`<line class="ch-grid" x1="${l}" x2="${W-r}" y1="${y}" y2="${y}"/><text class="ch-t" x="${l-4}" y="${y+4}" text-anchor="end">${esc(String(Math.round(v)))}</text>`;}
+  for(let i=0;i<n;i++){const x=l+i*cw;
+    if(o.a[i])g+=`<rect x="${f(x+0.5)}" y="${f(Y(o.a[i]))}" width="${f(bw)}" height="${f(ih-(Y(o.a[i])-t))}" style="fill:var(${o.ca})"/>`;
+    if(o.b[i])g+=`<rect x="${f(x+0.5+bw)}" y="${f(Y(o.b[i]))}" width="${f(bw)}" height="${f(ih-(Y(o.b[i])-t))}" style="fill:var(${o.cb})"/>`;}
+  for(const [i,s] of o.xl)g+=`<text class="ch-t" x="${f(i===0?l:i===n-1?W-r:l+i*cw+cw/2)}" y="${H-8}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}">${esc(s)}</text>`;
+  return g+`<line class="ch-ax" x1="${l}" x2="${W-r}" y1="${t+ih}" y2="${t+ih}"/></svg>`;
+}
+const chartBox=(title,svg,sum,legend)=>`<div class="chbox"><h3>${esc(title)}</h3>${svg?`<div class="diagram">${svg}</div>${legend||''}<p class="muted" style="margin:4px 0 0">${esc(sum)}</p>`:`<p class="muted" style="margin:0">これから記録がたまります。</p>`}</div>`;
+function renderHistory(){
+  const now=new Date(),tk=today(),LG=state.log,L=levelOf(state.xp);
+  let h=`<div class="topbar"><h1>📈 成績の記録</h1><button class="btn" id="bBack">← ホームへ</button></div>`;
+  // 1. まとめ
+  const pd=Object.keys(state.days).filter(k=>state.days[k].solved>0||state.days[k].mission).sort();
+  const nowSt=streakInfo().count,best=longestStreak();
+  h+=`<section class="card" aria-labelledby="hs1"><h2 id="hs1">まとめ</h2><ul class="starlist">
+    <li>合計 <b>${state.total.solved}問</b>・★<b>${state.total.stars}</b>・レベル <b>${L}</b>（${esc(titleOf(L))}・${state.xp}点）</li>
+    <li>練習した日 <b>${pd.length}日</b></li>
+    <li>ミッションの連続：いま <b>${nowSt}日</b>・いちばん長い連続 <b>${best}日</b>（お休み券もふくむ・ホームと同じ数え方）</li>
+    <li>タイムアタックの自己ベスト：${DIFFS.map(x=>`むずかしさ${x} <b>${state.ta[x].best}問</b>`).join('・')}</li></ul></section>`;
+  // 2. 今週と先週（月曜はじまり）
+  const wk0=weekKey(now),wk1=dkey(addDays(dOf(wk0),-7));
+  const agg=wk=>{const a={n:0,nm:0,sec:0,xp:0,c:0};for(const e of LG)if(weekKey(dOf(e.day))===wk){a.c++;a.n+=e.n;a.nm+=e.nomiss;a.sec+=e.sec*e.n;a.xp+=e.xp;}return a;};
+  const A=agg(wk0),B=agg(wk1);
+  h+=`<section class="card" aria-labelledby="hs2"><h2 id="hs2">今週と先週</h2>`;
+  if(!A.c&&!B.c)h+=`<p class="muted" style="margin:0">これから記録がたまります。</p>`;
+  else{const rate=a=>a.n?Math.round(a.nm/a.n*100):null,sp=a=>a.n?avg1(a.sec,a.n):null,both=A.c&&B.c;
+    const row=(lab,a,b,unit,better)=>`<tr><th scope="row">${lab}</th><td>${a==null?'—':a+unit}${both&&a!=null&&b!=null&&better(a,b)?' <b class="up">⬆ よくなった</b>':''}</td><td>${b==null?'—':b+unit}</td></tr>`;
+    h+=`<div class="tblw"><table class="tbl"><thead><tr><th scope="col"></th><th scope="col">今週（${esc(mdOf(wk0))}〜）</th><th scope="col">先週（${esc(mdOf(wk1))}〜）</th></tr></thead><tbody>
+      ${row('問題数',A.n,B.n,'問',(a,b)=>a>b)}${row('ノーミス率',rate(A),rate(B),'%',(a,b)=>a>b)}${row('1問の平均',sp(A),sp(B),'秒',(a,b)=>a<b)}${row('もらった点',A.xp,B.xp,'点',(a,b)=>a>b)}</tbody></table></div>`;}
+  h+=`</section>`;
+  // 3. グラフ
+  h+=`<section class="card" aria-labelledby="hs3"><h2 id="hs3">グラフ</h2>`;
+  { // (a) 合計点とレベル（直近60日・日ごと。その日の最後の記録の合計点）
+    const N=60,st=addDays(now,-(N-1)),byDay={};for(const e of LG)byDay[e.day]=e;
+    const pts=[],marks=[];let last=LG.filter(e=>e.day<dkey(st)).pop()||null,lv0=null; // 60日より前の最後の記録から続ける
+    for(let i=0;i<N;i++){const k=dkey(addDays(st,i));if(byDay[k])last=byDay[k];
+      if(!last)continue;const v=k===tk?Math.max(state.xp,last.xpTotal):last.xpTotal,lv=levelOf(v);pts.push([i,v]);if(lv0!=null&&lv>lv0)marks.push([i,v,'Lv'+lv]);lv0=lv;}
+    const used=new Set(LG.filter(e=>e.day>=dkey(st)).map(e=>e.day));
+    let svg='',sum='';
+    if(used.size>=2&&pts.length>=2){const a=pts[0][1],z=pts[pts.length-1][1];sum=`直近60日で 合計点は ${a}点 → ${z}点（レベル ${levelOf(a)} → ${levelOf(z)}）。Lv は レベルが上がった日。`;
+      const mk=[];for(const m of marks.reverse())if(!mk.length||mk[mk.length-1][0]-m[0]>=10)mk.push(m); // 近すぎるレベルの印は新しい方だけ
+      svg=svgLine({series:[{pts,col:'--accent',marks:mk}],n:N,xl:[[0,mdOf(dkey(st))],[N-1,mdOf(tk)]],unit:'合計点（点）',aria:sum});}
+    h+=chartBox('合計点とレベルの変わり方',svg,sum);
+  }
+  { // (b) 毎日の問題数と★（直近28日）
+    const N=28,st=addDays(now,-(N-1)),a=[],b=[];let dd=0,sa=0,sb=0;
+    for(let i=0;i<N;i++){const d=state.days[dkey(addDays(st,i))];a.push(d?d.solved:0);b.push(d?d.stars:0);if(d&&d.solved){dd++;sa+=d.solved;sb+=d.stars;}}
+    let svg='',sum='';
+    if(dd>=1){sum=`直近28日で ${sa}問・★${sb}（練習した日 ${dd}日）。`;svg=svgBars({a,b,ca:'--accent',cb:'--gold',xl:[[0,mdOf(dkey(st))],[13,mdOf(dkey(addDays(st,13)))],[N-1,mdOf(tk)]],unit:'問・★の数',aria:sum});}
+    h+=chartBox('毎日の問題数と★（直近28日）',svg,sum,svg?`<p class="muted" style="margin:0"><span class="lg" style="background:var(--accent)"></span>問題数　<span class="lg" style="background:var(--gold)"></span>★の数</p>`:'');
+  }
+  const NW=8,ws0=addDays(dOf(wk0),-7*(NW-1)),wix=k=>Math.round((dOf(weekKey(dOf(k)))-ws0)/(7*864e5)),wxl=[[0,mdOf(dkey(ws0))],[NW-1,mdOf(wk0)]];
+  { // (c) ワールドごとの「1問の平均秒」（週ごと）
+    const acc={};for(const e of LG){const i=wix(e.day);if(i<0||i>=NW||!e.pw)continue;for(const w in e.pw){const v=e.pw[w],a=acc[w]||(acc[w]={});const c=a[i]||(a[i]=[0,0]);c[0]+=v[0];c[1]+=v[1];}}
+    const series=[],txt=[],wks=new Set();
+    for(const w of WORLDS){const a=acc[w.id];if(!a)continue;const pts=Object.keys(a).map(Number).sort((x,y)=>x-y).map(i=>{wks.add(i);return [i,avg1(a[i][1],a[i][0])];});
+      series.push({pts,col:WCOL[w.id-1],lab:String(w.id)});txt.push(pts.length>1?`ワールド${w.id} ${pts[0][1]}秒 → ${pts[pts.length-1][1]}秒`:`ワールド${w.id} ${pts[0][1]}秒`);}
+    let svg='',sum='';
+    if(wks.size>=2){sum=`1問の平均秒（下がるほど速い）。`+txt.join('、')+'。';svg=svgLine({series,n:NW,min0:true,xl:wxl,unit:'秒（下がるほど速い）',aria:sum});}
+    h+=chartBox('ワールドごとの 1問の平均秒（週ごと）',svg,sum,svg?`<p class="muted" style="margin:0">線の右はしの数字が ワールドの番号。</p>`:'');
+  }
+  { // (d) ノーミス率（週ごと）
+    const acc={};for(const e of LG){const i=wix(e.day);if(i<0||i>=NW||!e.n)continue;const c=acc[i]||(acc[i]=[0,0]);c[0]+=e.n;c[1]+=e.nomiss;}
+    const pts=Object.keys(acc).map(Number).sort((x,y)=>x-y).map(i=>[i,Math.round(acc[i][1]/acc[i][0]*100)]);
+    let svg='',sum='';
+    if(pts.length>=2){sum=`ノーミス率は ${pts[0][1]}% → ${pts[pts.length-1][1]}%（週ごと。100% が全部ノーミス）。`;svg=svgLine({series:[{pts,col:'--ok'}],n:NW,min0:true,max:100,xl:wxl,unit:'ノーミス率（%）',aria:sum});}
+    h+=chartBox('ノーミス率（週ごと）',svg,sum);
+  }
+  h+=`</section>`;
+  // 4. ワールド別
+  h+=`<section class="card" aria-labelledby="hs4"><h2 id="hs4">ワールド別</h2><div class="tblw"><table class="tbl"><thead><tr><th scope="col">ワールド</th><th scope="col">習熟</th><th scope="col">解いた数</th><th scope="col">★3の割合</th><th scope="col">1問の平均秒<br>最初 → 最近</th></tr></thead><tbody>`;
+  for(const w of WORLDS){const s=wstat(w.id),m=mastery(w.id);if(!unlocked(w.id)&&!s.n)continue;
+    const ss=LG.filter(e=>e.pw&&e.pw[w.id]).map(e=>e.pw[w.id]),k=Math.min(5,Math.floor(ss.length/2)),av=a=>avg1(a.reduce((x,v)=>x+v[1],0),a.reduce((x,v)=>x+v[0],0));
+    h+=`<tr><th scope="row">${w.id} ${esc(w.name)}</th><td>${esc(m.name)}<br>${s.pts}/100</td><td>${s.n}問</td><td>${s.n?Math.round(s.three/s.n*100)+'%':'—'}</td><td>${k?`${av(ss.slice(0,k))}秒 → ${av(ss.slice(-k))}秒`:'—'}</td></tr>`;}
+  h+=`</tbody></table></div><p class="muted" style="margin:6px 0 0">1問の平均秒は、そのワールドを練習した最初の5回と最近の5回のくらべ（1回に何問かある）。マイ問題・きょうの難問は入れていない。</p></section>`;
+  // 5. 次の目標
+  const goals=[`レベル${L+1}まで あと <b>${need(L+1)-state.xp}点</b>`];
+  const nw=WORLDS.find(w=>!unlocked(w.id));
+  if(nw){const p=wstat(nw.id-1).pts;goals.push(`ワールド${nw.id}「${esc(nw.name)}」が開くまで：ワールド${nw.id-1}の習熟 あと <b>${UNLOCK-p}点</b>${p>=EASY_CAP?'（むずかしさ3以上で練習）':''}`);}
+  else goals.push('ワールドは ぜんぶ開いた！');
+  const sc=streakInfo().count,cand=[['boss5',state.bossWins,5],['daily7',state.daily.count,7],['maker5',state.myProblems.length,5],['paren4',state.forms.length,4],['ta8',Math.max(state.ta[3].best,state.ta[4].best,state.ta[5].best),8],['lv10',state.xp,need(10)],['st3',sc,3],['st7',sc,7],['st30',sc,30],['master',Math.max(0,...WORLDS.map(w=>wstat(w.id).pts)),MASTER]]
+    .filter(c=>!state.cards[c[0]]&&c[1]>0&&c[1]<c[2]).sort((x,y)=>y[1]/y[2]-x[1]/x[2]||cmpS(x[0],y[0])).slice(0,2);
+  for(const c of cand){const cd=CARDS.find(x=>x.id===c[0]);goals.push(`${cd.e} カード「${vx(cd.n)}」：${vx(cd.d)}（いま ${c[1]} / ${c[2]}）`);}
+  h+=`<section class="card" aria-labelledby="hs5"><h2 id="hs5">次の目標</h2><ul class="starlist">${goals.map(g=>`<li>${g}</li>`).join('')}</ul></section>`;
+  // 6. 最近の記録
+  h+=`<section class="card" aria-labelledby="hs6"><h2 id="hs6">最近の記録</h2>`;
+  if(!LG.length)h+=`<p class="muted" style="margin:0">まだありません。練習が終わるごとに1つずつふえます。</p>`;
+  else{h+=`<ul class="mylist">`+LG.slice(-20).reverse().map(e=>{const d=new Date(e.t),w=WORLDS[e.w-1];
+    return `<li><span>${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${pad(d.getMinutes())}　${esc(MODE_NAMES[e.mode])}${w?`　ワールド${w.id}`:''}${e.mode==='daily'||e.mode==='my'?'':`　むずかしさ${e.level}`}</span><span>★${e.stars}/${e.n*3}　平均${e.sec}秒　+${e.xp}点</span></li>`;}).join('')+`</ul>`;}
+  h+=`</section>`;
   app.innerHTML=h;$('bBack').onclick=()=>go('home');
 }
 /* ===== 問題を作る（入力途中の値はこのページを開いている間だけ覚える。保存はしない） ===== */
@@ -983,7 +1326,7 @@ function mkSave(){
   if(!mkOK||!validMy(mkOK))return;const q=mkOK;
   refreshState();
   if(state.myProblems.some(r=>r.N===q.N&&r.m===q.m&&r.x===q.x&&r.y===q.y&&r.op===q.op)){toast('同じ問題がもう入っています');return;}
-  state.myProblems.push(q);if(state.myProblems.length>MY_MAX)state.myProblems.splice(0,state.myProblems.length-MY_MAX);
+  state.myProblems.push(Object.assign({},q,{t:Math.max(Date.now(),...state.myProblems.map(r=>r.t+1))}));if(state.myProblems.length>MY_MAX)state.myProblems.splice(0,state.myProblems.length-MY_MAX);
   const before=['maker','maker5'].filter(id=>state.cards[id]);award('maker');if(state.myProblems.length>=5)award('maker5');
   if(!saveState())return;
   const got=['maker','maker5'].filter(id=>state.cards[id]&&!before.includes(id));
@@ -1019,8 +1362,8 @@ function importState(file){
     // 置きかえる前に今の記録を2か所に残す。残せなければ置きかえない
     if(!lsSet(BAK,raw)||!lsSet(KEY+'_before_import_'+Date.now(),raw))return ng('今の記録のひかえを残せなかったので、読み込みをやめました（保存領域がいっぱいかもしれません）。');
     pruneImportBak();
-    const prev=state;state=imp;
-    if(!saveState()){state=prev;return;}
+    const prev=state;state=imp;lsDel(SEEN); // 読み込んだ後のクラウド同期は、クラウドの記録と合わせる（消えるより残る）
+    if(!saveState({replace:true})){state=prev;return;} // 読み込みは「置きかえ」なので保存済みと合わせない
     render();toast('記録を読み込みました');
   };
   rd.readAsText(file);
@@ -1084,8 +1427,13 @@ function renderResult(){
   for(const id of (Array.isArray(r.cards)?r.cards:[])){const nm=cardName(id);if(nm)h+=`<p class="newcard">🃏 新しい技カード「${vx(nm)}」</p>`;}
   for(const x of r.worlds){const w=WORLDS[x.id-1];if(!w)continue;h+=`<p class="muted" style="margin:2px 0">ワールド${w.id} ${esc(w.name)}：習熟 ${x.p0} → <b>${x.p1}</b></p>`;}
   for(const id of (Array.isArray(r.newly)?r.newly:[])){const w=WORLDS[id-1];if(w)h+=`<p class="res-big" style="color:var(--accent)">🔓 ワールド${w.id}「${esc(w.name)}」が開いた！</p>`;}
-  h+=`<div class="row" style="margin-top:12px"><button class="btn primary" id="bAgain">もう一度</button><button class="btn" id="bHome">ホームへ</button></div></section>`;
+  const c=r.cmp;
+  if(c&&typeof c==='object'&&num(c.sec0)&&num(c.sec1)&&num(c.st0)&&num(c.st1)&&isDate(c.day0)){
+    const sw=c.sec1<c.sec0?'（⬆ はやくなった）':c.sec1===c.sec0?'（おなじ）':'', tw=c.st1>c.st0?'（⬆ ふえた）':c.st1===c.st0?'（おなじ）':'';
+    h+=`<p style="margin:8px 0 0">前回（${esc(mdOf(c.day0))}）と比べて：1問の平均 ${c.sec0}秒 → <b>${c.sec1}秒</b>${sw}・1問の★ ${c.st0} → <b>${c.st1}</b>${tw}</p>`;}
+  h+=`<div class="row" style="margin-top:12px"><button class="btn primary" id="bAgain">もう一度</button><button class="btn" id="bHome">ホームへ</button><button class="btn" id="bHist">📈 成績の記録</button></div></section>`;
   app.innerHTML=h;
+  $('bHist').onclick=()=>go('history');
   $('bAgain').onclick=()=>newSession(r.mode,r.mode==='world'?(unlocked(r.w)?r.w:1):0);
   $('bHome').onclick=()=>go('home');$('bHome').focus();
 }
@@ -1105,8 +1453,12 @@ document.addEventListener('keydown',e=>{
   if(v==='result'){view='result';render();return;}
   if(v==='cards'){view='cards';render();return;}
   if(v==='make'){view='make';render();return;}
+  if(v==='history'){view='history';render();return;}
   view='home';render();
 })();
+/* 起動時: 専用リンクがあれば取り込む（取り込んだら同期も始まる）。設定済みなら クラウドを読む → 合わせる → 必要なら送る */
+if(takeSyncLink()){if(view==='home')render();}
+else if(syncCfg())cloudSync(true);
 </script>
 </body>
 </html>
