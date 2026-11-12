@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>保育園 物品管理台帳</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
+<meta name="description" content="保育園の備品・遊具・消耗品を写真つきで管理する台帳（端末内保存）">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
+<style>
+:root{
+  --bg:#f7f6f2; --card:#ffffff; --ink:#24302e; --sub:#5d6b68; --line:#dde3e0;
+  --pri:#2b8a6e; --pri-d:#1f6a54; --pri-l:#e3f4ee;
+  --acc:#e8833a; --acc-l:#fdf0e5;
+  --ng:#c92a2a; --ng-l:#fdecec; --warn:#b26a00; --warn-l:#fff4dc; --ok:#2b8a3e; --ok-l:#e8f6eb;
+  --chip:#eef2f1; --sh:0 1px 3px rgba(0,0,0,.08); --r:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#141917; --card:#1e2523; --ink:#e7eeeb; --sub:#a3b1ad; --line:#34403c;
+    --pri:#4cc39f; --pri-d:#7dd8bb; --pri-l:#1d3a31;
+    --acc:#f0a25f; --acc-l:#3a2a1b;
+    --ng:#ff8a8a; --ng-l:#3d2020; --warn:#f2c35b; --warn-l:#3a3018; --ok:#7bd88f; --ok-l:#1d3324;
+    --chip:#2a3330; --sh:0 1px 3px rgba(0,0,0,.4);
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Meiryo',sans-serif;font-size:16px;line-height:1.55;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--pri)}
+.hdr{background:var(--pri);color:#fff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+@media (prefers-color-scheme: dark){.hdr{background:#1a4a3c}}
+.hdr h1{font-size:1.1rem;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .org{font-size:.8rem;opacity:.85;display:block;font-weight:400}
+.hdr button{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;min-height:44px;padding:0 14px;cursor:pointer;font-weight:600}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{flex:1;background:none;border:0;min-height:60px;cursor:pointer;color:var(--sub);font-size:.75rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav.tabs button .ic{font-size:1.35rem;line-height:1}
+nav.tabs button[aria-selected="true"]{color:var(--pri);font-weight:700}
+@media (min-width:900px){
+  body{padding-bottom:24px}
+  nav.tabs{position:sticky;top:calc(68px + env(safe-area-inset-top));bottom:auto;border-top:0;border-bottom:1px solid var(--line);justify-content:center}
+  nav.tabs button{flex:0 0 140px;flex-direction:row;font-size:.95rem;min-height:48px;gap:6px}
+  nav.tabs button .ic{font-size:1.1rem}
+}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.view{display:none}.view.on{display:block}
+h2{font-size:1.15rem;margin:8px 0 12px}
+h3{font-size:1rem;margin:16px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;box-shadow:var(--sh);margin-bottom:12px}
+.grid{display:grid;gap:12px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.kpi .n{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:.82rem;color:var(--sub)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:600;text-decoration:none;color:var(--ink)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+@media (prefers-color-scheme: dark){.btn.pri{color:#0d1f19}}
+.btn.acc{background:var(--acc-l);border-color:var(--acc);color:var(--ink)}
+.btn.ng{background:var(--ng-l);border-color:var(--ng);color:var(--ng)}
+.btn.sm{min-height:36px;padding:0 10px;font-size:.88rem}
+.btn:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.toolbar input[type=search]{flex:1 1 220px}
+input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;font-size:16px;width:100%}
+textarea{min-height:80px;resize:vertical}
+.toolbar select{width:auto;flex:0 1 auto;max-width:100%}
+label.f{display:block;font-size:.85rem;color:var(--sub);margin-bottom:10px}
+label.f > span{display:block;margin-bottom:3px}
+label.f .req{color:var(--ng)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 12px}
+fieldset{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px 2px;margin:0 0 12px}
+legend{font-weight:700;padding:0 6px;font-size:.95rem}
+.hint{font-size:.78rem;color:var(--sub);margin-top:2px}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;background:var(--chip);font-size:.78rem;white-space:nowrap}
+.st-使用中{background:var(--ok-l);color:var(--ok)}
+.st-保管中{background:var(--chip)}
+.st-修理中{background:var(--warn-l);color:var(--warn)}
+.st-貸出中{background:var(--acc-l);color:var(--acc)}
+.st-紛失・所在不明{background:var(--ng-l);color:var(--ng)}
+.st-廃棄済{background:var(--chip);color:var(--sub);text-decoration:line-through}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;margin-bottom:8px;border:1px solid var(--line);background:var(--card);cursor:pointer;width:100%;text-align:left}
+.alert.ng{background:var(--ng-l);border-color:var(--ng)}
+.alert.warn{background:var(--warn-l);border-color:var(--warn)}
+.alert .t{font-weight:700}
+.muted{color:var(--sub)}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+table.tb{width:100%;border-collapse:collapse;font-size:.9rem}
+table.tb th,table.tb td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle;text-align:left}
+table.tb th{font-size:.8rem;color:var(--sub);font-weight:600;white-space:nowrap}
+table.tb tr.click{cursor:pointer}
+table.tb tr.click:hover{background:var(--pri-l)}
+.tbwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--chip);flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-size:1.3rem;color:var(--sub)}
+.thumb.lg{width:64px;height:64px}
+details.grp{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:10px;box-shadow:var(--sh)}
+details.grp > summary{list-style:none;display:flex;gap:12px;align-items:center;padding:10px 12px;cursor:pointer;min-height:64px}
+details.grp > summary::-webkit-details-marker{display:none}
+details.grp > summary .nm{font-weight:700}
+details.grp > summary .meta{font-size:.82rem;color:var(--sub)}
+details.grp > summary .caret{margin-left:auto;transition:transform .15s;color:var(--sub)}
+details.grp[open] > summary .caret{transform:rotate(90deg)}
+.irow{display:flex;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);cursor:pointer;width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;min-height:56px}
+.irow:hover{background:var(--pri-l)}
+.irow .c1{flex:1;min-width:0}
+.irow .c1 .a{font-weight:600}
+.irow .c1 .b{font-size:.8rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis}
+.grpfoot{padding:8px 12px;border-top:1px solid var(--line)}
+dialog{border:0;border-radius:16px;padding:0;width:min(760px,calc(100vw - 16px));max-height:calc(100vh - 24px);background:var(--card);color:var(--ink);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dh{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);z-index:2}
+.dh h2{margin:0;flex:1;font-size:1.05rem}
+.db{padding:14px 16px}
+.df{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--card)}
+.xbtn{min-width:44px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:1.1rem}
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.ph{position:relative;width:96px}
+.ph img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:zoom-in;display:block;background:var(--chip)}
+.ph .del{position:absolute;top:-6px;right:-6px;width:32px;height:32px;border-radius:50%;border:0;background:var(--ng);color:#fff;cursor:pointer;font-weight:700}
+.ph select{font-size:12px;min-height:32px;padding:2px 4px;margin-top:4px}
+.ph .cap{font-size:.72rem;color:var(--sub);text-align:center;margin-top:2px}
+.dl{display:grid;grid-template-columns:8.5em 1fr;gap:4px 12px;font-size:.92rem}
+.dl dt{color:var(--sub)}
+.dl dd{margin:0;word-break:break-word}
+.tl{list-style:none;padding:0;margin:0}
+.tl li{border-left:3px solid var(--pri);padding:4px 0 8px 12px;margin-left:4px;font-size:.9rem}
+.tl li .d{font-size:.78rem;color:var(--sub)}
+.bar{height:8px;background:var(--chip);border-radius:4px;overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--pri)}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;z-index:100;font-size:.92rem;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+.toast.on{opacity:1}
+.empty{text-align:center;color:var(--sub);padding:32px 12px}
+.viewer img{max-width:100%;max-height:75vh;display:block;margin:0 auto}
+.scanbox{position:relative;background:#000;border-radius:12px;overflow:hidden}
+.scanbox video{width:100%;display:block;max-height:60vh;object-fit:cover}
+.scanbox .frame{position:absolute;inset:20% 20%;border:3px solid #fff;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.25)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:var(--card);min-height:44px;padding:0 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--pri);color:#fff;font-weight:700}
+@media (prefers-color-scheme: dark){.seg button[aria-pressed="true"]{color:#0d1f19}}
+.sel{width:24px;height:24px;accent-color:var(--pri)}
+details.filters{margin-bottom:12px}
+details.filters > summary{list-style:none}
+details.filters > summary::-webkit-details-marker{display:none}
+.pt td.code{white-space:nowrap}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+#printArea{display:none}
+@media print{
+  @page{size:A4 landscape;margin:10mm}
+  body{background:#fff;color:#000;padding:0}
+  body > *:not(#printArea){display:none !important}
+  #printArea{display:block !important}
+  .pt{width:100%;border-collapse:collapse;font-size:8.5pt}
+  .pt th,.pt td{border:.5pt solid #555;padding:2pt 3pt;vertical-align:middle}
+  .pt th{background:#eee}
+  .pt img{width:14mm;height:14mm;object-fit:cover}
+  .labels{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm}
+  .lbl{border:.5pt dashed #888;padding:2mm;display:flex;gap:2mm;align-items:center;height:26mm;break-inside:avoid;overflow:hidden}
+  .lbl svg,.lbl img{width:20mm;height:20mm;flex:0 0 auto}
+  .lbl .t{font-size:8pt;line-height:1.25}
+  .lbl .t b{font-size:10pt;display:block}
+  .sheet{font-size:10pt}
+  .sheet h1{font-size:15pt;margin:0 0 4mm}
+  .sheet .phs img{width:55mm;height:55mm;object-fit:cover;margin:0 2mm 2mm 0;border:.5pt solid #999}
+  .sheet table{border-collapse:collapse;width:100%}
+  .sheet td,.sheet th{border:.5pt solid #777;padding:2pt 4pt;text-align:left}
+  .pr-h{display:flex;justify-content:space-between;margin-bottom:3mm;font-size:10pt}
+}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <h1>保育園 物品管理台帳<span class="org" id="orgName"></span></h1>
+  <button type="button" id="btnScanTop" aria-label="QRコードを読み取って備品を探す">QR</button>
+  <button type="button" id="btnAddTop">＋ 登録</button>
+</header>
+<nav class="tabs" role="tablist" aria-label="画面の切り替え">
+  <button role="tab" data-view="home" aria-selected="true"><span class="ic" aria-hidden="true">🏠</span>ホーム</button>
+  <button role="tab" data-view="ledger" aria-selected="false"><span class="ic" aria-hidden="true">📒</span>台帳</button>
+  <button role="tab" data-view="supplies" aria-selected="false"><span class="ic" aria-hidden="true">📦</span>消耗品</button>
+  <button role="tab" data-view="stock" aria-selected="false"><span class="ic" aria-hidden="true">✅</span>棚卸</button>
+  <button role="tab" data-view="settings" aria-selected="false"><span class="ic" aria-hidden="true">⚙️</span>設定</button>
+</nav>
+<main>
+  <section class="view on" id="v-home" aria-label="ホーム"></section>
+  <section class="view" id="v-ledger" aria-label="台帳">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="品名・型番・管理番号・メーカー・タグで検索" aria-label="検索">
+    </div>
+    <details class="filters" id="filters"><summary class="btn sm">絞り込み・並び替え <span id="fCount"></span></summary>
+    <div class="toolbar" style="margin-top:8px">
+      <select id="fCat" aria-label="分類で絞り込み"></select>
+      <select id="fLoc" aria-label="保管場所で絞り込み"></select>
+      <select id="fCls" aria-label="使用クラスで絞り込み"></select>
+      <select id="fSt" aria-label="状態で絞り込み"></select>
+      <select id="fFund" aria-label="財源で絞り込み"></select>
+      <select id="fSort" aria-label="並び順">
+        <option value="code">管理番号順</option><option value="name">品名順</option>
+        <option value="dateDesc">購入日が新しい順</option><option value="dateAsc">購入日が古い順</option>
+        <option value="priceDesc">金額が高い順</option><option value="loc">保管場所順</option>
+      </select>
+    </div></details>
+    <div class="row" style="margin-bottom:12px;justify-content:space-between">
+      <div class="seg" role="group" aria-label="表示の切り替え">
+        <button type="button" data-mode="group" aria-pressed="true">品目ごと</button>
+        <button type="button" data-mode="table" aria-pressed="false">一覧表</button>
+      </div>
+      <div class="row">
+        <button type="button" class="btn sm" id="btnPrintLedger">🖨 台帳を印刷</button>
+        <button type="button" class="btn sm" id="btnLabels">🏷 ラベル印刷</button>
+        <button type="button" class="btn sm" id="btnCsv">⬇ CSV</button>
+      </div>
+    </div>
+    <div class="muted" id="ledgerSum" style="font-size:.88rem;margin-bottom:8px"></div>
+    <div id="ledgerBody"></div>
+  </section>
+  <section class="view" id="v-supplies" aria-label="消耗品"></section>
+  <section class="view" id="v-stock" aria-label="棚卸"></section>
+  <section class="view" id="v-settings" aria-label="設定"></section>
+</main>
+
+<dialog id="dlg" aria-modal="true"></dialog>
+<dialog id="dlg2" aria-modal="true"></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="printArea"></div>
+<input type="file" id="fileImport" accept=".json,application/json" hidden>
+<input type="file" id="fileCsv" accept=".csv,text/csv" hidden>
+
+<script>
+'use strict';
+/* =========================================================
+   保育園 物品管理台帳  — data lives in this browser (IndexedDB)
+   stores: items(品目) / assets(個体) / photos / logs / stocktakes / meta
+   ========================================================= */
+const DB_NAME = 'hoikuen-bihin', DB_VER = 1;
+const VIEWS = ['home','ledger','supplies','stock','settings'];
+const LS_VIEW = 'hbk_view', LS_MODE = 'hbk_ledgerMode';
+const STATUSES = ['使用中','保管中','修理中','貸出中','紛失・所在不明','廃棄済'];
+const CONDITIONS = ['良好','やや傷あり','要修理','使用不可'];
+const LOG_TYPES = ['点検','修理','消毒・清掃','移動','メモ'];
+const PHOTO_LABELS = ['外観','型番・銘板','保証書・領収書','破損箇所','その他'];
+const DISPOSAL_METHODS = ['廃棄（粗大ごみ・産廃）','リサイクル・売却','譲渡','返却（リース等）','その他'];
+const DEFAULT_MASTERS = {
+  categories: ['遊具（屋外）','玩具・教材','絵本・図書','楽器','家具（机・椅子・棚）','寝具・午睡用品','調理・給食用品','衛生・保健用品','家電・空調','IT・事務機器','カメラ・映像機器','防災・安全用品','行事用品','乳児用品','清掃用品','その他'],
+  locations: ['事務室','職員室','0歳児室','1歳児室','2歳児室','3歳児室','4歳児室','5歳児室','遊戯室（ホール）','給食室','医務室','倉庫','園庭','屋外物置'],
+  classes: ['全体（共用）','0歳児','1歳児','2歳児','3歳児','4歳児','5歳児','事務','給食'],
+  fundings: ['運営費（委託費）','施設整備補助金','ICT化推進補助金','その他の補助金','寄付・寄贈','その他']
+};
+const DEFAULT_SETTINGS = { orgName:'', codePrefix:'B-', seq:1, assetThreshold:100000, lastBackup:'' };
+
+let db;
+const S = { items:[], assets:[], logs:[], stocktakes:[], masters:null, settings:null };
+
+/* ---------- utils ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const z2 = n => String(n).padStart(2, '0');
+const ymd = (d = new Date()) => d.getFullYear() + '-' + z2(d.getMonth()+1) + '-' + z2(d.getDate());
+const today = () => ymd();
+function addMonths(s, m){ const d = new Date(s + 'T00:00:00'); d.setMonth(d.getMonth() + Number(m)); return ymd(d); }
+function addYears(s, y){ const d = new Date(s + 'T00:00:00'); d.setFullYear(d.getFullYear() + Number(y)); return ymd(d); }
+function daysUntil(s){ return Math.round((new Date(s + 'T00:00:00') - new Date(today() + 'T00:00:00')) / 864e5); }
+const jdate = s => s ? s.replace(/-/g, '/') : '';
+const yen = n => (n === '' || n == null || isNaN(n)) ? '' : '¥' + Math.round(Number(n)).toLocaleString('ja-JP');
+const numOrNull = v => { if (v === '' || v == null) return null; const n = Number(String(v).replace(/[¥,円\s]/g, '')); return isNaN(n) ? null : n; };
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2400); }
+function opt(list, sel, blank){ return (blank != null ? `<option value="">${esc(blank)}</option>` : '') + list.map(v => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join(''); }
+function withCurrent(list, cur){ return (cur && !list.includes(cur)) ? [...list, cur] : list; }
+
+/* ---------- IndexedDB ---------- */
+function openDB(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath:'id' });
+      if (!d.objectStoreNames.contains('assets')) { const s = d.createObjectStore('assets', { keyPath:'id' }); s.createIndex('itemId', 'itemId'); }
+      if (!d.objectStoreNames.contains('photos')) d.createObjectStore('photos', { keyPath:'id' });
+      if (!d.objectStoreNames.contains('logs')) d.createObjectStore('logs', { keyPath:'id' });
+      if (!d.objectStoreNames.contains('stocktakes')) d.createObjectStore('stocktakes', { keyPath:'id' });
+      if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath:'key' });
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+const rq = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const getAll = s => rq(db.transaction(s).objectStore(s).getAll());
+const getOne = (s, k) => rq(db.transaction(s).objectStore(s).get(k));
+/* write several records atomically: ops = [[store, 'put'|'delete', value|key], ...] */
+function writeOps(ops){
+  return new Promise((res, rej) => {
+    const stores = [...new Set(ops.map(o => o[0]))];
+    const t = db.transaction(stores, 'readwrite');
+    for (const [s, kind, v] of ops) { const os = t.objectStore(s); kind === 'delete' ? os.delete(v) : os.put(v); }
+    t.oncomplete = () => res();
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error || new Error('保存が中断されました'));
+  });
+}
+async function saveMeta(){ await writeOps([['meta','put',{ key:'masters', ...S.masters }], ['meta','put',{ key:'settings', ...S.settings }]]); }
+
+async function loadAll(){
+  const [items, assets, logs, stocktakes, meta] = await Promise.all(['items','assets','logs','stocktakes','meta'].map(getAll));
+  S.items = items; S.assets = assets; S.logs = logs; S.stocktakes = stocktakes;
+  const m = meta.find(x => x.key === 'masters'), st = meta.find(x => x.key === 'settings');
+  S.masters = m ? { categories:m.categories, locations:m.locations, classes:m.classes, fundings:m.fundings } : JSON.parse(JSON.stringify(DEFAULT_MASTERS));
+  S.settings = { ...DEFAULT_SETTINGS, ...(st || {}) }; delete S.settings.key;
+  if (!m || !st) await saveMeta();
+}
+
+/* ---------- domain helpers ---------- */
+const itemOf = a => S.items.find(i => i.id === a.itemId) || { name:'（品目なし）', category:'' };
+const assetLogs = id => S.logs.filter(l => l.assetId === id).sort((a, b) => (b.date + b.at).localeCompare(a.date + a.at));
+const isActive = a => a.status !== '廃棄済';
+const totalPrice = a => (Number(a.price) || 0) * (Number(a.qty) || 1);
+function bookValue(a){
+  if (!isActive(a)) return 0;
+  const p = totalPrice(a); if (!p) return null;
+  if (!a.usefulLife || !a.purchaseDate) return null;
+  const yrs = (new Date() - new Date(a.purchaseDate + 'T00:00:00')) / (365.25 * 864e5);
+  return Math.max(0, Math.round(p * (1 - yrs / Number(a.usefulLife))));
+}
+function lifeEnd(a){ return (a.usefulLife && a.purchaseDate) ? addYears(a.purchaseDate, a.usefulLife) : ''; }
+function nextCode(){
+  const used = new Set(S.assets.map(a => a.code));
+  let n = Number(S.settings.seq) || 1, c;
+  do { c = S.settings.codePrefix + String(n).padStart(4, '0'); n++; } while (used.has(c));
+  S.settings.seq = n;
+  return c;
+}
+function peekCode(){ const keep = S.settings.seq; const c = nextCode(); S.settings.seq = keep; return c; }
+
+/* ---------- photos ---------- */
+const urlCache = new Map();
+async function photoUrl(id, big){
+  const k = id + (big ? ':b' : ':t');
+  if (urlCache.has(k)) return urlCache.get(k);
+  const p = await getOne('photos', id); if (!p) return '';
+  const u = URL.createObjectURL(big ? p.blob : (p.thumb || p.blob)); urlCache.set(k, u); return u;
+}
+async function hydrate(root = document){
+  for (const img of $$('img[data-ph]', root)) {
+    const u = await photoUrl(img.dataset.ph, img.dataset.big === '1');
+    if (u) img.src = u; else img.replaceWith(Object.assign(document.createElement('span'), { className:'thumb', textContent:'📷' }));
+  }
+}
+function loadImage(file){
+  return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => { res(im); URL.revokeObjectURL(u); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('画像を読み込めませんでした')); }; im.src = u; });
+}
+function shrink(img, max, q){
+  const s = Math.min(1, max / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+  const c = document.createElement('canvas'); c.width = Math.round((img.naturalWidth || img.width) * s); c.height = Math.round((img.naturalHeight || img.height) * s);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, 'image/jpeg', q));
+}
+async function makePhoto(file){
+  const img = await loadImage(file);
+  const [blob, thumb] = await Promise.all([shrink(img, 1600, .82), shrink(img, 320, .75)]);
+  return { id: uid(), blob, thumb, label:'外観', createdAt: new Date().toISOString() };
+}
+const photoRefCount = (pid, exceptAssetId) => S.assets.filter(a => a.id !== exceptAssetId && (a.photoIds || []).includes(pid)).length;
+
+/* ---------- logs ---------- */
+function newLog(o){ return { id: uid(), at: new Date().toISOString(), date: today(), by:'', detail:'', ...o }; }
+
+/* ---------- navigation (restores the view on reload) ---------- */
+let curView = 'home';
+function show(v){
+  if (!VIEWS.includes(v)) v = 'home';
+  curView = v;
+  $$('.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
+  $$('nav.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === v ? 'true' : 'false'));
+  try { localStorage.setItem(LS_VIEW, v); } catch(e) {}
+  render();
+  window.scrollTo(0, 0);
+}
+function render(){
+  $('#orgName').textContent = S.settings.orgName || '';
+  ({ home:renderHome, ledger:renderLedger, supplies:renderSupplies, stock:renderStock, settings:renderSettings })[curView]();
+}
+
+/* ---------- alerts ---------- */
+function computeAlerts(){
+  const A = [], t = today();
+  for (const a of S.assets.filter(isActive)) {
+    const nm = itemOf(a).name + '（' + a.code + '）';
+    if (a.nextInspection) { const d = daysUntil(a.nextInspection); if (d < 0) A.push({ lv:'ng', t:'点検期限を過ぎています', m:`${nm} — ${jdate(a.nextInspection)}（${-d}日超過）`, id:a.id }); else if (d <= 14) A.push({ lv:'warn', t:'点検期限が近づいています', m:`${nm} — ${jdate(a.nextInspection)}（あと${d}日）`, id:a.id }); }
+    if (a.status === '貸出中' && a.loan && a.loan.due && a.loan.due < t) A.push({ lv:'ng', t:'返却予定日を過ぎています', m:`${nm} — 貸出先：${a.loan.to || '未記入'}／予定 ${jdate(a.loan.due)}`, id:a.id });
+    if (a.warrantyUntil) { const d = daysUntil(a.warrantyUntil); if (d >= 0 && d <= 30) A.push({ lv:'warn', t:'保証期限が近づいています', m:`${nm} — ${jdate(a.warrantyUntil)}（あと${d}日）`, id:a.id }); }
+    if (a.status === '修理中') A.push({ lv:'warn', t:'修理中', m:nm, id:a.id });
+    if (a.status === '紛失・所在不明') A.push({ lv:'ng', t:'所在不明', m:nm, id:a.id });
+    if (a.condition === '要修理' || a.condition === '使用不可') A.push({ lv:'warn', t:'状態が「' + a.condition + '」', m:nm, id:a.id });
+  }
+  for (const i of S.items.filter(i => i.kind === 'consumable')) {
+    if (i.reorderPoint != null && i.reorderPoint !== '' && Number(i.stock || 0) <= Number(i.reorderPoint)) A.push({ lv:'warn', t:'消耗品の補充が必要です', m:`${i.name} — 在庫 ${i.stock || 0}${i.unit || ''}（発注点 ${i.reorderPoint}）`, supply:i.id });
+  }
+  const lb = S.settings.lastBackup;
+  if (S.assets.length && (!lb || daysUntil(lb.slice(0, 10)) < -30)) A.unshift({ lv:'warn', t:'バックアップをおすすめします', m: lb ? `前回のバックアップは ${jdate(lb.slice(0,10))}。データはこの端末の中だけに保存されています。` : 'まだ一度もバックアップしていません。データはこの端末の中だけに保存されています。', go:'settings' });
+  return A;
+}
+
+/* ---------- HOME ---------- */
+function renderHome(){
+  const act = S.assets.filter(isActive);
+  const sum = act.reduce((s, a) => s + totalPrice(a), 0);
+  const bvs = act.map(bookValue).filter(v => v != null);
+  const bv = bvs.reduce((s, v) => s + v, 0);
+  const units = act.reduce((s, a) => s + (Number(a.qty) || 1), 0);
+  const over = act.filter(a => totalPrice(a) / (Number(a.qty) || 1) >= Number(S.settings.assetThreshold || 100000)).length;
+  const subsidy = act.filter(a => a.restrictUntil && a.restrictUntil >= today()).length;
+  const alerts = computeAlerts();
+  const byCat = groupSum(act, a => itemOf(a).category || '未分類');
+  const byLoc = groupSum(act, a => a.location || '未設定');
+  const recent = [...S.logs].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
+  $('#v-home').innerHTML = `
+    <div class="grid kpis">
+      <div class="card kpi"><div class="n">${act.length}<small style="font-size:.9rem">件</small></div><div class="l">登録中の備品（${units}点）</div></div>
+      <div class="card kpi"><div class="n">${yen(sum) || '¥0'}</div><div class="l">取得金額の合計</div></div>
+      <div class="card kpi"><div class="n">${bvs.length ? yen(bv) : '—'}</div><div class="l">簿価の目安（耐用年数を入れた分）</div></div>
+      <div class="card kpi"><div class="n">${over}<small style="font-size:.9rem">件</small></div><div class="l">単価${yen(S.settings.assetThreshold)}以上</div></div>
+      <div class="card kpi"><div class="n">${subsidy}<small style="font-size:.9rem">件</small></div><div class="l">補助金の処分制限期間中</div></div>
+      <div class="card kpi"><div class="n">${S.assets.length - act.length}<small style="font-size:.9rem">件</small></div><div class="l">廃棄済み（記録は保持）</div></div>
+    </div>
+    <h2>お知らせ（${alerts.length}件）</h2>
+    <div id="alertList">${alerts.length ? alerts.map((x, i) => `<button type="button" class="alert ${x.lv}" data-i="${i}"><span aria-hidden="true">${x.lv === 'ng' ? '⛔' : '⚠️'}</span><span><span class="t">${esc(x.t)}</span><br><span>${esc(x.m)}</span></span></button>`).join('') : '<div class="card muted">対応が必要なものはありません。</div>'}</div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+      <div class="card"><h3 style="margin-top:0">分類別</h3>${sumTable(byCat, 'cat')}</div>
+      <div class="card"><h3 style="margin-top:0">保管場所別</h3>${sumTable(byLoc, 'loc')}</div>
+    </div>
+    <div class="card"><h3 style="margin-top:0">最近の記録</h3>${recent.length ? `<ul class="tl">${recent.map(l => { const a = S.assets.find(x => x.id === l.assetId); const i = a ? itemOf(a) : S.items.find(x => x.id === l.itemId); return `<li><div class="d">${jdate(l.date)} ${esc(l.type)}${l.by ? '・' + esc(l.by) : ''}</div>${esc(i ? i.name : '')}${a ? '（' + esc(a.code) + '）' : ''} ${esc(l.detail)}</li>`; }).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}</div>
+    ${S.assets.length === 0 && S.items.length === 0 ? `<div class="card"><h3 style="margin-top:0">はじめに</h3><p>右上の「＋ 登録」から備品を登録します。写真・型番・購入日・金額・保管場所を入れておくと、同じ「カメラ」でも1台ずつ区別して管理できます。</p><div class="row"><button type="button" class="btn pri" id="hAdd">最初の備品を登録する</button><button type="button" class="btn" id="hDemo">見本データを入れて試す</button></div></div>` : ''}
+  `;
+  $$('#alertList .alert').forEach(b => b.onclick = () => { const x = alerts[b.dataset.i]; if (x.id) openAsset(x.id); else if (x.supply) show('supplies'); else if (x.go) show(x.go); });
+  $$('#v-home [data-filter]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.filter.split('|'); resetFilters(); if (k === 'cat') $('#fCat').value = v; else $('#fLoc').value = v; show('ledger'); });
+  const ha = $('#hAdd'); if (ha) ha.onclick = () => openAssetForm();
+  const hd = $('#hDemo'); if (hd) hd.onclick = loadDemo;
+}
+function groupSum(list, keyFn){ const m = new Map(); for (const a of list) { const k = keyFn(a); const o = m.get(k) || { n:0, sum:0 }; o.n++; o.sum += totalPrice(a); m.set(k, o); } return [...m.entries()].sort((a, b) => b[1].sum - a[1].sum); }
+function sumTable(rows, kind){
+  if (!rows.length) return '<div class="muted">データがありません。</div>';
+  const max = Math.max(...rows.map(r => r[1].sum), 1);
+  return `<table class="tb"><thead><tr><th>${kind === 'cat' ? '分類' : '場所'}</th><th class="num">件数</th><th class="num">金額</th><th style="width:30%"><span class="sr">割合</span></th></tr></thead><tbody>${rows.map(([k, o]) => `<tr class="click" data-filter="${kind}|${esc(k)}" tabindex="0"><td>${esc(k)}</td><td class="num">${o.n}</td><td class="num">${yen(o.sum)}</td><td><div class="bar"><i style="width:${(o.sum / max * 100).toFixed(1)}%"></i></div></td></tr>`).join('')}</tbody></table>`;
+}
+
+/* ---------- LEDGER ---------- */
+let ledgerMode = 'group';
+const selected = new Set();
+function fillFilterSelects(){
+  const keep = id => $(id).value;
+  const v = { c:keep('#fCat'), l:keep('#fLoc'), k:keep('#fCls'), s:keep('#fSt'), f:keep('#fFund') };
+  $('#fCat').innerHTML = opt(S.masters.categories, v.c, 'すべての分類');
+  $('#fLoc').innerHTML = opt(S.masters.locations, v.l, 'すべての場所');
+  $('#fCls').innerHTML = opt(S.masters.classes, v.k, 'すべてのクラス');
+  $('#fSt').innerHTML = `<option value="">廃棄済み以外</option><option value="*"${v.s === '*' ? ' selected' : ''}>廃棄済みも含む</option>` + STATUSES.map(s => `<option${s === v.s ? ' selected' : ''}>${s}</option>`).join('');
+  $('#fFund').innerHTML = opt(S.masters.fundings, v.f, 'すべての財源');
+  // keep values that are no longer in masters
+  for (const [id, val] of [['#fCat', v.c], ['#fLoc', v.l], ['#fCls', v.k], ['#fFund', v.f]]) if (val && $(id).value !== val) { $(id).insertAdjacentHTML('beforeend', `<option selected>${esc(val)}</option>`); }
+}
+function resetFilters(){ fillFilterSelects(); ['#q','#fCat','#fLoc','#fCls','#fSt','#fFund'].forEach(id => $(id).value = ''); }
+function filteredAssets(){
+  const q = $('#q').value.trim().toLowerCase(), c = $('#fCat').value, l = $('#fLoc').value, k = $('#fCls').value, s = $('#fSt').value, f = $('#fFund').value;
+  let list = S.assets.filter(a => {
+    const it = itemOf(a);
+    if (s === '') { if (!isActive(a)) return false; } else if (s !== '*' && a.status !== s) return false;
+    if (c && it.category !== c) return false;
+    if (l && a.location !== l) return false;
+    if (k && a.className !== k) return false;
+    if (f && a.funding !== f) return false;
+    if (q) { const hay = [it.name, it.category, a.code, a.model, a.maker, a.serial, a.vendor, a.note, a.location, a.className, a.tags, a.funding, a.subsidyName].join(' ').toLowerCase(); if (!q.split(/\s+/).every(w => hay.includes(w))) return false; }
+    return true;
+  });
+  const so = $('#fSort').value;
+  const cmp = {
+    code:(a, b) => a.code.localeCompare(b.code, 'ja', { numeric:true }),
+    name:(a, b) => itemOf(a).name.localeCompare(itemOf(b).name, 'ja') || a.code.localeCompare(b.code, 'ja', { numeric:true }),
+    dateDesc:(a, b) => (b.purchaseDate || '').localeCompare(a.purchaseDate || ''),
+    dateAsc:(a, b) => (a.purchaseDate || '9').localeCompare(b.purchaseDate || '9'),
+    priceDesc:(a, b) => totalPrice(b) - totalPrice(a),
+    loc:(a, b) => (a.location || '').localeCompare(b.location || '', 'ja') || a.code.localeCompare(b.code, 'ja', { numeric:true })
+  }[so] || (() => 0);
+  return list.sort(cmp);
+}
+function thumbHtml(a, lg){ const p = (a.photoIds || [])[0]; return p ? `<img class="thumb${lg ? ' lg' : ''}" data-ph="${esc(p)}" alt="">` : `<span class="thumb${lg ? ' lg' : ''}" aria-hidden="true">📷</span>`; }
+function renderLedger(){
+  fillFilterSelects();
+  $$('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === ledgerMode ? 'true' : 'false'));
+  const list = filteredAssets();
+  const nf = ['#fCat','#fLoc','#fCls','#fSt','#fFund'].filter(id => $(id).value).length;
+  $('#fCount').textContent = nf ? `（${nf}件の条件）` : '';
+  const sum = list.reduce((s, a) => s + totalPrice(a), 0);
+  $('#ledgerSum').textContent = `${list.length}件・合計 ${yen(sum) || '¥0'}${selected.size ? `　／　ラベル印刷に選択中 ${selected.size}件` : ''}`;
+  const body = $('#ledgerBody');
+  if (!list.length) { body.innerHTML = `<div class="empty">${S.assets.length ? '条件に合う備品はありません。' : 'まだ備品が登録されていません。<br><br><button type="button" class="btn pri" onclick="openAssetForm()">＋ 備品を登録する</button>'}</div>`; return; }
+  if (ledgerMode === 'group') {
+    const groups = new Map();
+    for (const a of list) { if (!groups.has(a.itemId)) groups.set(a.itemId, []); groups.get(a.itemId).push(a); }
+    const order = [...groups.keys()];
+    if ($('#fSort').value === 'name' || $('#fSort').value === 'code') order.sort((x, y) => (S.items.find(i => i.id === x)?.name || '').localeCompare(S.items.find(i => i.id === y)?.name || '', 'ja'));
+    body.innerHTML = order.map(iid => {
+      const arr = groups.get(iid), it = itemOf(arr[0]);
+      const tot = arr.reduce((s, a) => s + totalPrice(a), 0);
+      const units = arr.reduce((s, a) => s + (Number(a.qty) || 1), 0);
+      const models = new Set(arr.map(a => a.model).filter(Boolean)).size;
+      return `<details class="grp"${groups.size <= 3 || $('#q').value ? ' open' : ''}><summary>${thumbHtml(arr.find(a => (a.photoIds || []).length) || arr[0], true)}<div style="min-width:0"><div class="nm">${esc(it.name)}</div><div class="meta">${esc(it.category || '未分類')}・${arr.length}件（${units}点）${models > 1 ? `・型番${models}種類` : ''}・合計 ${yen(tot)}</div></div><span class="caret" aria-hidden="true">›</span></summary>
+        ${arr.map(a => assetRow(a)).join('')}
+        <div class="grpfoot row"><button type="button" class="btn sm" data-addsame="${esc(iid)}">＋ 同じ品目で別の1台を追加</button><button type="button" class="btn sm" data-edititem="${esc(iid)}">品目名・分類を編集</button></div></details>`;
+    }).join('');
+  } else {
+    body.innerHTML = `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th><span class="sr">選択</span></th><th>写真</th><th>管理番号</th><th>品名</th><th>型番／メーカー</th><th>購入日</th><th class="num">金額</th><th>保管場所</th><th>クラス</th><th>状態</th></tr></thead><tbody>
+      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td>${esc(a.code)}</td><td>${esc(it.name)}${Number(a.qty) > 1 ? ` ×${a.qty}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td>${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td></tr>`; }).join('')}
+      </tbody></table></div>`;
+  }
+  $$('[data-open]', body).forEach(r => r.addEventListener('click', e => { if (e.target.closest('input.sel')) return; openAsset(r.dataset.open); }));
+  $$('input.sel', body).forEach(c => c.addEventListener('change', () => { c.checked ? selected.add(c.dataset.sel) : selected.delete(c.dataset.sel); renderLedgerSumOnly(); }));
+  $$('[data-addsame]', body).forEach(b => b.onclick = () => openAssetForm(null, { itemId:b.dataset.addsame }));
+  $$('[data-edititem]', body).forEach(b => b.onclick = () => openItemForm(b.dataset.edititem));
+  hydrate(body);
+}
+function renderLedgerSumOnly(){ const list = filteredAssets(); $('#ledgerSum').textContent = `${list.length}件・合計 ${yen(list.reduce((s, a) => s + totalPrice(a), 0)) || '¥0'}${selected.size ? `　／　ラベル印刷に選択中 ${selected.size}件` : ''}`; }
+function assetRow(a){
+  const sub = [a.model, a.purchaseDate ? '購入 ' + jdate(a.purchaseDate) : '', yen(totalPrice(a)), a.location, a.className].filter(Boolean).join('・');
+  return `<button type="button" class="irow" data-open="${esc(a.id)}">${thumbHtml(a)}<div class="c1"><div class="a">${esc(a.code)}${Number(a.qty) > 1 ? ` <span class="muted">×${a.qty}</span>` : ''}${a.serial ? ` <span class="muted" style="font-weight:400">S/N ${esc(a.serial)}</span>` : ''}</div><div class="b">${esc(sub)}</div></div><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></button>`;
+}
+
+/* ---------- dialogs ---------- */
+function openDlg(html, id = 'dlg'){
+  const d = $('#' + id); d.innerHTML = html;
+  if (!d.open) d.showModal();
+  $$('[data-close]', d).forEach(b => b.onclick = () => closeDlg(id));
+  return d;
+}
+function closeDlg(id = 'dlg'){ const d = $('#' + id); if (d.open) d.close(); if (id === 'dlg') stopScan(); }
+['dlg','dlg2'].forEach(id => $('#' + id).addEventListener('close', () => { if (id === 'dlg') stopScan(); }));
+
+/* ---------- asset detail ---------- */
+function openAsset(id){
+  const a = S.assets.find(x => x.id === id); if (!a) { toast('見つかりませんでした'); return; }
+  const it = itemOf(a), logs = assetLogs(id), bv = bookValue(a), le = lifeEnd(a);
+  const siblings = S.assets.filter(x => x.itemId === a.itemId && x.id !== a.id);
+  const dd = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
+  const html = `
+    <div class="dh"><h2>${esc(it.name)} <span class="muted" style="font-weight:400">${esc(a.code)}</span></h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db">
+      <div class="photos">${(a.photoIds || []).map(p => `<div class="ph"><img data-ph="${esc(p)}" alt="備品の写真" data-view="${esc(p)}"><div class="cap" data-cap="${esc(p)}"></div></div>`).join('') || '<span class="muted">写真はまだありません（編集から追加できます）</span>'}</div>
+      <div class="row" style="margin-bottom:10px"><span class="chip st-${esc(a.status)}">${esc(a.status)}</span>${a.condition ? `<span class="chip">状態：${esc(a.condition)}</span>` : ''}${a.restrictUntil && a.restrictUntil >= today() ? `<span class="chip st-修理中">補助金の処分制限 ${jdate(a.restrictUntil)}まで</span>` : ''}${(a.tags || '').split(/[,、\s]+/).filter(Boolean).map(t => `<span class="chip">#${esc(t)}</span>`).join('')}</div>
+      <dl class="dl">
+        ${dd('品目', esc(it.name))}${dd('分類', esc(it.category))}${dd('管理番号', esc(a.code))}
+        ${dd('型番', esc(a.model))}${dd('メーカー', esc(a.maker))}${dd('製造番号', esc(a.serial))}${dd('数量', Number(a.qty) > 1 ? esc(a.qty) + '点（まとめて管理）' : '')}
+        ${dd('購入日', jdate(a.purchaseDate))}${dd('購入先', esc(a.vendor))}${dd('購入金額', a.price != null && a.price !== '' ? yen(a.price) + (Number(a.qty) > 1 ? `（単価）× ${a.qty} ＝ ${yen(totalPrice(a))}` : '') + '（税込）' : '')}
+        ${dd('財源', esc(a.funding))}${dd('補助金名', esc(a.subsidyName))}${dd('処分制限期限', jdate(a.restrictUntil))}
+        ${dd('保証期限', jdate(a.warrantyUntil))}${dd('耐用年数', a.usefulLife ? esc(a.usefulLife) + '年（' + jdate(le) + 'まで）' : '')}${dd('簿価の目安', bv != null ? yen(bv) + ' <span class="muted">（定額法・残存0の概算）</span>' : '')}
+        ${dd('保管場所', esc(a.location))}${dd('使用クラス', esc(a.className))}
+        ${dd('点検周期', a.inspectCycle ? esc(a.inspectCycle) + 'か月ごと' : '')}${dd('次回点検日', a.nextInspection ? jdate(a.nextInspection) + (daysUntil(a.nextInspection) < 0 ? ' <b style="color:var(--ng)">（期限切れ）</b>' : '') : '')}
+        ${a.status === '貸出中' && a.loan ? dd('貸出', `${esc(a.loan.to)}（${jdate(a.loan.out)}〜 返却予定 ${jdate(a.loan.due) || '未定'}）`) : ''}
+        ${dd('廃棄日', jdate(a.disposalDate))}${dd('廃棄理由', esc(a.disposalReason))}${dd('廃棄方法', esc(a.disposalMethod))}${dd('廃棄の承認者', esc(a.disposalApprover))}
+        ${dd('メモ', esc(a.note).replace(/\n/g, '<br>'))}
+        ${dd('登録日', jdate((a.createdAt || '').slice(0, 10)))}${dd('最終更新', jdate((a.updatedAt || '').slice(0, 10)))}
+      </dl>
+
+      ${siblings.length ? `<h3>同じ品目のほかの${siblings.length}件</h3><div class="card" style="padding:0;overflow:hidden">${siblings.slice(0, 20).map(assetRow).join('')}</div>` : ''}
+      <h3>記録（点検・修理・消毒・移動など）</h3>
+      ${logs.length ? `<ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)}　${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}${l.by ? '・記録 ' + esc(l.by) : ''}${l.cost ? '・費用 ' + yen(l.cost) : ''}</div>${esc(l.detail).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}
+    </div>
+      <h3>そのほかの操作</h3>
+      <div class="row">
+        <button type="button" class="btn" id="aDup">＋ 同じ品目で別の1台を登録</button>
+        <button type="button" class="btn" id="aPrint">🖨 個票・ラベルを印刷</button>
+        ${isActive(a) ? '<button type="button" class="btn ng" id="aDispose">廃棄する</button>' : '<button type="button" class="btn" id="aUndispose">廃棄を取り消す</button>'}
+        <button type="button" class="btn" id="aDel">台帳から削除</button>
+      </div>
+    </div>
+    <div class="df">
+      <button type="button" class="btn" id="aLog">📝 記録を追加</button>
+      ${isActive(a) ? (a.status === '貸出中' ? '<button type="button" class="btn acc" id="aReturn">↩ 返却</button>' : '<button type="button" class="btn" id="aLoan">↗ 貸出</button>') : ''}
+      <button type="button" class="btn pri" id="aEdit">✎ 編集</button>
+    </div>`;
+  const d = openDlg(html);
+  hydrate(d);
+  (a.photoLabels && Object.entries(a.photoLabels) || []).forEach(([pid, lb]) => { const c = $(`[data-cap="${CSS.escape(pid)}"]`, d); if (c) c.textContent = lb; });
+  $$('img[data-view]', d).forEach(im => im.onclick = () => viewPhoto(im.dataset.view));
+  $$('[data-open]', d).forEach(r => r.onclick = () => openAsset(r.dataset.open));
+  $('#aEdit').onclick = () => openAssetForm(a.id);
+  $('#aDup').onclick = () => openAssetForm(null, { copyFrom:a.id });
+  $('#aLog').onclick = () => openLogForm(a.id);
+  $('#aPrint').onclick = () => printSheet(a.id);
+  $('#aDel').onclick = () => deleteAsset(a.id);
+  const lo = $('#aLoan'); if (lo) lo.onclick = () => openLoanForm(a.id);
+  const re = $('#aReturn'); if (re) re.onclick = () => doReturn(a.id);
+  const di = $('#aDispose'); if (di) di.onclick = () => openDisposeForm(a.id);
+  const ud = $('#aUndispose'); if (ud) ud.onclick = () => undispose(a.id);
+}
+async function viewPhoto(pid){
+  const u = await photoUrl(pid, true);
+  openDlg(`<div class="dh"><h2>写真</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div><div class="db viewer"><img src="${esc(u)}" alt="備品の写真（拡大）"></div>`, 'dlg2');
+}
+
+/* ---------- asset form ---------- */
+let formPhotos = [];   // [{id, isNew, rec?, label}]
+async function openAssetForm(id, opts = {}){
+  const editing = id ? S.assets.find(x => x.id === id) : null;
+  let base = editing ? { ...editing } : {};
+  let itemId = editing ? editing.itemId : (opts.itemId || '');
+  if (opts.copyFrom) {
+    const src = S.assets.find(x => x.id === opts.copyFrom);
+    base = { ...src }; ['id','code','serial','photoIds','photoLabels','loan','disposalDate','disposalReason','disposalMethod','disposalApprover','createdAt','updatedAt'].forEach(k => delete base[k]);
+    base.status = '使用中'; itemId = src.itemId;
+  }
+  const it = itemId ? S.items.find(i => i.id === itemId) : null;
+  formPhotos = (editing?.photoIds || []).map(pid => ({ id:pid, isNew:false, label:(editing.photoLabels || {})[pid] || '' }));
+  const v = k => esc(base[k] ?? '');
+  const eqItems = S.items.filter(i => i.kind !== 'consumable');
+  const html = `
+    <div class="dh"><h2>${editing ? '備品を編集' : (opts.copyFrom || opts.itemId ? '同じ品目で別の1台を登録' : '備品を登録')}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <form class="db" id="af" novalidate>
+      <fieldset><legend>写真</legend>
+        <div class="photos" id="fphotos"></div>
+        <label class="btn" style="margin-bottom:10px">📷 写真を撮る・選ぶ<input type="file" id="fphoto" accept="image/*" multiple hidden></label>
+        <div class="hint">外観のほか、型番の銘板・保証書・領収書も撮っておくと便利です。写真は自動で縮小して保存します。</div>
+      </fieldset>
+      <fieldset><legend>品目と個体</legend>
+        <div class="fgrid">
+          <label class="f"><span>品目名 <b class="req">必須</b></span><input type="text" id="fItem" list="itemList" value="${esc(it ? it.name : '')}" placeholder="例：デジタルカメラ" required autocomplete="off"><datalist id="itemList">${eqItems.map(i => `<option value="${esc(i.name)}">`).join('')}</datalist><div class="hint">同じ品目名で何台でも登録でき、1台ずつ型番・金額・購入日を分けて管理できます。</div></label>
+          <label class="f"><span>分類</span><select id="fCatF">${opt(withCurrent(S.masters.categories, it?.category), it?.category || '', '選んでください')}</select></label>
+          <label class="f"><span>管理番号</span><input type="text" id="fCode" value="${editing ? v('code') : ''}" placeholder="空欄なら自動：${esc(peekCode())}" autocomplete="off"></label>
+          <label class="f"><span>型番</span><input type="text" id="fModel" value="${v('model')}" autocomplete="off"></label>
+          <label class="f"><span>メーカー</span><input type="text" id="fMaker" value="${v('maker')}" autocomplete="off"></label>
+          <label class="f"><span>製造番号（シリアル）</span><input type="text" id="fSerial" value="${v('serial')}" autocomplete="off"></label>
+          <label class="f"><span>数量（まとめて1行で管理する時）</span><input type="number" id="fQty" min="1" step="1" value="${v('qty') || 1}" inputmode="numeric"><div class="hint">積み木一式・椅子20脚などをまとめる時に使います。1台ずつ管理する時は1のまま。</div></label>
+          ${editing ? '' : `<label class="f"><span>同じ内容で何件登録しますか</span><input type="number" id="fCopies" min="1" max="200" step="1" value="1" inputmode="numeric"><div class="hint">2以上にすると管理番号を連番で振って1件ずつ作ります。</div></label>`}
+          <label class="f"><span>タグ（カンマ区切り）</span><input type="text" id="fTags" value="${v('tags')}" placeholder="例：運動会, 貸出可" autocomplete="off"></label>
+        </div>
+      </fieldset>
+      <fieldset><legend>購入</legend>
+        <div class="fgrid">
+          <label class="f"><span>購入日</span><input type="date" id="fPDate" value="${v('purchaseDate')}"></label>
+          <label class="f"><span>購入金額（税込・1点あたり）</span><input type="text" id="fPrice" value="${v('price')}" inputmode="numeric" placeholder="例：45800"></label>
+          <label class="f"><span>購入先</span><input type="text" id="fVendor" value="${v('vendor')}" autocomplete="off"></label>
+          <label class="f"><span>財源</span><select id="fFundF">${opt(withCurrent(S.masters.fundings, base.funding), base.funding || '', '選んでください')}</select></label>
+          <label class="f"><span>補助金名・交付決定番号</span><input type="text" id="fSubsidy" value="${v('subsidyName')}" autocomplete="off"></label>
+          <label class="f"><span>処分制限期限（補助金）</span><input type="date" id="fRestrict" value="${v('restrictUntil')}"><div class="hint">補助金で買った物は、この日までの廃棄・譲渡に承認が要る場合があります。</div></label>
+          <label class="f"><span>保証期限</span><input type="date" id="fWarranty" value="${v('warrantyUntil')}"></label>
+          <label class="f"><span>耐用年数（年）</span><input type="number" id="fLife" min="0" step="1" value="${v('usefulLife')}" inputmode="numeric"><div class="hint">簿価の目安と寿命の目安に使います（例：パソコン4年、家電6年）。</div></label>
+        </div>
+      </fieldset>
+      <fieldset><legend>保管・状態</legend>
+        <div class="fgrid">
+          <label class="f"><span>保管場所</span><select id="fLocF">${opt(withCurrent(S.masters.locations, base.location), base.location || '', '選んでください')}</select></label>
+          <label class="f"><span>使用クラス・担当</span><select id="fClsF">${opt(withCurrent(S.masters.classes, base.className), base.className || '', '選んでください')}</select></label>
+          <label class="f"><span>状態</span><select id="fStF">${opt(STATUSES.filter(s => s !== '廃棄済' || base.status === '廃棄済'), base.status || '使用中')}</select></label>
+          <label class="f"><span>傷み具合</span><select id="fCond">${opt(CONDITIONS, base.condition || '', '未記入')}</select></label>
+          <label class="f"><span>点検周期（か月）</span><input type="number" id="fCycle" min="0" step="1" value="${v('inspectCycle')}" inputmode="numeric"><div class="hint">遊具・家電など。点検を記録すると次回日が自動で進みます。</div></label>
+          <label class="f"><span>次回点検日</span><input type="date" id="fNext" value="${v('nextInspection')}"></label>
+        </div>
+        <label class="f"><span>メモ</span><textarea id="fNote">${v('note')}</textarea></label>
+      </fieldset>
+    </form>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="afSave">保存する</button></div>`;
+  const d = openDlg(html);
+  if (opts.copyFrom && base.photoIds === undefined) { const src = S.assets.find(x => x.id === opts.copyFrom); if (src && (src.photoIds || []).length) { /* keep photos empty for a new unit; offer hint */ } }
+  renderFormPhotos();
+  $('#fItem').addEventListener('change', () => { const m = S.items.find(i => i.name === $('#fItem').value.trim() && i.kind !== 'consumable'); if (m && m.category) $('#fCatF').value = m.category; });
+  $('#fPDate').addEventListener('change', () => { if ($('#fCycle').value && !$('#fNext').value && $('#fPDate').value) $('#fNext').value = addMonths($('#fPDate').value, $('#fCycle').value); });
+  $('#fphoto').addEventListener('change', async e => {
+    const files = [...e.target.files]; e.target.value = '';
+    for (const f of files) { try { const rec = await makePhoto(f); formPhotos.push({ id:rec.id, isNew:true, rec, label:formPhotos.length ? 'その他' : '外観' }); } catch(err) { toast(err.message); } }
+    renderFormPhotos();
+  });
+  $('#afSave').onclick = () => saveAssetForm(editing);
+  setTimeout(() => { if (!editing && !it) $('#fItem').focus(); }, 50);
+}
+function renderFormPhotos(){
+  const box = $('#fphotos'); if (!box) return;
+  box.innerHTML = formPhotos.map((p, i) => `<div class="ph"><img ${p.isNew ? '' : `data-ph="${esc(p.id)}"`} data-i="${i}" alt="写真${i + 1}"><button type="button" class="del" data-del="${i}" aria-label="写真${i + 1}を外す">✕</button><select data-lb="${i}" aria-label="写真${i + 1}の種類">${opt(PHOTO_LABELS, p.label || '外観')}</select></div>`).join('');
+  formPhotos.forEach((p, i) => { if (p.isNew) { const im = $(`img[data-i="${i}"]`, box); im.src = URL.createObjectURL(p.rec.thumb); } });
+  hydrate(box);
+  $$('[data-del]', box).forEach(b => b.onclick = () => { formPhotos.splice(Number(b.dataset.del), 1); renderFormPhotos(); });
+  $$('[data-lb]', box).forEach(s => s.onchange = () => { formPhotos[Number(s.dataset.lb)].label = s.value; });
+}
+async function saveAssetForm(editing){
+  const name = $('#fItem').value.trim();
+  if (!name) { toast('品目名を入れてください'); $('#fItem').focus(); return; }
+  const price = numOrNull($('#fPrice').value);
+  if ($('#fPrice').value.trim() && price == null) { toast('購入金額は数字で入れてください'); $('#fPrice').focus(); return; }
+  const qty = Math.max(1, parseInt($('#fQty').value, 10) || 1);
+  const copies = editing ? 1 : Math.min(200, Math.max(1, parseInt($('#fCopies').value, 10) || 1));
+  let code = $('#fCode').value.trim();
+  if (code && S.assets.some(a => a.code === code && (!editing || a.id !== editing.id))) { toast('その管理番号はすでに使われています'); $('#fCode').focus(); return; }
+  if (copies > 1 && code) { if (!confirm(`${copies}件まとめて登録する時は、管理番号を自動の連番で振ります。入力した「${code}」は1件目に使います。よろしいですか？`)) return; }
+  const ops = [], now = new Date().toISOString();
+  // item (品目)
+  const cat = $('#fCatF').value;
+  let item = S.items.find(i => i.name === name && i.kind !== 'consumable');
+  if (editing && !item) { // renamed to a new name → new item
+    item = null;
+  }
+  if (!item) { item = { id:uid(), name, category:cat, kind:'equipment', createdAt:now, updatedAt:now }; ops.push(['items','put',item]); }
+  else if (cat && item.category !== cat) { item = { ...item, category:cat, updatedAt:now }; ops.push(['items','put',item]); }
+  // photos
+  const photoIds = formPhotos.map(p => p.id), photoLabels = {};
+  formPhotos.forEach(p => { photoLabels[p.id] = p.label || ''; if (p.isNew) ops.push(['photos','put',{ ...p.rec, label:p.label }]); });
+  if (editing) for (const pid of (editing.photoIds || [])) if (!photoIds.includes(pid) && photoRefCount(pid, editing.id) === 0) ops.push(['photos','delete',pid]);
+  const f = {
+    itemId:item.id, model:$('#fModel').value.trim(), maker:$('#fMaker').value.trim(), serial:$('#fSerial').value.trim(), qty,
+    tags:$('#fTags').value.trim(), purchaseDate:$('#fPDate').value, price, vendor:$('#fVendor').value.trim(), funding:$('#fFundF').value,
+    subsidyName:$('#fSubsidy').value.trim(), restrictUntil:$('#fRestrict').value, warrantyUntil:$('#fWarranty').value,
+    usefulLife:numOrNull($('#fLife').value), location:$('#fLocF').value, className:$('#fClsF').value, status:$('#fStF').value,
+    condition:$('#fCond').value, inspectCycle:numOrNull($('#fCycle').value), nextInspection:$('#fNext').value, note:$('#fNote').value,
+    photoIds, photoLabels, updatedAt:now
+  };
+  const created = [];
+  if (editing) {
+    const upd = { ...editing, ...f, code: code || editing.code };
+    const changed = diffFields(editing, upd);
+    ops.push(['assets','put',upd]);
+    if (changed.length) ops.push(['logs','put',newLog({ assetId:upd.id, type:'編集', detail:'変更：' + changed.join('、') })]);
+    if (editing.location !== upd.location && upd.location) ops.push(['logs','put',newLog({ assetId:upd.id, type:'移動', detail:`${editing.location || '未設定'} → ${upd.location}` })]);
+    created.push(upd);
+  } else {
+    const seqBefore = S.settings.seq;
+    for (let n = 0; n < copies; n++) {
+      const c = (n === 0 && code) ? code : nextCode();
+      const a = { id:uid(), code:c, ...f, createdAt:now, loan:null };
+      if (n > 0) a.serial = '';
+      ops.push(['assets','put',a]);
+      ops.push(['logs','put',newLog({ assetId:a.id, type:'登録', detail:`${name}を登録${a.price != null ? '（' + yen(a.price) + '）' : ''}` })]);
+      created.push(a);
+    }
+    ops.push(['meta','put',{ key:'settings', ...S.settings }]);
+    if (seqBefore === S.settings.seq && !code) { /* no-op */ }
+  }
+  try {
+    await writeOps(ops);
+  } catch(err) { await loadAll(); alert('保存できませんでした。データは変更されていません。\n' + err.message); return; }
+  await loadAll();
+  closeDlg();
+  toast(editing ? '保存しました' : `${created.length}件登録しました`);
+  render();
+  if (created.length === 1) openAsset(created[0].id);
+}
+const FIELD_NAMES = { itemId:'品目', code:'管理番号', model:'型番', maker:'メーカー', serial:'製造番号', qty:'数量', tags:'タグ', purchaseDate:'購入日', price:'購入金額', vendor:'購入先', funding:'財源', subsidyName:'補助金名', restrictUntil:'処分制限期限', warrantyUntil:'保証期限', usefulLife:'耐用年数', location:'保管場所', className:'使用クラス', status:'状態', condition:'傷み具合', inspectCycle:'点検周期', nextInspection:'次回点検日', note:'メモ', photoIds:'写真' };
+function diffFields(a, b){ return Object.keys(FIELD_NAMES).filter(k => JSON.stringify(a[k] ?? '') !== JSON.stringify(b[k] ?? '')).map(k => FIELD_NAMES[k]); }
+
+/* ---------- item (品目) form ---------- */
+function openItemForm(itemId){
+  const it = S.items.find(i => i.id === itemId); if (!it) return;
+  const n = S.assets.filter(a => a.itemId === itemId).length;
+  openDlg(`<div class="dh"><h2>品目を編集</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><p class="muted">この品目に属する${n}件すべてに反映されます。</p>
+    <label class="f"><span>品目名</span><input type="text" id="iName" value="${esc(it.name)}"></label>
+    <label class="f"><span>分類</span><select id="iCat">${opt(withCurrent(S.masters.categories, it.category), it.category || '', '未分類')}</select></label></div>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="iSave">保存する</button></div>`);
+  $('#iSave').onclick = async () => {
+    const name = $('#iName').value.trim(); if (!name) { toast('品目名を入れてください'); return; }
+    const other = S.items.find(i => i.id !== it.id && i.name === name && i.kind !== 'consumable');
+    if (other) {
+      if (!confirm(`「${name}」はすでにあります。2つの品目をまとめますか？（${n}件が「${name}」に移ります）`)) return;
+      const ops = S.assets.filter(a => a.itemId === it.id).map(a => ['assets','put',{ ...a, itemId:other.id, updatedAt:new Date().toISOString() }]);
+      ops.push(['items','delete',it.id]);
+      await writeOps(ops);
+    } else await writeOps([['items','put',{ ...it, name, category:$('#iCat').value, updatedAt:new Date().toISOString() }]]);
+    await loadAll(); closeDlg(); toast('保存しました'); render();
+  };
+}
+
+/* ---------- logs / loan / disposal ---------- */
+function openLogForm(assetId){
+  const a = S.assets.find(x => x.id === assetId);
+  openDlg(`<div class="dh"><h2>記録を追加 — ${esc(itemOf(a).name)}（${esc(a.code)}）</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><div class="fgrid">
+      <label class="f"><span>種類</span><select id="lType">${opt(LOG_TYPES, '点検')}</select></label>
+      <label class="f"><span>日付</span><input type="date" id="lDate" value="${today()}"></label>
+      <label class="f" id="lResW"><span>結果</span><select id="lRes"><option>異常なし</option><option>要対応</option><option>対応済み</option></select></label>
+      <label class="f" id="lLocW" hidden><span>移動先</span><select id="lLoc">${opt(S.masters.locations, a.location, '選んでください')}</select></label>
+      <label class="f"><span>費用（修理など）</span><input type="text" id="lCost" inputmode="numeric"></label>
+      <label class="f"><span>記録者</span><input type="text" id="lBy" autocomplete="off"></label>
+    </div>
+    <label class="f"><span>内容</span><textarea id="lDetail" placeholder="例：ボルトの緩みなし、ささくれなし"></textarea></label>
+    ${a.inspectCycle ? `<div class="hint">点検を記録すると、次回点検日を ${a.inspectCycle}か月後に進めます。</div>` : ''}</div>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="lSave">記録する</button></div>`, 'dlg2');
+  const sync = () => { const t = $('#lType').value; $('#lLocW').hidden = t !== '移動'; $('#lResW').hidden = !(t === '点検' || t === '修理'); };
+  $('#lType').onchange = sync; sync();
+  $('#lSave').onclick = async () => {
+    const t = $('#lType').value, date = $('#lDate').value || today();
+    const upd = { ...a, updatedAt:new Date().toISOString() };
+    let detail = $('#lDetail').value.trim();
+    if (t === '移動') { const to = $('#lLoc').value; if (!to) { toast('移動先を選んでください'); return; } detail = `${a.location || '未設定'} → ${to}${detail ? '　' + detail : ''}`; upd.location = to; }
+    const res = (t === '点検' || t === '修理') ? $('#lRes').value : '';
+    if (t === '点検' && a.inspectCycle) upd.nextInspection = addMonths(date, a.inspectCycle);
+    if (t === '修理' && res === '対応済み' && upd.status === '修理中') upd.status = '使用中';
+    if (res === '要対応' && upd.condition !== '使用不可') upd.condition = '要修理';
+    if (res === '対応済み' && (upd.condition === '要修理')) upd.condition = '良好';
+    await writeOps([['assets','put',upd], ['logs','put',newLog({ assetId:a.id, type:t, date, result:res, detail, by:$('#lBy').value.trim(), cost:numOrNull($('#lCost').value) })]]);
+    await loadAll(); closeDlg('dlg2'); toast('記録しました'); openAsset(a.id); render();
+  };
+}
+function openLoanForm(assetId){
+  const a = S.assets.find(x => x.id === assetId);
+  openDlg(`<div class="dh"><h2>貸出 — ${esc(itemOf(a).name)}（${esc(a.code)}）</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><div class="fgrid">
+      <label class="f"><span>貸出先（クラス・職員・他園など）</span><input type="text" id="loTo" list="loToList" autocomplete="off"><datalist id="loToList">${S.masters.classes.map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
+      <label class="f"><span>貸出日</span><input type="date" id="loOut" value="${today()}"></label>
+      <label class="f"><span>返却予定日</span><input type="date" id="loDue"></label>
+    </div><label class="f"><span>メモ</span><input type="text" id="loNote" autocomplete="off"></label></div>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="loSave">貸し出す</button></div>`, 'dlg2');
+  $('#loSave').onclick = async () => {
+    const to = $('#loTo').value.trim(); if (!to) { toast('貸出先を入れてください'); return; }
+    const loan = { to, out:$('#loOut').value || today(), due:$('#loDue').value, prevStatus:a.status };
+    await writeOps([['assets','put',{ ...a, status:'貸出中', loan, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'貸出', date:loan.out, detail:`${to}へ貸出${loan.due ? '（返却予定 ' + jdate(loan.due) + '）' : ''} ${$('#loNote').value}`.trim() })]]);
+    await loadAll(); closeDlg('dlg2'); toast('貸出を記録しました'); openAsset(a.id); render();
+  };
+}
+async function doReturn(assetId){
+  const a = S.assets.find(x => x.id === assetId);
+  const back = (a.loan && a.loan.prevStatus && a.loan.prevStatus !== '貸出中') ? a.loan.prevStatus : '使用中';
+  await writeOps([['assets','put',{ ...a, status:back, loan:null, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'返却', detail:`${a.loan ? a.loan.to : ''}から返却` })]]);
+  await loadAll(); toast('返却を記録しました'); openAsset(a.id); render();
+}
+function openDisposeForm(assetId){
+  const a = S.assets.find(x => x.id === assetId);
+  const restricted = a.restrictUntil && a.restrictUntil >= today();
+  openDlg(`<div class="dh"><h2>廃棄 — ${esc(itemOf(a).name)}（${esc(a.code)}）</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db">
+      ${restricted ? `<div class="alert ng" style="cursor:default"><span aria-hidden="true">⛔</span><span><span class="t">補助金の処分制限期間中です（${jdate(a.restrictUntil)}まで）</span><br>${esc(a.subsidyName || '補助金')}で購入しています。廃棄・譲渡の前に、補助元（自治体・こども家庭庁など）の財産処分の承認が必要か確かめてください。</span></div>` : ''}
+      <p class="muted">廃棄しても台帳の記録・写真は残り、「廃棄済み」として後から確認できます。</p>
+      <div class="fgrid">
+        <label class="f"><span>廃棄日</span><input type="date" id="dDate" value="${today()}"></label>
+        <label class="f"><span>廃棄方法</span><select id="dMethod">${opt(DISPOSAL_METHODS, '', '選んでください')}</select></label>
+        <label class="f"><span>承認者</span><input type="text" id="dApprover" autocomplete="off"></label>
+        ${restricted ? '<label class="f"><span>財産処分の承認番号など</span><input type="text" id="dApproval" autocomplete="off"></label>' : ''}
+      </div>
+      <label class="f"><span>廃棄理由</span><textarea id="dReason" placeholder="例：破損して修理不能、老朽化"></textarea></label>
+    </div>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn ng" id="dSave">廃棄済みにする</button></div>`, 'dlg2');
+  $('#dSave').onclick = async () => {
+    const reason = $('#dReason').value.trim(); if (!reason) { toast('廃棄理由を入れてください'); $('#dReason').focus(); return; }
+    const ap = $('#dApproval') ? $('#dApproval').value.trim() : '';
+    const upd = { ...a, status:'廃棄済', disposalDate:$('#dDate').value || today(), disposalMethod:$('#dMethod').value, disposalReason:reason + (ap ? `（承認：${ap}）` : ''), disposalApprover:$('#dApprover').value.trim(), loan:null, updatedAt:new Date().toISOString() };
+    await writeOps([['assets','put',upd], ['logs','put',newLog({ assetId:a.id, type:'廃棄', date:upd.disposalDate, detail:`${upd.disposalMethod || ''} ${upd.disposalReason}`.trim(), by:upd.disposalApprover })]]);
+    await loadAll(); closeDlg('dlg2'); toast('廃棄済みにしました'); openAsset(a.id); render();
+  };
+}
+async function undispose(assetId){
+  const a = S.assets.find(x => x.id === assetId);
+  if (!confirm('廃棄を取り消して「保管中」に戻しますか？（廃棄の記録は履歴に残ります）')) return;
+  await writeOps([['assets','put',{ ...a, status:'保管中', disposalDate:'', updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'メモ', detail:'廃棄を取り消し' })]]);
+  await loadAll(); openAsset(a.id); render();
+}
+async function deleteAsset(assetId){
+  const a = S.assets.find(x => x.id === assetId);
+  if (!confirm(`「${itemOf(a).name}（${a.code}）」を台帳から完全に削除します。写真と記録も消え、元に戻せません。\n\n使わなくなった物は「廃棄する」で記録を残すのがおすすめです。\n削除してよいですか？`)) return;
+  const ops = [['assets','delete',a.id]];
+  S.logs.filter(l => l.assetId === a.id).forEach(l => ops.push(['logs','delete',l.id]));
+  (a.photoIds || []).forEach(p => { if (photoRefCount(p, a.id) === 0) ops.push(['photos','delete',p]); });
+  if (!S.assets.some(x => x.id !== a.id && x.itemId === a.itemId)) ops.push(['items','delete',a.itemId]);
+  await writeOps(ops); selected.delete(a.id);
+  await loadAll(); closeDlg(); toast('削除しました'); render();
+}
+
+/* ---------- SUPPLIES (消耗品) ---------- */
+function renderSupplies(){
+  const list = S.items.filter(i => i.kind === 'consumable').sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  const low = list.filter(i => i.reorderPoint != null && i.reorderPoint !== '' && Number(i.stock || 0) <= Number(i.reorderPoint));
+  $('#v-supplies').innerHTML = `
+    <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">消耗品の在庫（${list.length}品目）</h2>
+      <div class="row"><button type="button" class="btn" id="sOrder" ${low.length ? '' : 'disabled'}>🖨 発注リスト（${low.length}）</button><button type="button" class="btn pri" id="sAdd">＋ 消耗品を追加</button></div></div>
+    <p class="muted" style="font-size:.88rem;margin-top:0">おむつ・おしりふき・手袋・消毒液・画用紙など、数で管理する物はこちら。在庫が発注点以下になるとホームでお知らせします。</p>
+    ${list.length ? `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th>品名</th><th>分類</th><th>置き場所</th><th class="num">在庫</th><th class="num">発注点</th><th class="num">単価</th><th><span class="sr">操作</span></th></tr></thead><tbody>
+      ${list.map(i => { const isLow = low.includes(i); return `<tr><td><button type="button" class="btn sm" style="border:0;padding:0;min-height:44px;background:none;text-align:left" data-edit="${esc(i.id)}">${esc(i.name)}</button></td><td>${esc(i.category)}</td><td>${esc(i.location)}</td><td class="num"${isLow ? ' style="color:var(--ng);font-weight:700"' : ''}>${esc(i.stock || 0)}${esc(i.unit || '')}</td><td class="num">${esc(i.reorderPoint ?? '')}</td><td class="num">${yen(i.unitPrice)}</td><td><div class="row" style="flex-wrap:nowrap"><button type="button" class="btn sm" data-io="in|${esc(i.id)}" aria-label="${esc(i.name)}を入庫">＋入庫</button><button type="button" class="btn sm" data-io="out|${esc(i.id)}" aria-label="${esc(i.name)}を出庫">−使用</button></div></td></tr>`; }).join('')}
+    </tbody></table></div>` : '<div class="empty">消耗品はまだありません。</div>'}`;
+  $('#sAdd').onclick = () => openSupplyForm();
+  $('#sOrder').onclick = () => printOrder(low);
+  $$('[data-edit]', $('#v-supplies')).forEach(b => b.onclick = () => openSupplyForm(b.dataset.edit));
+  $$('[data-io]', $('#v-supplies')).forEach(b => b.onclick = () => { const [k, id] = b.dataset.io.split('|'); openIoForm(id, k); });
+}
+function openSupplyForm(id){
+  const it = id ? S.items.find(i => i.id === id) : { stock:0 };
+  const logs = id ? S.logs.filter(l => l.itemId === id).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 30) : [];
+  openDlg(`<div class="dh"><h2>${id ? '消耗品を編集' : '消耗品を追加'}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><div class="fgrid">
+      <label class="f"><span>品名 <b class="req">必須</b></span><input type="text" id="cName" value="${esc(it.name || '')}" autocomplete="off"></label>
+      <label class="f"><span>分類</span><select id="cCat">${opt(withCurrent(S.masters.categories, it.category), it.category || '', '選んでください')}</select></label>
+      <label class="f"><span>単位</span><input type="text" id="cUnit" value="${esc(it.unit || '')}" placeholder="例：袋・箱・本" autocomplete="off"></label>
+      <label class="f"><span>${id ? '現在の在庫（直接直す時）' : 'いまの在庫'}</span><input type="number" id="cStock" value="${esc(it.stock ?? 0)}" min="0" inputmode="numeric"></label>
+      <label class="f"><span>発注点（これ以下で知らせる）</span><input type="number" id="cReorder" value="${esc(it.reorderPoint ?? '')}" min="0" inputmode="numeric"></label>
+      <label class="f"><span>単価（税込）</span><input type="text" id="cPrice" value="${esc(it.unitPrice ?? '')}" inputmode="numeric"></label>
+      <label class="f"><span>置き場所</span><select id="cLoc">${opt(withCurrent(S.masters.locations, it.location), it.location || '', '選んでください')}</select></label>
+      <label class="f"><span>購入先</span><input type="text" id="cVendor" value="${esc(it.vendor || '')}" autocomplete="off"></label>
+    </div><label class="f"><span>メモ（型番・品番など）</span><input type="text" id="cNote" value="${esc(it.note || '')}" autocomplete="off"></label>
+    ${logs.length ? `<h3>入出庫の記録</h3><ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)} ${esc(l.type)}${l.by ? '・' + esc(l.by) : ''}</div>${esc(l.qty != null ? (l.type === '入庫' ? '+' : '−') + l.qty : '')} ${esc(l.detail)}</li>`).join('')}</ul>` : ''}</div>
+    <div class="df">${id ? '<button type="button" class="btn" id="cDel">削除</button>' : ''}<button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="cSave">保存する</button></div>`);
+  $('#cSave').onclick = async () => {
+    const name = $('#cName').value.trim(); if (!name) { toast('品名を入れてください'); return; }
+    const now = new Date().toISOString();
+    const rec = { ...(id ? it : { id:uid(), createdAt:now, kind:'consumable' }), name, category:$('#cCat').value, unit:$('#cUnit').value.trim(), stock:Number($('#cStock').value) || 0, reorderPoint:numOrNull($('#cReorder').value), unitPrice:numOrNull($('#cPrice').value), location:$('#cLoc').value, vendor:$('#cVendor').value.trim(), note:$('#cNote').value.trim(), updatedAt:now };
+    const ops = [['items','put',rec]];
+    if (id && Number(it.stock || 0) !== rec.stock) ops.push(['logs','put',newLog({ itemId:rec.id, type:'在庫修正', detail:`${it.stock || 0} → ${rec.stock}` })]);
+    await writeOps(ops); await loadAll(); closeDlg(); toast('保存しました'); render();
+  };
+  const del = $('#cDel'); if (del) del.onclick = async () => {
+    if (!confirm(`「${it.name}」と入出庫の記録を削除します。元に戻せません。よろしいですか？`)) return;
+    await writeOps([['items','delete',id], ...S.logs.filter(l => l.itemId === id).map(l => ['logs','delete',l.id])]);
+    await loadAll(); closeDlg(); toast('削除しました'); render();
+  };
+}
+function openIoForm(id, kind){
+  const it = S.items.find(i => i.id === id);
+  openDlg(`<div class="dh"><h2>${kind === 'in' ? '入庫（買い足し）' : '使用（出庫）'} — ${esc(it.name)}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><p>いまの在庫：<b>${esc(it.stock || 0)}${esc(it.unit || '')}</b></p><div class="fgrid">
+      <label class="f"><span>数量</span><input type="number" id="ioQty" min="1" value="1" inputmode="numeric"></label>
+      <label class="f"><span>日付</span><input type="date" id="ioDate" value="${today()}"></label>
+      <label class="f"><span>記録者</span><input type="text" id="ioBy" autocomplete="off"></label>
+      ${kind === 'out' ? `<label class="f"><span>使ったクラス</span><select id="ioCls">${opt(S.masters.classes, '', '未記入')}</select></label>` : `<label class="f"><span>金額（任意）</span><input type="text" id="ioCost" inputmode="numeric"></label>`}
+    </div><label class="f"><span>メモ</span><input type="text" id="ioNote" autocomplete="off"></label></div>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="ioSave">記録する</button></div>`);
+  $('#ioSave').onclick = async () => {
+    const q = parseInt($('#ioQty').value, 10); if (!(q > 0)) { toast('数量を入れてください'); return; }
+    const stock = (Number(it.stock) || 0) + (kind === 'in' ? q : -q);
+    if (stock < 0 && !confirm('在庫がマイナスになります。記録しますか？')) return;
+    const detail = [kind === 'out' && $('#ioCls').value ? $('#ioCls').value : '', $('#ioNote').value.trim()].filter(Boolean).join(' ');
+    await writeOps([['items','put',{ ...it, stock, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ itemId:it.id, type:kind === 'in' ? '入庫' : '出庫', qty:q, date:$('#ioDate').value || today(), by:$('#ioBy').value.trim(), detail, cost:kind === 'in' ? numOrNull($('#ioCost').value) : null })]]);
+    await loadAll(); closeDlg(); toast('記録しました'); render();
+  };
+}
+
+/* ---------- STOCKTAKE (棚卸) ---------- */
+const activeST = () => S.stocktakes.find(s => !s.finishedAt);
+function stTargets(st){ return S.assets.filter(a => isActive(a) && (!st.location || a.location === st.location)); }
+function renderStock(){
+  const st = activeST(), box = $('#v-stock');
+  const past = S.stocktakes.filter(s => s.finishedAt).sort((a, b) => b.finishedAt.localeCompare(a.finishedAt));
+  if (!st) {
+    box.innerHTML = `<h2>棚卸（現物の確認）</h2>
+      <div class="card"><p style="margin-top:0">台帳に載っている備品が本当にあるかを1つずつ確かめます。ラベルのQRコードを読み取るか、一覧で「あった」を押します。</p>
+      <div class="fgrid"><label class="f"><span>名前</span><input type="text" id="stName" value="${new Date().getFullYear()}年度 棚卸" autocomplete="off"></label>
+      <label class="f"><span>対象の場所</span><select id="stLoc">${opt(S.masters.locations, '', 'すべての場所')}</select></label></div>
+      <button type="button" class="btn pri" id="stStart">棚卸を始める</button></div>
+      <h3>これまでの棚卸</h3>${past.length ? past.map(s => `<div class="card"><b>${esc(s.name)}</b> <span class="muted">${jdate(s.date)}〜${jdate(s.finishedAt.slice(0, 10))}${s.location ? '・' + esc(s.location) : ''}</span><br>確認 ${s.result?.found ?? 0}件／未確認 ${s.result?.missing ?? 0}件／場所違い ${s.result?.moved ?? 0}件</div>`).join('') : '<div class="muted">まだありません。</div>'}`;
+    $('#stStart').onclick = async () => {
+      const s = { id:uid(), name:$('#stName').value.trim() || '棚卸', date:today(), location:$('#stLoc').value, checks:{}, startedAt:new Date().toISOString(), finishedAt:'' };
+      await writeOps([['stocktakes','put',s]]); await loadAll(); render();
+    };
+    return;
+  }
+  const targets = stTargets(st);
+  const done = targets.filter(a => st.checks[a.id]), todo = targets.filter(a => !st.checks[a.id]);
+  const moved = done.filter(a => st.checks[a.id].foundLocation && st.checks[a.id].foundLocation !== a.location);
+  const pct = targets.length ? Math.round(done.length / targets.length * 100) : 0;
+  const byLoc = new Map(); todo.forEach(a => { const k = a.location || '未設定'; if (!byLoc.has(k)) byLoc.set(k, []); byLoc.get(k).push(a); });
+  box.innerHTML = `<h2>${esc(st.name)} <span class="muted" style="font-weight:400;font-size:.9rem">${st.location ? esc(st.location) : 'すべての場所'}・${jdate(st.date)}開始</span></h2>
+    <div class="card"><div class="row" style="justify-content:space-between"><b>${done.length} / ${targets.length}件 確認（${pct}%）</b><span class="muted">場所違い ${moved.length}件</span></div><div class="bar" style="margin:8px 0 12px"><i style="width:${pct}%"></i></div>
+    <div class="row"><button type="button" class="btn pri" id="stScan">📷 QRを読み取る</button><input type="text" id="stCode" placeholder="管理番号を入力" style="flex:1 1 160px;width:auto" autocomplete="off" aria-label="管理番号"><button type="button" class="btn" id="stCodeBtn">確認</button></div>
+    <label class="f" style="margin-top:10px"><span>いま確認している場所（場所違いの検出に使います）</span><select id="stHere">${opt(S.masters.locations, st.here || '', '指定しない')}</select></label></div>
+    ${moved.length ? `<div class="card"><h3 style="margin-top:0">場所違い（台帳と違う所で見つかった物）</h3>${moved.map(a => `<div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding:6px 0"><span>${esc(itemOf(a).name)}（${esc(a.code)}）台帳：${esc(a.location || '未設定')} → 実際：<b>${esc(st.checks[a.id].foundLocation)}</b></span><button type="button" class="btn sm" data-fix="${esc(a.id)}">台帳を直す</button></div>`).join('')}</div>` : ''}
+    <h3>まだ確認していない物（${todo.length}件）</h3>
+    ${todo.length ? [...byLoc.entries()].map(([loc, arr]) => `<details class="grp" open><summary><div><div class="nm">${esc(loc)}</div><div class="meta">${arr.length}件</div></div><span class="caret" aria-hidden="true">›</span></summary>${arr.map(a => `<div class="irow" style="cursor:default">${thumbHtml(a)}<div class="c1"><div class="a">${esc(itemOf(a).name)}　<span class="muted">${esc(a.code)}</span></div><div class="b">${esc([a.model, a.className].filter(Boolean).join('・'))}</div></div><button type="button" class="btn sm pri" data-chk="${esc(a.id)}">あった</button></div>`).join('')}</details>`).join('') : '<div class="card">すべて確認できました。</div>'}
+    <div class="row" style="margin-top:16px"><button type="button" class="btn pri" id="stFinish">棚卸を終える</button><button type="button" class="btn" id="stCancel">中止する</button></div>`;
+  hydrate(box);
+  $('#stHere').onchange = async () => { st.here = $('#stHere').value; await writeOps([['stocktakes','put',st]]); };
+  const check = async (a, how) => {
+    if (!a) { toast('台帳にない管理番号です'); return; }
+    if (!stTargets(st).includes(a)) { toast(`${a.code} は今回の棚卸の対象外です（${a.location || '場所未設定'}）`); return; }
+    if (st.checks[a.id]) { toast(`${itemOf(a).name}（${a.code}）は確認済みです`); return; }
+    st.checks[a.id] = { at:new Date().toISOString(), how, foundLocation:st.here || '' };
+    await writeOps([['stocktakes','put',st]]); await loadAll();
+    toast(`✓ ${itemOf(a).name}（${a.code}）`); if (navigator.vibrate) navigator.vibrate(60);
+    renderStock();
+  };
+  $$('[data-chk]', box).forEach(b => b.onclick = () => check(S.assets.find(a => a.id === b.dataset.chk), 'tap'));
+  $('#stCodeBtn').onclick = () => { const c = $('#stCode').value.trim(); check(S.assets.find(a => a.code === c), 'code'); };
+  $('#stCode').onkeydown = e => { if (e.key === 'Enter') $('#stCodeBtn').click(); };
+  $('#stScan').onclick = () => openScanner(code => { const a = S.assets.find(x => x.code === code); check(a, 'qr'); return true; }, true);
+  $$('[data-fix]', box).forEach(b => b.onclick = async () => {
+    const a = S.assets.find(x => x.id === b.dataset.fix), to = st.checks[a.id].foundLocation;
+    await writeOps([['assets','put',{ ...a, location:to, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'移動', detail:`棚卸で修正：${a.location || '未設定'} → ${to}` })]]);
+    st.checks[a.id].foundLocation = to; await writeOps([['stocktakes','put',st]]); await loadAll(); renderStock();
+  });
+  $('#stCancel').onclick = async () => { if (!confirm('この棚卸を中止します（確認した結果は消えます）。よろしいですか？')) return; await writeOps([['stocktakes','delete',st.id]]); await loadAll(); renderStock(); };
+  $('#stFinish').onclick = async () => {
+    let markLost = false;
+    if (todo.length) markLost = confirm(`未確認が${todo.length}件あります。\n\n「OK」→ 未確認の物を「紛失・所在不明」にして終える\n「キャンセル」→ 状態は変えずに終える`);
+    const now = new Date().toISOString(), ops = [];
+    done.forEach(a => ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：確認${st.checks[a.id].foundLocation && st.checks[a.id].foundLocation !== a.location ? '（' + st.checks[a.id].foundLocation + 'で発見）' : ''}` })]));
+    todo.forEach(a => { ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：未確認` })]); if (markLost) ops.push(['assets','put',{ ...a, status:'紛失・所在不明', updatedAt:now }]); });
+    ops.push(['stocktakes','put',{ ...st, finishedAt:now, result:{ found:done.length, missing:todo.length, moved:moved.length, targets:targets.length } }]);
+    await writeOps(ops); await loadAll(); toast('棚卸を終えました'); renderStock();
+  };
+}
+
+/* ---------- QR scanner ---------- */
+let scanStream = null, scanRAF = 0;
+async function loadJsQR(){
+  if (window.jsQR) return true;
+  return new Promise(res => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'; s.onload = () => res(true); s.onerror = () => res(false); document.head.appendChild(s); });
+}
+async function openScanner(onCode, keepOpen){
+  const d = openDlg(`<div class="dh"><h2>QRコードを読み取る</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><div class="scanbox"><video id="scanV" playsinline muted aria-label="QR読み取り用のカメラ映像（音声なし）"><track kind="captions" label="音声なし"></video><div class="frame" aria-hidden="true"></div></div>
+    <p class="muted" id="scanMsg">備品に貼ったラベルのQRコードを枠に合わせてください。</p>
+    <div class="row"><input type="text" id="scanCode" placeholder="読めない時は管理番号を入力" style="flex:1;width:auto" autocomplete="off" aria-label="管理番号"><button type="button" class="btn" id="scanGo">開く</button></div></div>`);
+  const go = c => { c = (c || '').trim(); if (!c) return; const r = onCode(c); if (!keepOpen || r === false) closeDlg(); };
+  $('#scanGo').onclick = () => go($('#scanCode').value);
+  $('#scanCode').onkeydown = e => { if (e.key === 'Enter') go($('#scanCode').value); };
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('#scanMsg').textContent = 'この端末ではカメラを使えません。管理番号を入力してください。'; return; }
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+  } catch(e) { $('#scanMsg').textContent = 'カメラを使えませんでした（ブラウザでカメラの使用を許可してください）。管理番号の入力でも探せます。'; return; }
+  const v = $('#scanV'); v.srcObject = scanStream; await v.play().catch(() => {});
+  let detector = null;
+  if ('BarcodeDetector' in window) { try { detector = new BarcodeDetector({ formats:['qr_code'] }); } catch(e) {} }
+  if (!detector && !(await loadJsQR())) { $('#scanMsg').textContent = '読み取りの部品を読み込めませんでした（通信を確認）。管理番号を入力してください。'; return; }
+  const c = document.createElement('canvas'), ctx = c.getContext('2d', { willReadFrequently:true });
+  let last = '', lastAt = 0;
+  const loop = async () => {
+    if (!scanStream || !d.open) return;
+    if (v.readyState >= 2) {
+      let code = '';
+      try {
+        if (detector) { const r = await detector.detect(v); if (r[0]) code = r[0].rawValue; }
+        else { c.width = v.videoWidth; c.height = v.videoHeight; ctx.drawImage(v, 0, 0); const im = ctx.getImageData(0, 0, c.width, c.height); const r = window.jsQR(im.data, c.width, c.height, { inversionAttempts:'dontInvert' }); if (r) code = r.data; }
+      } catch(e) {}
+      if (code && (code !== last || Date.now() - lastAt > 2500)) { last = code; lastAt = Date.now(); go(code); if (!keepOpen) return; }
+    }
+    scanRAF = requestAnimationFrame(loop);
+  };
+  loop();
+}
+function stopScan(){ cancelAnimationFrame(scanRAF); if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; } }
+
+/* ---------- printing ---------- */
+function qrSvg(text){
+  if (typeof qrcode !== 'function') return '';
+  try { const q = qrcode(0, 'M'); q.addData(text); q.make(); return q.createSvgTag({ cellSize:2, margin:0, scalable:true }); } catch(e) { return ''; }
+}
+async function doPrint(html){
+  const pa = $('#printArea'); pa.innerHTML = html;
+  await hydrate(pa);
+  await Promise.all($$('img', pa).map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+  window.print();
+}
+function prHead(title){ return `<div class="pr-h"><b>${esc(S.settings.orgName || '')} ${esc(title)}</b><span>出力日 ${jdate(today())}</span></div>`; }
+function printLedger(){
+  const list = filteredAssets();
+  const withPh = confirm('写真の縮小画像も入れて印刷しますか？\n（OK＝入れる／キャンセル＝文字だけ）');
+  const sum = list.reduce((s, a) => s + totalPrice(a), 0);
+  doPrint(prHead('備品台帳') + `<table class="pt"><thead><tr><th>No</th>${withPh ? '<th>写真</th>' : ''}<th>管理番号</th><th>品名</th><th>分類</th><th>型番</th><th>メーカー</th><th>数量</th><th>購入日</th><th>金額(税込)</th><th>財源</th><th>保管場所</th><th>クラス</th><th>状態</th><th>廃棄日</th><th>備考</th></tr></thead><tbody>
+    ${list.map((a, i) => { const it = itemOf(a); return `<tr><td>${i + 1}</td>${withPh ? `<td>${(a.photoIds || [])[0] ? `<img data-ph="${esc(a.photoIds[0])}" alt="">` : ''}</td>` : ''}<td class="code">${esc(a.code)}</td><td>${esc(it.name)}</td><td>${esc(it.category)}</td><td>${esc(a.model)}</td><td>${esc(a.maker)}</td><td>${esc(a.qty || 1)}</td><td>${jdate(a.purchaseDate)}</td><td style="text-align:right">${yen(totalPrice(a))}</td><td>${esc(a.funding)}${a.subsidyName ? '<br>' + esc(a.subsidyName) : ''}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td>${esc(a.status)}</td><td>${jdate(a.disposalDate)}</td><td>${esc((a.note || '').slice(0, 40))}</td></tr>`; }).join('')}
+    <tr><td colspan="${withPh ? 9 : 8}" style="text-align:right"><b>合計 ${list.length}件</b></td><td style="text-align:right"><b>${yen(sum)}</b></td><td colspan="6"></td></tr></tbody></table>`);
+}
+function printLabels(ids){
+  const list = ids.map(id => S.assets.find(a => a.id === id)).filter(Boolean);
+  if (!list.length) { toast('印刷する備品がありません'); return; }
+  if (typeof qrcode !== 'function') toast('QRの部品を読み込めなかったため、文字だけのラベルになります');
+  doPrint(`<div class="labels">${list.map(a => `<div class="lbl">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(itemOf(a).name)}<br>${esc(a.model || '')}<br>${esc(S.settings.orgName || '')}</div></div>`).join('')}</div>`);
+}
+function printSheet(id){
+  const a = S.assets.find(x => x.id === id), it = itemOf(a), logs = assetLogs(id);
+  const rows = [['管理番号', a.code], ['品目', it.name], ['分類', it.category], ['型番', a.model], ['メーカー', a.maker], ['製造番号', a.serial], ['数量', a.qty || 1], ['購入日', jdate(a.purchaseDate)], ['購入先', a.vendor], ['購入金額(税込)', yen(totalPrice(a))], ['財源', a.funding], ['補助金名', a.subsidyName], ['処分制限期限', jdate(a.restrictUntil)], ['保証期限', jdate(a.warrantyUntil)], ['耐用年数', a.usefulLife ? a.usefulLife + '年' : ''], ['保管場所', a.location], ['使用クラス', a.className], ['状態', a.status], ['廃棄日', jdate(a.disposalDate)], ['廃棄理由', a.disposalReason], ['メモ', a.note]].filter(r => r[1]);
+  const tag = confirm('ラベル（QRコード）も一緒に印刷しますか？');
+  doPrint(`<div class="sheet">${prHead('備品個票')}<h1>${esc(it.name)}（${esc(a.code)}）</h1><div style="display:flex;gap:6mm;align-items:flex-start"><div class="phs">${(a.photoIds || []).slice(0, 4).map(p => `<img data-ph="${esc(p)}" data-big="1" alt="">`).join('')}</div>${tag ? `<div class="lbl" style="width:60mm">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(it.name)}</div></div>` : ''}</div>
+    <table>${rows.map(r => `<tr><th style="width:35mm">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>
+    ${logs.length ? `<h3>記録</h3><table><tr><th>日付</th><th>種類</th><th>内容</th><th>記録者</th></tr>${logs.map(l => `<tr><td>${jdate(l.date)}</td><td>${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}</td><td>${esc(l.detail)}${l.cost ? '（' + yen(l.cost) + '）' : ''}</td><td>${esc(l.by)}</td></tr>`).join('')}</table>` : ''}</div>`);
+}
+function printOrder(low){
+  doPrint(prHead('消耗品 発注リスト') + `<table class="pt"><thead><tr><th>品名</th><th>置き場所</th><th>在庫</th><th>発注点</th><th>単価</th><th>購入先</th><th>メモ</th><th>発注数</th></tr></thead><tbody>${low.map(i => `<tr><td>${esc(i.name)}</td><td>${esc(i.location)}</td><td>${esc(i.stock || 0)}${esc(i.unit || '')}</td><td>${esc(i.reorderPoint)}</td><td>${yen(i.unitPrice)}</td><td>${esc(i.vendor)}</td><td>${esc(i.note)}</td><td style="width:20mm"></td></tr>`).join('')}</tbody></table>`);
+}
+
+/* ---------- CSV ---------- */
+const CSV_COLS = [['管理番号','code'],['品目','_item'],['分類','_cat'],['型番','model'],['メーカー','maker'],['製造番号','serial'],['数量','qty'],['購入日','purchaseDate'],['購入先','vendor'],['購入金額(税込・単価)','price'],['財源','funding'],['補助金名','subsidyName'],['処分制限期限','restrictUntil'],['保証期限','warrantyUntil'],['耐用年数','usefulLife'],['保管場所','location'],['使用クラス','className'],['状態','status'],['傷み具合','condition'],['点検周期(月)','inspectCycle'],['次回点検日','nextInspection'],['タグ','tags'],['廃棄日','disposalDate'],['廃棄理由','disposalReason'],['廃棄方法','disposalMethod'],['メモ','note']];
+const csvCell = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+function download(name, blob){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+function exportCsv(list){
+  const lines = [CSV_COLS.map(c => c[0]).join(',')];
+  for (const a of list) { const it = itemOf(a); lines.push(CSV_COLS.map(([, k]) => csvCell(k === '_item' ? it.name : k === '_cat' ? it.category : a[k])).join(',')); }
+  download(`備品台帳_${today()}.csv`, new Blob(['﻿' + lines.join('\r\n')], { type:'text/csv' }));
+}
+function parseCsv(text){
+  const rows = []; let row = [], cell = '', q = false;
+  text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+function normDate(s){ s = (s || '').trim(); if (!s) return ''; const m = s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/); return m ? `${m[1]}-${z2(m[2])}-${z2(m[3])}` : ''; }
+async function importCsv(file){
+  let text;
+  const buf = await file.arrayBuffer();
+  try { text = new TextDecoder('utf-8', { fatal:true }).decode(buf); } catch(e) { try { text = new TextDecoder('shift_jis').decode(buf); } catch(e2) { alert('文字コードを読めませんでした'); return; } }
+  const rows = parseCsv(text); if (rows.length < 2) { alert('データ行がありません'); return; }
+  const head = rows[0].map(h => h.trim());
+  const idx = {}; CSV_COLS.forEach(([h, k]) => { const i = head.findIndex(x => x === h || x === h.replace(/\(.*\)/, '')); if (i >= 0) idx[k] = i; });
+  if (idx._item == null) { alert('「品目」の列が見つかりません。CSV出力した形（1行目が見出し）で用意してください。'); return; }
+  const now = new Date().toISOString(), ops = [], items = [...S.items];
+  let nNew = 0, nUpd = 0, nSkip = 0;
+  const codesInFile = new Set();
+  for (const r of rows.slice(1)) {
+    const g = k => idx[k] != null ? (r[idx[k]] || '').trim() : undefined;
+    const name = g('_item'); if (!name) { nSkip++; continue; }
+    let item = items.find(i => i.name === name && i.kind !== 'consumable');
+    if (!item) { item = { id:uid(), name, category:g('_cat') || '', kind:'equipment', createdAt:now, updatedAt:now }; items.push(item); ops.push(['items','put',item]); }
+    const code = g('code');
+    if (code && codesInFile.has(code)) { nSkip++; continue; }
+    const ex = code ? S.assets.find(a => a.code === code) : null;
+    const rec = ex ? { ...ex } : { id:uid(), createdAt:now, photoIds:[], photoLabels:{}, loan:null, status:'使用中' };
+    rec.itemId = item.id;
+    for (const [, k] of CSV_COLS) {
+      if (k.startsWith('_') || k === 'code') continue;
+      const v = g(k); if (v === undefined) continue;
+      if (['price','usefulLife','inspectCycle','qty'].includes(k)) rec[k] = numOrNull(v);
+      else if (['purchaseDate','restrictUntil','warrantyUntil','nextInspection','disposalDate'].includes(k)) rec[k] = normDate(v);
+      else if (k === 'status') rec[k] = STATUSES.includes(v) ? v : (rec.status || '使用中');
+      else rec[k] = v;
+    }
+    if (!rec.qty) rec.qty = 1;
+    rec.code = code || nextCode(); codesInFile.add(rec.code);
+    rec.updatedAt = now;
+    ops.push(['assets','put',rec]);
+    ops.push(['logs','put',newLog({ assetId:rec.id, type:ex ? '編集' : '登録', detail:'CSV取り込み' })]);
+    ex ? nUpd++ : nNew++;
+  }
+  if (!confirm(`新規 ${nNew}件・更新 ${nUpd}件${nSkip ? `・読み飛ばし ${nSkip}件` : ''} を取り込みます。よろしいですか？\n（管理番号が同じ行は上書き更新します）`)) { await loadAll(); return; }
+  ops.push(['meta','put',{ key:'settings', ...S.settings }]);
+  try { await writeOps(ops); } catch(e) { alert('取り込めませんでした。データは変更されていません。\n' + e.message); }
+  await loadAll(); toast('取り込みました'); render();
+}
+
+/* ---------- backup (JSON incl. photos) ---------- */
+const blobToDataUrl = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
+async function dataUrlToBlob(u){ return (await fetch(u)).blob(); }
+async function exportBackup(){
+  toast('バックアップを作っています…');
+  const photos = await getAll('photos');
+  const ph = [];
+  for (const p of photos) ph.push({ id:p.id, label:p.label, createdAt:p.createdAt, blob:await blobToDataUrl(p.blob), thumb:p.thumb ? await blobToDataUrl(p.thumb) : '' });
+  const meta = await getAll('meta');
+  const data = { app:'hoikuen-bihin', version:1, exportedAt:new Date().toISOString(), items:S.items, assets:S.assets, logs:S.logs, stocktakes:S.stocktakes, meta, photos:ph };
+  download(`物品台帳バックアップ_${today()}.json`, new Blob([JSON.stringify(data)], { type:'application/json' }));
+  S.settings.lastBackup = new Date().toISOString(); await saveMeta(); render();
+}
+async function importBackup(file){
+  let data;
+  try { data = JSON.parse(await file.text()); } catch(e) { alert('バックアップのファイルを読めませんでした'); return; }
+  if (data.app !== 'hoikuen-bihin' || !Array.isArray(data.assets) || !Array.isArray(data.items)) { alert('この台帳のバックアップではありません'); return; }
+  if (!confirm(`バックアップ（${jdate((data.exportedAt || '').slice(0, 10))}作成・備品${data.assets.length}件・写真${(data.photos || []).length}枚）で、いまの端末のデータを置き換えます。\nいまのデータ（備品${S.assets.length}件）は消えます。よろしいですか？`)) return;
+  let photos;
+  try { photos = await Promise.all((data.photos || []).map(async p => ({ id:p.id, label:p.label, createdAt:p.createdAt, blob:await dataUrlToBlob(p.blob), thumb:p.thumb ? await dataUrlToBlob(p.thumb) : null }))); }
+  catch(e) { alert('写真の読み込みに失敗しました。データは変更していません。'); return; }
+  await new Promise((res, rej) => {
+    const stores = ['items','assets','photos','logs','stocktakes','meta'];
+    const t = db.transaction(stores, 'readwrite');
+    stores.forEach(s => t.objectStore(s).clear());
+    data.items.forEach(v => t.objectStore('items').put(v));
+    data.assets.forEach(v => t.objectStore('assets').put(v));
+    (data.logs || []).forEach(v => t.objectStore('logs').put(v));
+    (data.stocktakes || []).forEach(v => t.objectStore('stocktakes').put(v));
+    (data.meta || []).forEach(v => t.objectStore('meta').put(v));
+    photos.forEach(v => t.objectStore('photos').put(v));
+    t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  }).then(async () => { urlCache.clear(); await loadAll(); toast('復元しました'); render(); })
+    .catch(e => alert('復元できませんでした。データは元のままです。\n' + (e && e.message)));
+}
+
+/* ---------- SETTINGS ---------- */
+async function renderSettings(){
+  const m = S.masters, s = S.settings;
+  let usage = '';
+  try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); usage = `使用量 約${(e.usage / 1048576).toFixed(1)}MB／使える目安 約${(e.quota / 1073741824).toFixed(1)}GB`; } } catch(e) {}
+  let persisted = false; try { persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false; } catch(e) {}
+  const ta = (id, label, list) => `<label class="f"><span>${label}（1行に1つ）</span><textarea id="${id}" rows="6">${esc(list.join('\n'))}</textarea></label>`;
+  $('#v-settings').innerHTML = `<h2>設定</h2>
+    <div class="card"><h3 style="margin-top:0">基本</h3><div class="fgrid">
+      <label class="f"><span>園の名前（画面・印刷に表示）</span><input type="text" id="sOrg" value="${esc(s.orgName)}" autocomplete="off"></label>
+      <label class="f"><span>管理番号の頭文字</span><input type="text" id="sPrefix" value="${esc(s.codePrefix)}" autocomplete="off"><div class="hint">次の番号：${esc(peekCode())}</div></label>
+      <label class="f"><span>高額備品とみなす単価（円）</span><input type="number" id="sThr" value="${esc(s.assetThreshold)}" inputmode="numeric"><div class="hint">ホームの件数表示に使います（例：10万円）。</div></label>
+    </div></div>
+    <div class="card"><h3 style="margin-top:0">選択肢の一覧</h3><div class="fgrid">${ta('mCat', '分類', m.categories)}${ta('mLoc', '保管場所', m.locations)}${ta('mCls', '使用クラス・担当', m.classes)}${ta('mFund', '財源', m.fundings)}</div>
+      <div class="hint">名前を変えても、登録済みの備品の値はそのまま残ります。</div></div>
+    <div class="row" style="margin-bottom:16px"><button type="button" class="btn pri" id="sSave">設定を保存する</button></div>
+    <div class="card"><h3 style="margin-top:0">バックアップと移行</h3>
+      <p style="margin-top:0">データ（写真を含む）は<b>この端末のこのブラウザの中だけ</b>に保存されます。機種変更・別の端末で使う時や、もしもの時のために、ときどきバックアップを保存してください。</p>
+      <p class="muted">前回のバックアップ：${s.lastBackup ? jdate(s.lastBackup.slice(0, 10)) : 'まだありません'}　${esc(usage)}　${persisted ? '・消えにくい保存：有効' : ''}</p>
+      <div class="row"><button type="button" class="btn pri" id="bExp">⬇ バックアップを保存（写真込み）</button><button type="button" class="btn" id="bImp">⬆ バックアップから復元</button></div>
+      <h3>表計算ソフトとのやりとり（CSV）</h3>
+      <div class="row"><button type="button" class="btn" id="cExpAll">⬇ 全件をCSVで保存</button><button type="button" class="btn" id="cImp">⬆ CSVから取り込む</button></div>
+      <div class="hint">Excel等で作った台帳を取り込めます。1行目の見出しは「CSVで保存」した形に合わせてください（品目の列は必須、管理番号が同じ行は更新）。写真はCSVに入りません。</div></div>
+    <div class="card"><h3 style="margin-top:0">データの消去</h3><p class="muted" style="margin-top:0">この端末の台帳データをすべて消します。先にバックアップを保存してください。</p><button type="button" class="btn ng" id="sWipe">すべてのデータを消す</button></div>`;
+  $('#sSave').onclick = async () => {
+    const lines = id => [...new Set($(id).value.split('\n').map(x => x.trim()).filter(Boolean))];
+    S.masters = { categories:lines('#mCat'), locations:lines('#mLoc'), classes:lines('#mCls'), fundings:lines('#mFund') };
+    S.settings.orgName = $('#sOrg').value.trim(); S.settings.codePrefix = $('#sPrefix').value.trim(); S.settings.assetThreshold = Number($('#sThr').value) || 100000;
+    await saveMeta(); toast('保存しました'); render();
+  };
+  $('#bExp').onclick = exportBackup;
+  $('#bImp').onclick = () => $('#fileImport').click();
+  $('#cExpAll').onclick = () => exportCsv([...S.assets].sort((a, b) => a.code.localeCompare(b.code, 'ja', { numeric:true })));
+  $('#cImp').onclick = () => $('#fileCsv').click();
+  $('#sWipe').onclick = async () => {
+    const w = prompt('すべてのデータ（備品・写真・記録）を消します。元に戻せません。\n消す場合は「けす」と入力してください。');
+    if (w !== 'けす') return;
+    await new Promise((res, rej) => { const st = ['items','assets','photos','logs','stocktakes','meta']; const t = db.transaction(st, 'readwrite'); st.forEach(x => t.objectStore(x).clear()); t.oncomplete = res; t.onerror = () => rej(t.error); });
+    urlCache.clear(); selected.clear(); await loadAll(); toast('消去しました'); render();
+  };
+}
+
+/* ---------- demo data ---------- */
+async function loadDemo(){
+  const mk = (w, h, color, emoji) => new Promise(r => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, w, h); x.font = `${Math.round(h * .5)}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(emoji, w / 2, h / 2); c.toBlob(r, 'image/jpeg', .8); });
+  const now = new Date().toISOString(), ops = [];
+  const defs = [
+    ['デジタルカメラ','カメラ・映像機器',[{ model:'EOS Kiss M2', maker:'キヤノン', price:79800, purchaseDate:'2021-04-12', location:'事務室', className:'全体（共用）', usefulLife:5, funding:'運営費（委託費）', warrantyUntil:'2022-04-11' }, { model:'COOLPIX W150', maker:'ニコン', price:22800, purchaseDate:'2024-06-03', location:'事務室', className:'全体（共用）', usefulLife:5, funding:'運営費（委託費）', tags:'プール, 遠足' }, { model:'COOLPIX W150', maker:'ニコン', price:24980, purchaseDate:'2025-05-20', location:'5歳児室', className:'5歳児', usefulLife:5, funding:'運営費（委託費）' }], '#cfe8ff', '📷'],
+    ['すべり台（屋外）','遊具（屋外）',[{ model:'SL-200', maker:'遊具メーカーA', price:680000, purchaseDate:'2019-03-15', location:'園庭', className:'全体（共用）', usefulLife:10, funding:'施設整備補助金', subsidyName:'保育所等整備交付金', restrictUntil:'2029-03-14', inspectCycle:1, nextInspection:addMonths(today(), 0) }], '#ffe3c2', '🛝'],
+    ['ノートパソコン','IT・事務機器',[{ model:'FMV A5', maker:'富士通', price:118000, purchaseDate:'2023-08-01', location:'職員室', className:'事務', usefulLife:4, funding:'ICT化推進補助金', subsidyName:'保育所等におけるICT化推進等事業', restrictUntil:'2027-07-31' }], '#e0e0e0', '💻'],
+    ['キーボード（電子ピアノ）','楽器',[{ model:'CT-S200', maker:'カシオ', price:15800, purchaseDate:'2022-10-10', location:'4歳児室', className:'4歳児', usefulLife:5 }], '#f3d9ff', '🎹'],
+    ['お昼寝コット','寝具・午睡用品',[{ model:'コット M', price:4980, qty:12, purchaseDate:'2024-02-01', location:'1歳児室', className:'1歳児', usefulLife:5, inspectCycle:3, nextInspection:addMonths(today(), 1) }], '#d8f5d0', '🛏'],
+  ];
+  for (const [name, cat, units, color, emoji] of defs) {
+    const item = { id:uid(), name, category:cat, kind:'equipment', createdAt:now, updatedAt:now }; ops.push(['items','put',item]);
+    for (const u of units) {
+      const big = await mk(800, 600, color, emoji), th = await mk(320, 240, color, emoji);
+      const p = { id:uid(), blob:big, thumb:th, label:'外観', createdAt:now }; ops.push(['photos','put',p]);
+      const a = { id:uid(), code:nextCode(), itemId:item.id, qty:1, status:'使用中', serial:'', photoIds:[p.id], photoLabels:{ [p.id]:'外観' }, loan:null, createdAt:now, updatedAt:now, note:'見本データ', ...u };
+      ops.push(['assets','put',a]); ops.push(['logs','put',newLog({ assetId:a.id, type:'登録', detail:`${name}を登録（見本）` })]);
+    }
+  }
+  [['紙おむつ Mサイズ','衛生・保健用品','袋',3,5,1480,'倉庫'],['おしりふき','衛生・保健用品','個',20,10,198,'倉庫'],['画用紙 八つ切り','玩具・教材','束',2,3,650,'倉庫']].forEach(([name, cat, unit, stock, rp, price, loc]) => ops.push(['items','put',{ id:uid(), name, category:cat, kind:'consumable', unit, stock, reorderPoint:rp, unitPrice:price, location:loc, createdAt:now, updatedAt:now }]));
+  ops.push(['meta','put',{ key:'settings', ...S.settings }]);
+  await writeOps(ops); await loadAll(); toast('見本データを入れました（設定から消去できます）'); render();
+}
+
+/* ---------- wiring ---------- */
+$$('nav.tabs button').forEach(b => b.onclick = () => show(b.dataset.view));
+$('#btnAddTop').onclick = () => curView === 'supplies' ? openSupplyForm() : openAssetForm();
+$('#btnScanTop').onclick = () => openScanner(code => { const a = S.assets.find(x => x.code === code); if (!a) { toast('台帳にない管理番号です：' + code); return false; } setTimeout(() => openAsset(a.id), 0); return true; });
+['#q','#fCat','#fLoc','#fCls','#fSt','#fFund','#fSort'].forEach(id => $(id).addEventListener(id === '#q' ? 'input' : 'change', () => renderLedger()));
+$$('.seg button').forEach(b => b.onclick = () => { ledgerMode = b.dataset.mode; try { localStorage.setItem(LS_MODE, ledgerMode); } catch(e) {} renderLedger(); });
+$('#btnPrintLedger').onclick = printLedger;
+$('#btnLabels').onclick = () => {
+  const ids = selected.size ? [...selected] : filteredAssets().map(a => a.id);
+  if (!ids.length) { toast('印刷する備品がありません'); return; }
+  if (!selected.size && !confirm(`いま表示している${ids.length}件のラベルを印刷します。\n（一覧表で選ぶと、選んだ物だけ印刷できます）`)) return;
+  printLabels(ids);
+};
+$('#btnCsv').onclick = () => exportCsv(filteredAssets());
+$('#fileImport').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importBackup(f); };
+$('#fileCsv').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importCsv(f); };
+window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
+
+(async function init(){
+  try { db = await openDB(); await loadAll(); }
+  catch(e) { document.querySelector('main').innerHTML = `<div class="card" style="color:var(--ng)">データの保存場所を開けませんでした。プライベートブラウズを切るか、別のブラウザでお試しください。<br>${esc(e.message)}</div>`; return; }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e) {}
+  let v = 'home', m = 'group';
+  try { v = localStorage.getItem(LS_VIEW) || 'home'; m = localStorage.getItem(LS_MODE) || 'group'; } catch(e) {}
+  ledgerMode = ['group','table'].includes(m) ? m : 'group';
+  fillFilterSelects();
+  if (window.matchMedia('(min-width: 900px)').matches) $('#filters').open = true;
+  show(VIEWS.includes(v) ? v : 'home');
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>
