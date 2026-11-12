@@ -165,6 +165,12 @@ const DAILY_BONUS=50, MY_MAX=20, MY_PLAY=5;
 const UNLOCK=30, GOOD=60, MASTER=100, GOOD_DAYS=2, MASTER_DAYS=3; // とくい・マスターは別の日にも練習した時だけ
 const TITLES=['たまご','ひよこ','見習い','けいさん職人','くふう名人','ぶんぱい達人','分配博士','大博士','伝説の数学者'];
 const MISSION_N=10, PRACTICE_N=5, MISSION_BONUS=30, TA_SEC=60, REVIEW_MAX=3, REVIEW_STEPS=[1,3,7];
+/* むずかしさ（1〜5）。3 が今までと同じ。倍率は整数の10分の1（小数の誤差で切り上げがずれないように） */
+const DIFF='dlcfg_level', DIFFS=[1,2,3,4,5], DIFF_NAMES={1:'やさしい',2:'ふつうの下',3:'ふつう',4:'むずかしい',5:'超むずかしい'};
+const T_MUL={1:15,2:12,3:10,4:10,5:9}, P_MUL={1:6,2:8,3:10,4:13,5:16}, G_MUL={1:50,2:75,3:100,4:100,5:100}; // 目標時間・点（10分の1）、習熟の伸び（100分の1）
+const EASY_CAP=UNLOCK-1; // 段1・2 では習熟は29点まで（段1・2だけで次のワールドを開かない）
+const isLv=v=>DIFFS.includes(v);
+const SKILL_MIN=3; // 腕前のカード（speed・ta8・perfect・boss・boss5・review）・bossWins・練習日数は むずかしさ3以上だけ
 const RANKS=[{max:8,n:'いなずま'},{max:12,n:'ジェット'},{max:18,n:'ロケット'},{max:25,n:'じてんしゃ'},{max:1e9,n:'あるき'}];
 const CARDS=[
   {id:'dots',e:'🔵',n:'点の図マスター',d:'ワールド1で★3をとる'},
@@ -181,12 +187,12 @@ const CARDS=[
   {id:'dec',e:'🔸',n:'小数でも使える',d:'小数の分配法則を解く'},
   {id:'g3',e:'🧺',n:'3つまとめ',d:'3つのかけ算を1つにまとめる'},
   {id:'n1001',e:'🪞',n:'1001の不思議',d:'1001×数 を 1000＋1 で解く'},
-  {id:'boss',e:'👑',n:'ボスたおし',d:'ボス問題を★2以上で解く'},
-  {id:'boss5',e:'🏆',n:'ボスハンター',d:'ボス問題を5回たおす'},
-  {id:'speed',e:'⚡',n:'いなずま',d:'1問を10秒以内で解く'},
-  {id:'perfect',e:'🌟',n:'パーフェクト',d:'ミッション10問すべて★3'},
-  {id:'review',e:'🔁',n:'ふくしゅう名人',d:'ふくしゅう問題を★3で解く'},
-  {id:'ta8',e:'⏱',n:'60秒で8問',d:'タイムアタックで8問以上解く'},
+  {id:'boss',e:'👑',n:'ボスたおし',d:'ボス問題を★2以上で解く（むずかしさ3以上）'},
+  {id:'boss5',e:'🏆',n:'ボスハンター',d:'ボス問題を5回たおす（むずかしさ3以上）'},
+  {id:'speed',e:'⚡',n:'いなずま',d:'1問を10秒以内で解く（むずかしさ3以上）'},
+  {id:'perfect',e:'🌟',n:'パーフェクト',d:'ミッション10問すべて★3（むずかしさ3以上）'},
+  {id:'review',e:'🔁',n:'ふくしゅう名人',d:'ふくしゅう問題を★3で解く（むずかしさ3以上）'},
+  {id:'ta8',e:'⏱',n:'60秒で8問',d:'タイムアタックで8問以上解く（むずかしさ3以上）'},
   {id:'st3',e:'🔥',n:'3日れんぞく',d:'ミッションを3日つづける'},
   {id:'st7',e:'🔥',n:'1週間れんぞく',d:'ミッションを7日つづける'},
   {id:'st30',e:'🌋',n:'30日れんぞく',d:'ミッションを30日つづける'},
@@ -209,7 +215,9 @@ function lsSet(k,v){try{localStorage.setItem(k,v);return true}catch(e){return fa
 function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
 const num=v=>typeof v==='number'&&isFinite(v);
 const isDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
-function defaultState(){return {v:1,xp:0,worlds:{},days:{},total:{solved:0,stars:0},cards:{},review:[],ta:{best:0,recent:[]},bossWins:0,forms:[],daily:{last:'',count:0,pick:null},myProblems:[]}}
+/* 前の版のタブが読んでも段3の記録が残るように、段3の値を前の形（best・recent）でも持つ。読む時は段ごとの方を優先 */
+function syncTaMirror(ta){ta.best=ta[3].best;ta.recent=ta[3].recent.slice();return ta;}
+function defaultState(){return {v:1,xp:0,worlds:{},days:{},total:{solved:0,stars:0},cards:{},review:[],ta:syncTaMirror(Object.fromEntries(DIFFS.map(L=>[L,{best:0,recent:[]}]))),bossWins:0,forms:[],daily:{last:'',count:0,pick:null},myProblems:[]}}
 /* マイ問題1件の検査（N×m、N＝x op y） */
 const isInt=(v,a,b)=>num(v)&&Math.floor(v)===v&&v>=a&&v<=b;
 const validMy=q=>!!q&&typeof q==='object'&&isInt(q.N,2,9999)&&isInt(q.m,2,9999)&&isInt(q.x,1,9999)&&isInt(q.y,1,9999)&&(q.op==='+'||q.op==='−')&&(q.op==='+'?q.x+q.y:q.x-q.y)===q.N;
@@ -220,8 +228,12 @@ function normalize(s){
   for(const w of WORLDS){const x=s.worlds&&s.worlds[w.id];if(x&&typeof x==='object'){o.worlds[w.id]={pts:num(x.pts)?Math.max(0,Math.min(MASTER,x.pts)):0,n:num(x.n)?x.n:0,three:num(x.three)?x.three:0,days:num(x.days)?x.days:0,last:isDate(x.last)?x.last:''};}}
   if(s.days&&typeof s.days==='object'){for(const k of Object.keys(s.days)){if(isDate(k)){const d=s.days[k]||{};o.days[k]={mission:d.mission===true,solved:num(d.solved)?d.solved:0,stars:num(d.stars)?d.stars:0};}}}
   if(s.cards&&typeof s.cards==='object'){for(const id of CARD_IDS){if(isDate(s.cards[id]))o.cards[id]=s.cards[id];}}
-  if(Array.isArray(s.review))o.review=s.review.filter(r=>r&&num(r.w)&&r.w>=1&&r.w<=WORLDS.length&&num(r.k)&&isDate(r.due)&&num(r.step)).slice(-30).map(r=>({w:r.w,k:r.k,due:r.due,step:r.step}));
-  if(s.ta&&typeof s.ta==='object'){o.ta.best=num(s.ta.best)?s.ta.best:0;o.ta.recent=Array.isArray(s.ta.recent)?s.ta.recent.filter(num).slice(-10):[];}
+  if(Array.isArray(s.review))o.review=s.review.filter(r=>r&&num(r.w)&&r.w>=1&&r.w<=WORLDS.length&&num(r.k)&&isDate(r.due)&&num(r.step)).slice(-30).map(r=>({w:r.w,k:r.k,due:r.due,step:r.step,lv:isLv(r.lv)?r.lv:3})); // lv: まちがえた時のむずかしさ（前の版の項目は3）
+  // タイムアタックはむずかしさごと。前の形（{best,recent}）はむずかしさ3の記録として読む
+  if(s.ta&&typeof s.ta==='object'){const one=x=>({best:num(x.best)?x.best:0,recent:Array.isArray(x.recent)?x.recent.filter(num).slice(-10):[]});
+    for(const L of DIFFS){const x=s.ta[L];if(x&&typeof x==='object')o.ta[L]=one(x);}
+    if(!(s.ta[3]&&typeof s.ta[3]==='object')&&('best' in s.ta||'recent' in s.ta))o.ta[3]=one(s.ta);}
+  syncTaMirror(o.ta);
   o.bossWins=num(s.bossWins)?s.bossWins:0;
   o.forms=Array.isArray(s.forms)?[...new Set(s.forms.filter(f=>[0,1,2,3].includes(f)))]:[];
   if(s.daily&&typeof s.daily==='object'){o.daily.last=isDate(s.daily.last)?s.daily.last:'';o.daily.count=num(s.daily.count)&&s.daily.count>=0?Math.floor(s.daily.count):0;
@@ -275,7 +287,7 @@ const titleOf=L=>TITLES[Math.min(Math.floor((L-1)/2),TITLES.length-1)];
 const wstat=id=>state.worlds[id]||{pts:0,n:0,three:0,days:0,last:''};
 function mastery(id){const s=wstat(id);if(!s.n)return {lv:0,name:'未挑戦'};if(s.pts>=MASTER&&s.days>=MASTER_DAYS)return {lv:4,name:'マスター'};if(s.pts>=GOOD&&s.days>=GOOD_DAYS)return {lv:3,name:'とくい'};if(s.pts>=UNLOCK)return {lv:2,name:'できた'};return {lv:1,name:'挑戦中'}}
 const unlocked=id=>id===1||wstat(id-1).pts>=UNLOCK;
-function rankOf(){const r=state.ta.recent;if(r.length<3)return null;const avg=r.reduce((a,b)=>a+b,0)/r.length;return {avg:Math.round(avg*10)/10,name:RANKS.find(x=>avg<=x.max).n};}
+function rankOf(lv){const r=state.ta[isLv(lv)?lv:3].recent;if(r.length<3)return null;const avg=r.reduce((a,b)=>a+b,0)/r.length;return {avg:Math.round(avg*10)/10,name:RANKS.find(x=>avg<=x.max).n};}
 
 /* ===== 問題づくり ===== */
 const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
@@ -287,17 +299,31 @@ function splitPlus(w,R,m,extra){const k=rnd(1,9),N=R+k;const best={x:R,y:k,op:'+
   return Object.assign({w,N,m,left:Math.random()<.5,opts,best:opts.indexOf(best)},extra||{});}
 function splitMinus(w,R,k,m,extra){const N=R-k;const best={x:R,y:k,op:'−'},d1={x:R-10,y:10-k,op:'+'},d2={x:R/2,y:N-R/2,op:'+'};
   const opts=shuffle([best,d1,d2]);return Object.assign({w,N,m,left:Math.random()<.5,opts,best:opts.indexOf(best)},extra||{});}
-/* o.k: 種類の指定（ふくしゅう用） o.hard: ボス問題 */
+/* o.k: 種類の指定（ふくしゅう用） o.level: むずかしさ 1〜5 o.hard: ボス問題（level+1、最大5）
+   o.level が無い時は今までどおり（なし＝段3、o.hard＝段5）。段3・段5 は前の版と同じ順で乱数を使う（きょうの難問を変えない） */
 function gen(w,o){
-  o=o||{};const H=!!o.hard;
-  if(w===1)return H?{w,a:rnd(5,8),b:rnd(4,8),c:rnd(4,8)}:{w,a:rnd(2,5),b:rnd(2,6),c:rnd(2,6)};
-  if(w===2){const form=[0,1,2,3].includes(o.k)?o.k:rnd(0,3);const plus=form%2===0;return {w,form,a:H?rnd(11,19):rnd(2,9),b:plus?pick([10,20,30,40,50,60]):pick([20,30,40,50,60,70,80,90]),c:rnd(1,9)};}
-  if(w===3){if(H)return splitPlus(w,pick([1000,2000]),rnd(11,29));const R=pick([100,100,200,300,1000]);return splitPlus(w,R,(R===100&&Math.random()<.3)?rnd(11,29):rnd(3,9));}
-  if(w===4){if(H)return splitMinus(w,1000,rnd(1,5),rnd(11,29));const R=pick([100,100,200,1000,50]);const k=R===50?1:(R===1000?rnd(1,5):rnd(1,3));
+  o=o||{};const given=isLv(o.level);
+  const L=given?Math.min(5,o.level+(o.hard?1:0)):(o.hard?5:3);const H=L===5;
+  if(w===1){const r=[null,[2,4,2,4],[2,5,2,5],[2,5,2,6],[4,7,3,7],[5,8,4,8]][L];
+    const p={w,a:rnd(r[0],r[1]),b:rnd(r[2],r[3]),c:rnd(r[2],r[3])};if(given&&L>=4)p.area=true;return p;} // 段4・5 は点が多すぎるので面積図
+  if(w===2){const form=[0,1,2,3].includes(o.k)?o.k:rnd(0,3);const plus=form%2===0;const ar=[null,[2,5],[2,7],[2,9],[6,14],[11,19]][L];
+    const bs=L===1?(plus?[10,20,30]:[20,30,40]):L===2?(plus?[10,20,30,40]:[20,30,40,50,60]):(plus?[10,20,30,40,50,60]:[20,30,40,50,60,70,80,90]);
+    return {w,form,a:rnd(ar[0],ar[1]),b:pick(bs),c:L===1?rnd(1,5):rnd(1,9)};}
+  if(w===3){if(H)return splitPlus(w,pick([1000,2000]),rnd(11,29));
+    if(L===1)return splitPlus(w,100,rnd(2,5));
+    if(L===2)return splitPlus(w,pick([100,100,200]),rnd(3,9));
+    if(L===4)return splitPlus(w,pick([200,300,1000]),notTen(6,19));
+    const R=pick([100,100,200,300,1000]);return splitPlus(w,R,(R===100&&Math.random()<.3)?rnd(11,29):rnd(3,9));}
+  if(w===4){if(H)return splitMinus(w,1000,rnd(1,5),rnd(11,29));
+    if(L===1){const R=pick([100,100,50]);return splitMinus(w,R,R===50?1:rnd(1,2),rnd(2,5));}
+    if(L===2){const R=pick([100,100,200,50]);return splitMinus(w,R,R===50?1:rnd(1,3),rnd(3,9));}
+    if(L===4)return splitMinus(w,pick([200,1000,1000]),rnd(1,5),notTen(6,19));
+    const R=pick([100,100,200,1000,50]);const k=R===50?1:(R===1000?rnd(1,5):rnd(1,3));
     return splitMinus(w,R,k,(R===100&&k===1&&Math.random()<.4)?rnd(11,29):rnd(3,9));}
   if(w===5){
     for(;;){
-      const a=notTen(12,98);const op=H?pick(['+','−']):pick(['+','+','−']);const T=H?100:pick([10,100]);let b,c;
+      const a=L===1?notTen(12,49):notTen(12,98);const op=(H||L===4)?pick(['+','−']):pick(['+','+','−']);
+      const T=H?100:L===1?10:L===2?pick([10,10,100]):L===4?pick([10,100,100]):pick([10,100]);let b,c;
       if(op==='+'){b=T===10?rnd(1,9):rnd(11,89);c=T-b;}else{c=T===10?rnd(1,9):rnd(1,40);b=c+T;}
       if(b===c||a===b||a===c||c<=0)continue;
       return {w,a,b,c,op,T,order:rnd(0,1),opts:shuffle([a,b,c])};
@@ -305,35 +331,37 @@ function gen(w,o){
   }
   if(w===6){
     const k=[0,1].includes(o.k)?o.k:(H?0:(Math.random()<.3?1:0));
-    if(k===0)return H?{w,k,a1:rnd(6,9),a2:rnd(6,9),b1:rnd(6,9),b2:rnd(6,9)}:{w,k,a1:rnd(1,9),a2:rnd(1,9),b1:rnd(1,9),b2:rnd(1,9)};
-    const tn=rnd(1,9),u=rnd(1,9),m=rnd(3,9),t=tn*10,A=t+u;
+    if(k===0){const r=[null,[1,4],[1,6],[1,9],[4,9],[6,9]][L];return {w,k,a1:rnd(r[0],r[1]),a2:rnd(r[0],r[1]),b1:rnd(r[0],r[1]),b2:rnd(r[0],r[1])};}
+    const tn=L===1?rnd(1,4):L===2?rnd(1,6):rnd(1,9),u=L===1?rnd(1,4):L===2?rnd(1,6):rnd(1,9),m=L===1?rnd(2,5):L===2?rnd(3,6):rnd(3,9),t=tn*10,A=t+u;
     const right=`${t}×${m}`;const opts=shuffle([right,`${tn}×${m}`,`${A}×${m}`]);
     return {w,k,A,t,u,m,opts,ci:opts.indexOf(right)};
   }
   if(w===8){
-    // k0 かっこを開く k1 くくる k2 同じになるか確かめる k3 まとめる（ボスは係数を 11〜19 に）
-    const k=[0,1,2,3].includes(o.k)?o.k:rnd(0,3);const co=()=>H?rnd(11,19):rnd(2,9);
-    if(k===0)return {w,k,a:co(),b:rnd(1,9),op:pick(['+','−'])};
-    if(k===1)return {w,k,a:co(),b:rnd(1,9)};
-    if(k===2)return {w,k,a:co(),b:rnd(1,9),v:rnd(2,12)};
+    // k0 かっこを開く k1 くくる k2 同じになるか確かめる k3 まとめる（係数はむずかしさで変える。ボスは 11〜19）
+    const k=[0,1,2,3].includes(o.k)?o.k:rnd(0,3);const cr=[null,[2,5],[2,7],[2,9],[5,14],[11,19]][L];const co=()=>rnd(cr[0],cr[1]);
+    const bb=()=>L===1?rnd(1,5):rnd(1,9);
+    if(k===0)return {w,k,a:co(),b:bb(),op:pick(['+','−'])};
+    if(k===1)return {w,k,a:co(),b:bb()};
+    if(k===2)return {w,k,a:co(),b:bb(),v:L===1?rnd(2,6):L===2?rnd(2,10):rnd(2,12)};
     const op=pick(['+','−']);let a=co(),b=co();
     if(op==='−'){while(a===b)b=co();if(a<b)[a,b]=[b,a];}
     return {w,k,a,b,op};
   }
   // w===7
   const k=[0,1,2,3,4].includes(o.k)?o.k:(H?pick([3,4]):rnd(0,4));
-  if(k===0)return splitMinus(7,100,1,notTen(12,98),{k});
-  if(k===1){const N=pick([44,48,84,88,124,128,164,168]);const x=N-N%10,y=N%10;const best={x,y,op:'+'};
+  if(k===0)return splitMinus(7,100,1,L===1?notTen(12,29):L===2?notTen(12,49):notTen(12,98),{k});
+  if(k===1){const N=pick(L===1?[44,48,84,88]:L===2?[44,48,84,88,124,128]:[44,48,84,88,124,128,164,168]);const x=N-N%10,y=N%10;const best={x,y,op:'+'};
     const opts=shuffle([best,{x:x-10,y:y+10,op:'+'},{x:N/2,y:N/2,op:'+'}]);return {w,k,N,m:25,left:Math.random()<.5,opts,best:opts.indexOf(best)};}
-  if(k===2)return {w,k,a10:pick([25,75,125]),b:pick([2,4,6,8]),c10:pick([4,8]),left:Math.random()<.5};
+  if(k===2)return {w,k,a10:pick(L===1?[25]:L===2?[25,75]:[25,75,125]),b:pick([2,4,6,8]),c10:pick([4,8]),left:Math.random()<.5};
   if(k===3){
-    for(;;){const a=notTen(12,98);const T=H?100:pick([10,100]);let b,c,d;
+    for(;;){const a=L===1?notTen(12,49):notTen(12,98);const T=H?100:L===1?10:L===2?pick([10,10,100]):L===4?pick([10,100,100]):pick([10,100]);let b,c,d;
       if(T===10){b=rnd(1,7);c=rnd(1,8-b);d=T-b-c;}else{b=rnd(10,60);c=rnd(10,89-b);d=T-b-c;}
       if(d<1||new Set([a,b,c,d]).size<4)continue;
       return {w,k,a,b,c,d,T,opts:shuffle([a,b,c])};}
   }
   const best={x:1000,y:1,op:'+'};const opts=shuffle([best,{x:900,y:101,op:'+'},{x:500,y:501,op:'+'}]);
-  return {w,k:4,N:1001,m:(H||Math.random()<.5)?rnd(101,999):rnd(12,99),left:Math.random()<.5,opts,best:opts.indexOf(best)};
+  const m=L===1?rnd(2,9):L===2?rnd(12,99):L===4?(Math.random()<.75?rnd(101,999):rnd(12,99)):(H||Math.random()<.5)?rnd(101,999):rnd(12,99);
+  return {w,k:4,N:1001,m,left:Math.random()<.5,opts,best:opts.indexOf(best)};
 }
 /* 問題の型 */
 function typ(p){
@@ -377,7 +405,7 @@ function build(p,ch){
     const ab=p.a*p.b, ac=p.a*p.c, res=plus?ab+ac:ab-ac;
     const head=aLeft?`${p.a}×(${p.b}${op}${p.c})`:`(${p.b}${op}${p.c})×${p.a}`;
     const l2=aLeft?['＝ '+p.a+'×',B(0),' '+op+' '+p.a+'×',B(1)]:['＝ ',B(0),'×'+p.a+' '+op+' ',B(1),'×'+p.a];
-    const hb=p.w===1?['青い点は何列？','オレンジの点は何列？']:[`かっこの中の1つめの数は？`,`かっこの中の2つめの数は？`];
+    const hb=p.w===1&&p.area!==true?['青い点は何列？','オレンジの点は何列？']:[`かっこの中の1つめの数は？`,`かっこの中の2つめの数は？`];
     return {lines:[[head],l2,['＝ ',B(2),' '+op+' ',B(3)],['＝ ',B(4)]],ans:[p.b,p.c,ab,ac,res],
       hints:[hb[0],hb[1],`${p.a}×${p.b} は？`,`${p.a}×${p.c} は？`,`${ab} ${op} ${ac} は？`]};
   }
@@ -436,7 +464,7 @@ function build(p,ch){
 function headOf(p){if(typ(p)==='split')return p.left?`${p.N}×${p.m}`:`${p.m}×${p.N}`;return build(p,0).lines[0][0];}
 function qTitle(p){
   const t=typ(p),h=headOf(p);let s;
-  if(t==='dots')s='点の数を、2つに分けて数えよう';
+  if(t==='dots')s=p.area===true?`${h} を、長方形を2つに分けて計算しよう`:'点の数を、2つに分けて数えよう';
   else if(t==='paren')s='かっこを開いて計算しよう';
   else if(t==='split')s=`${h} を工夫して計算しよう`;
   else if(t==='group'||t==='group3')s=`${h} をまとめて計算しよう`;
@@ -458,7 +486,7 @@ function choiceOf(p){
 }
 function explain(p,ch,best){
   const t=typ(p);
-  if(t==='dots')return `${p.a}×(${p.b}＋${p.c}) は「${p.a}×${p.b}」と「${p.a}×${p.c}」を合わせたもの。点の図を2つに分けても、点の数は変わらないね。`;
+  if(t==='dots')return `${p.a}×(${p.b}＋${p.c}) は「${p.a}×${p.b}」と「${p.a}×${p.c}」を合わせたもの。`+(p.area===true?'長方形を2つに分けても、面積は変わらないね。':'点の図を2つに分けても、点の数は変わらないね。');
   if(t==='paren'){const plus=p.form%2===0;return plus?`かっこの中の2つの数に、それぞれ ${p.a} をかけてたす。長方形を2つに切っても面積は同じ。`:`大きい長方形（×${p.b}）から、切り取った帯（×${p.c}）の分をひく。ひき算でも分配法則が使える。`;}
   if(t==='split'&&p.my){ // マイ問題: best は自分の分け方の位置なので「いちばん楽」とは言わない
     const o=p.opts[p.best],own=`${o.x}${OPC(o.op)}${o.y}`;
@@ -572,7 +600,7 @@ function hissanSVG(p,solved){
 }
 function diagram(p,ch,solved){
   const t=typ(p);
-  if(t==='dots')return dotsSVG(p.a,p.b,p.c,solved);
+  if(t==='dots')return p.area===true?rect2(p.a,p.b,p.c,false,solved):dotsSVG(p.a,p.b,p.c,solved);
   if(t==='paren')return rect2(p.a,p.b,p.c,p.form%2===1,solved);
   if(t==='grid')return gridSVG(p,solved);
   if(t==='hissan')return hissanSVG(p,solved);
@@ -588,9 +616,17 @@ function diagram(p,ch,solved){
 let view='home', ses=null, cur=null, timerId=null;
 const today=()=>dkey(new Date());
 const isFree=p=>!!(p.my||(ses&&ses.practice));
+/* むずかしさ（UI の状態として保存。既知値だけ受け取り、ほかは3） */
+let diff=(v=>['1','2','3','4','5'].includes(v)?Number(v):3)(lsGet(DIFF));
+function setDiff(L){if(!isLv(L))return;diff=L;lsSet(DIFF,String(L));render();const b=app.querySelector&&app.querySelector('[data-diff="'+L+'"]');if(b)b.focus();} // 押したボタンにフォーカスを戻す
+/* 点・目標時間・習熟に使う段: きょうの難問とマイ問題はむずかしさに関係なく3 */
+const lvOf=p=>(p.daily||p.my)?3:(p.rev&&isLv(p.lv))?p.lv:(ses&&isLv(ses.level)?ses.level:3); // ふくしゅうは作った段
+const targetOf=(w,L)=>Math.ceil(w.target*T_MUL[L]/10);
+/* ボス問題: 選んだ段＋1（最大5）。段3だけは前の版のボス（段5の数）のまま（仕様の食いちがいのため。切り替えはこの1行） */
+const bossOf=(w,L)=>Object.assign(L===3?gen(w,{hard:true}):gen(w,{level:L,hard:true}),{boss:true});
 const dueReviews=()=>state.review.filter(r=>r.due<=today()&&unlocked(r.w));
 function weightedWorld(U){const ws=U.map(id=>MASTER+20-wstat(id).pts);let r=Math.random()*ws.reduce((a,b)=>a+b,0),i=0;while(r>=ws[i]&&i<ws.length-1){r-=ws[i];i++;}return U[i];}
-function genTA(){return gen(pick(WORLDS.filter(x=>x.id<=5&&unlocked(x.id)).map(x=>x.id)));}
+function genTA(L){return gen(pick(WORLDS.filter(x=>x.id<=5&&unlocked(x.id)).map(x=>x.id)),{level:L});}
 /* きょうの難問: 日付から作った種で Math.random を一時的に差し替えて作る（例外でも必ず戻す） */
 function seedOf(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
 function seeded(seed){let a=seed>>>0;return ()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
@@ -620,18 +656,18 @@ function altSplits(N,own){
 }
 function myProblem(q){const own={x:q.x,y:q.y,op:q.op};const opts=shuffle([own,...altSplits(q.N,own)]);return {w:3,my:true,N:q.N,m:q.m,left:true,opts,best:opts.indexOf(own)};}
 function newSession(mode,w){
-  const list=[];
+  const list=[],L=diff;
   if(mode==='my'){refreshState();for(const q of state.myProblems.slice(-MY_PLAY).reverse())list.push(myProblem(q));
     if(!list.length){toast('まだマイ問題がありません。先に問題を作ってね');return;}}
   else if(mode==='daily'){list.push(dailyProblem(today()));}
-  else if(mode==='world'){for(let i=0;i<PRACTICE_N-1;i++)list.push(gen(w));list.push(Object.assign(gen(w,{hard:true}),{boss:true}));}
-  else if(mode==='ta'){list.push(genTA());}
+  else if(mode==='world'){for(let i=0;i<PRACTICE_N-1;i++)list.push(gen(w,{level:L}));list.push(bossOf(w,L));}
+  else if(mode==='ta'){list.push(genTA(L));}
   else{
-    for(const r of dueReviews().slice(0,REVIEW_MAX))list.push(Object.assign(gen(r.w,{k:r.k}),{rev:true}));
+    for(const r of dueReviews().slice(0,REVIEW_MAX))list.push(Object.assign(gen(r.w,{k:r.k,level:r.lv}),{rev:true,lv:r.lv}));
     const U=WORLDS.filter(x=>unlocked(x.id)).map(x=>x.id);
-    while(list.length<MISSION_N)list.push(gen(weightedWorld(U)));
+    while(list.length<MISSION_N)list.push(gen(weightedWorld(U),{level:L}));
   }
-  ses={id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),mode,w:w||0,list,idx:0,results:[],newCards:[],xp0:state.xp,taBest0:state.ta.best,pts0:Object.fromEntries(WORLDS.map(x=>[x.id,wstat(x.id).pts])),unl0:WORLDS.filter(x=>unlocked(x.id)).map(x=>x.id),day:today()};
+  ses={id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),mode,level:L,w:w||0,list,idx:0,results:[],newCards:[],xp0:state.xp,taBest0:state.ta[L].best,pts0:Object.fromEntries(WORLDS.map(x=>[x.id,wstat(x.id).pts])),unl0:WORLDS.filter(x=>unlocked(x.id)).map(x=>x.id),day:today()};
   if(mode==='ta')ses.endAt=Date.now()+TA_SEC*1000;
   if(mode==='daily'&&dailyDone(today()))ses.practice=true; // 今日はクリア済み → 点なしの練習
   cur=null;startProblem();go('play');
@@ -652,7 +688,8 @@ function loadSes(){
     if(!isDate(s.day))s.day=today();
     if(!Array.isArray(s.newCards))s.newCards=[];
     s.newCards=s.newCards.filter(id=>CARD_IDS.includes(id));
-    if(!num(s.taBest0))s.taBest0=state.ta.best;
+    if(!isLv(s.level))s.level=3; // 前の版の途中セッションは段3（今までと同じ）
+    if(!num(s.taBest0))s.taBest0=state.ta[s.level].best;
     s.practice=s.practice===true;
     return s;}catch(e){return null}
 }
@@ -713,7 +750,7 @@ function check(i){
 }
 function award(id){if(state.cards[id]||!CARD_IDS.includes(id))return;state.cards[id]=today();if(cur&&!cur.newCards.includes(id))cur.newCards.push(id);if(ses&&!ses.newCards.includes(id))ses.newCards.push(id);}
 function problemCards(p,stars,best,sec,clean){
-  const t=typ(p);
+  const t=typ(p),skill=lvOf(p)>=SKILL_MIN; // きょうの難問は段3扱い
   if(clean&&!p.my){ // マイ問題では技のカードを出さない（ワールド3の技と取りちがえない）
   if(t==='xexp')award('xexp'); if(t==='xfactor')award('xfactor'); if(t==='xsame')award('xsame'); if(t==='xlike')award('xlike');
   if(t==='dots'&&stars===3)award('dots');
@@ -723,16 +760,16 @@ function problemCards(p,stars,best,sec,clean){
     if(p.w===7&&p.k===0)award('n99'); if(p.w===7&&p.k===1)award('q25'); if(p.w===7&&p.k===4)award('n1001');}
   if(t==='group'){award('group');if(p.T===100)award('group100');}
   if(t==='grid')award('grid'); if(t==='hissan')award('hissan'); if(t==='dec')award('dec'); if(t==='group3')award('g3');
-  if(sec<=10)award('speed');
+  if(sec<=10&&skill)award('speed');
   }
-  if(p.boss&&stars>=2){state.bossWins++;award('boss');if(state.bossWins>=5)award('boss5');}
-  if(p.rev&&stars===3)award('review');
+  if(p.boss&&stars>=2&&skill){state.bossWins++;award('boss');if(state.bossWins>=5)award('boss5');}
+  if(p.rev&&stars===3&&lvOf(p)>=SKILL_MIN)award('review');
   if(WORLDS.some(w=>mastery(w.id).lv===4))award('master');
   if(levelOf(state.xp)>=10)award('lv10');
 }
 function updateReview(p,stars){
   const k=kOf(p),q=state.review,ix=q.findIndex(r=>r.w===p.w&&r.k===k);
-  if(stars<3){const it={w:p.w,k,due:dkey(addDays(new Date(),REVIEW_STEPS[0])),step:0};if(ix>=0)q[ix]=it;else{q.push(it);if(q.length>30)q.shift();}}
+  if(stars<3){const it={w:p.w,k,due:dkey(addDays(new Date(),REVIEW_STEPS[0])),step:0,lv:lvOf(p)};if(ix>=0)q[ix]=it;else{q.push(it);if(q.length>30)q.shift();}}
   else if(p.rev&&ix>=0){const st=q[ix].step+1;if(st>=REVIEW_STEPS.length)q.splice(ix,1);else{q[ix].step=st;q[ix].due=dkey(addDays(new Date(),REVIEW_STEPS[st]));}}
 }
 /* 別のタブで同じセッションが先に進んでいたら、点を足さずにそちらに合わせる */
@@ -746,21 +783,22 @@ function sessionMovedElsewhere(){
 }
 function finish(){
   if(sessionMovedElsewhere())return;
-  const p=ses.list[ses.idx],w=WORLDS[p.w-1];
+  const p=ses.list[ses.idx],w=WORLDS[p.w-1],L=lvOf(p);
   const sec=Math.round((Date.now()-cur.start)/1000);
   const best=typ(p)==='split'&&!p.my?cur.ch===p.best:true; // マイ問題の★2は「ノーミス」だけで判定する
-  const s2=cur.miss===0&&best, s3=sec<=w.target;
+  const s2=cur.miss===0&&best, s3=sec<=targetOf(w,L);
   const stars=1+(s2?1:0)+(s3?1:0);
   cur.done=true;cur.stars={stars,s2,s3,sec,best};
   const free=isFree(p); // 点なしの練習（マイ問題・クリア済みの日のきょうの難問）は記録を一切動かさない
-  const gain=free?0:(10+5*(stars-1))*(p.boss?2:1);
+  const gain=free?0:Math.round((10+5*(stars-1))*P_MUL[L]/10)*(p.boss?2:1); // むずかしさの倍率のあとでボスの2倍
   if(!free){
   refreshState();
   state.xp+=gain;
   const dk=today();
   const ws=state.worlds[p.w]||(state.worlds[p.w]={pts:0,n:0,three:0,days:0,last:''});
-  ws.n++;if(stars===3)ws.three++;ws.pts=Math.min(MASTER,ws.pts+2+(s2?2:0)+(s3?2:0));
-  if(ws.last!==dk){ws.days++;ws.last=dk;}
+  ws.n++;if(stars===3)ws.three++;const g=2+(s2?2:0)+(s3?2:0),gl=Math.max(1,Math.round(g*G_MUL[L]/100));
+  ws.pts=L<=2?(ws.pts>=EASY_CAP?ws.pts:Math.min(EASY_CAP,ws.pts+gl)):Math.min(MASTER,ws.pts+gl); // 段1・2 は29まで（すでに29より上なら下げない）
+  if(L>=SKILL_MIN&&ws.last!==dk){ws.days++;ws.last=dk;} // とくい・マスターの日数は段3以上で解いた日だけ
   state.total.solved++;state.total.stars+=stars;
   const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});dd.solved++;dd.stars+=stars;
   if(ses.mode!=='ta')updateReview(p,stars);
@@ -771,7 +809,7 @@ function finish(){
   if(ses.mode==='ta'){
     if(Date.now()>=ses.endAt){endSession();return;}
     const nc=cur.newCards.map(cardName);
-    ses.list.push(genTA());ses.idx++;
+    ses.list.push(genTA(ses.level));ses.idx++;
     startProblem(`⭕ ${ses.results.length}問め クリア！`+(nc.length?`　🃏 ${nc.join('・')}`:''),'ok');render();return;
   }
   saveSes();cur.fb='';render();
@@ -786,17 +824,17 @@ function endSession(){
   let bonus=0;const dk=ses.day||today();refreshState();
   const free=ses.mode==='my'||ses.practice===true; // 点なしの練習: ボーナス・カード・保存なし
   if(!free&&ses.mode==='mission'){const dd=state.days[dk]||(state.days[dk]={mission:false,solved:0,stars:0});if(!dd.mission){dd.mission=true;bonus=MISSION_BONUS;state.xp+=bonus;}
-    if(ses.results.length===MISSION_N&&ses.results.every(r=>r.stars===3))award('perfect');
+    if(ses.results.length===MISSION_N&&ses.results.every(r=>r.stars===3)&&(isLv(ses.level)?ses.level:3)>=SKILL_MIN)award('perfect');
     const sc=streakInfo().count;if(sc>=3)award('st3');if(sc>=7)award('st7');if(sc>=30)award('st30');}
   // きょうの難問: その日（はじめた日）に初めて解き終えた時だけボーナス。日またぎ・別タブで二重にならないよう「より新しい日」だけ記録
   if(!free&&ses.mode==='daily'&&ses.results.length>0&&!dailyDone(dk)){state.daily.last=dk;state.daily.count++;bonus=DAILY_BONUS;state.xp+=bonus;
     award('daily');if(state.daily.count>=7)award('daily7');}
   let ta=null;
-  if(ses.mode==='ta'){const n=ses.results.length;state.ta.best=Math.max(state.ta.best,n);state.ta.recent=state.ta.recent.concat(ses.results.map(r=>r.sec)).slice(-10);
-    if(n>=8)award('ta8');ta={n,best:state.ta.best,newBest:n>0&&n>(ses.taBest0||0)};}
+  if(ses.mode==='ta'){const n=ses.results.length,T=state.ta[isLv(ses.level)?ses.level:3];T.best=Math.max(T.best,n);T.recent=T.recent.concat(ses.results.map(r=>r.sec)).slice(-10);
+    syncTaMirror(state.ta);if(n>=8&&(isLv(ses.level)?ses.level:3)>=SKILL_MIN)award('ta8');ta={n,best:T.best,newBest:n>0&&n>(ses.taBest0||0)};}
   if(!free){if(levelOf(state.xp)>=10)award('lv10');
   saveState();}
-  const res={mode:ses.mode,free,w:ses.w,n:ses.results.length,stars:ses.results.reduce((a,r)=>a+r.stars,0),three:ses.results.filter(r=>r.stars===3).length,
+  const res={mode:ses.mode,level:isLv(ses.level)?ses.level:3,free,w:ses.w,n:ses.results.length,stars:ses.results.reduce((a,r)=>a+r.stars,0),three:ses.results.filter(r=>r.stars===3).length,
     xp:ses.results.reduce((a,r)=>a+r.gain,0)+bonus,bonus,lv0:levelOf(ses.xp0),lv1:levelOf(state.xp),ta,cards:ses.newCards.slice(),
     worlds:[...new Set(ses.results.filter(r=>!r.my&&!r.free).map(r=>r.w))].map(id=>({id,p0:ses.pts0[id]||0,p1:wstat(id).pts})),
     newly:WORLDS.filter(x=>unlocked(x.id)&&!ses.unl0.includes(x.id)).map(x=>x.id)};
@@ -827,15 +865,18 @@ function render(shake){
 }
 function renderHome(){
   const L=levelOf(state.xp),lo=need(L),hi=need(L+1),pct=Math.round((state.xp-lo)/(hi-lo)*100);
-  const st=streakInfo(),due=dueReviews().length,rk=rankOf(),nCards=Object.keys(state.cards).length;
+  const st=streakInfo(),due=dueReviews().length,rk=rankOf(diff),nCards=Object.keys(state.cards).length,taB=state.ta[diff].best;
   let h=`<div class="topbar"><h1>分配法則ラボ</h1><a class="back" href="./index.html">← 学習ツールの入口</a></div>`;
   h+=`<section class="card" aria-label="レベルと連続日数"><div class="row" style="justify-content:space-between"><div class="lv"><span>レベル</span><b>${L}</b><span class="chip">${esc(titleOf(L))}</span></div>
     <div class="streak">🔥 ${st.count}日れんぞく</div></div>
     <div class="row" style="margin-top:8px"><div class="bar" role="progressbar" aria-label="つぎのレベルまで" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><span class="muted">あと ${hi-state.xp} 点</span></div>
     <p class="muted" style="margin:8px 0 0">合計 ${state.total.solved}問・★${state.total.stars}　｜　お休み券 今週のこり ${st.freezeLeft}枚（1日休んでも連続がつながる）</p></section>`;
+  h+=`<section class="card" aria-labelledby="diffLab"><h2 id="diffLab">むずかしさ　<span class="chip">${diff} ${esc(DIFF_NAMES[diff])}</span></h2>
+    <div class="row" role="group" aria-labelledby="diffLab">${DIFFS.map(L=>`<button class="btn" data-diff="${L}" aria-pressed="${L===diff}">${L===diff?'✓ ':''}${L} ${esc(DIFF_NAMES[L])}</button>`).join('')}</div>
+    <p class="muted" style="margin:8px 0 0">数の大きさ・目標時間・もらえる点が変わる（3 がふつう）。ボス問題は点が2倍（むずかしさ4までは、ふだんより大きい数）。${diff<=2?`<br>1・2 では習熟は${EASY_CAP}点までしかのびない（次のワールドを開くには 3 以上で練習）。`:''}<br>きょうの難問とマイ問題は、むずかしさで変わらない。</p></section>`;
   h+=`<section class="card"><h2>今日のミッション</h2><p class="muted" style="margin:0 0 10px">${MISSION_N}問・約5分。クリアで連続日数がのびて、ボーナス ${MISSION_BONUS}点。${due?`<br>🔁 ふくしゅうが ${due}問 待っています（最初に${Math.min(due,REVIEW_MAX)}問出ます）`:''}</p>
     <button class="btn primary big" id="bMission">${st.todayDone?'✅ 今日はクリア！ もう一度やる':'▶ ミッションをはじめる'}</button></section>`;
-  h+=`<div class="grid2" style="margin-bottom:14px"><section class="card"><h2>⚡ タイムアタック</h2><p class="muted" style="margin:0 0 10px">${TA_SEC}秒で何問解ける？（ワールド1〜5から）<br>自己ベスト <b>${state.ta.best}問</b>${rk?`　ランク <b>${esc(rk.name)}</b>（平均${rk.avg}秒）`:'　ランクは3問解くと出ます'}</p>
+  h+=`<div class="grid2" style="margin-bottom:14px"><section class="card"><h2>⚡ タイムアタック</h2><p class="muted" style="margin:0 0 10px">${TA_SEC}秒で何問解ける？（ワールド1〜5から）<br>むずかしさ ${diff} の自己ベスト <b>${taB}問</b>${rk?`　ランク <b>${esc(rk.name)}</b>（平均${rk.avg}秒）`:'　ランクは3問解くと出ます'}</p>
     <button class="btn" id="bTA" style="width:100%">⚡ スタート</button></section>
     <section class="card"><h2>🃏 技カード図鑑</h2><p class="muted" style="margin:0 0 10px">集めたカード <b>${nCards} / ${CARDS.length}</b> 枚<br>新しい技を使うとカードが手に入る</p>
     <button class="btn" id="bCards" style="width:100%">図鑑を見る</button></section></div>`;
@@ -876,6 +917,7 @@ function renderHome(){
   $('bTA').onclick=()=>newSession('ta');
   $('bCards').onclick=()=>go('cards');
   app.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>newSession('world',Number(b.dataset.w)));
+  app.querySelectorAll('[data-diff]').forEach(b=>b.onclick=()=>setDiff(Number(b.dataset.diff)));
 }
 function renderCards(){
   const n=Object.keys(state.cards).length;
@@ -984,13 +1026,13 @@ function importState(file){
   rd.readAsText(file);
 }
 function renderPlay(shake){
-  const p=ses.list[ses.idx],w=WORLDS[p.w-1],c=choiceOf(p),ta=ses.mode==='ta';
+  const p=ses.list[ses.idx],w=WORLDS[p.w-1],c=choiceOf(p),ta=ses.mode==='ta',L=lvOf(p);
   const remain=()=>Math.max(0,Math.ceil((ses.endAt-Date.now())/1000));
   let h=`<div class="playhead"><button class="btn" id="bQuit">← やめる</button>`;
   h+=ta?`<div class="muted">解いた数 <b>${ses.results.length}</b>問</div><div class="timer ta" aria-live="off">⚡ のこり <span id="tm">${remain()}</span>秒</div></div>`
     :`<div class="prog" aria-label="${ses.list.length}問中${ses.idx+1}問め">${ses.list.map((q,i)=>`<i class="${i<ses.idx||(i===ses.idx&&cur.done)?'d':''} ${i===ses.idx?'c':''} ${q.boss?'boss':''}"></i>`).join('')}</div>
-    <div class="timer" aria-hidden="true">⏱ <span id="tm">0</span>秒 / 目標${w.target}秒</div></div>`;
-  h+=`<section class="card ${cur.done?'done-panel':(p.boss?'boss-panel':'')}"><div class="muted">${p.my?'マイ問題':`${ta?'タイムアタック':ses.mode==='mission'?'今日のミッション':ses.mode==='daily'?(ses.practice?'きょうの難問（今日はクリア済み・練習）':'きょうの難問'):'練習'}　ワールド${w.id}　${esc(w.name)}`}</div>
+    <div class="timer" aria-hidden="true">⏱ <span id="tm">0</span>秒 / 目標${targetOf(w,L)}秒</div></div>`;
+  h+=`<section class="card ${cur.done?'done-panel':(p.boss?'boss-panel':'')}"><div class="muted">${p.my?'マイ問題':`${ta?'タイムアタック':ses.mode==='mission'?'今日のミッション':ses.mode==='daily'?(ses.practice?'きょうの難問（今日はクリア済み・練習）':'きょうの難問'):'練習'}　ワールド${w.id}　${esc(w.name)}`}${ses.mode==='daily'||ses.mode==='my'?'':`　<span class="chip">むずかしさ ${L}</span>`}</div>
     <p class="qtitle">${vx(qTitle(p))}</p>`;
   const dg=diagram(p,cur.ch,cur.done);if(dg)h+=`<div class="diagram">${dg}</div>`;
   if(cur.ch==null&&c){
@@ -1033,9 +1075,10 @@ function renderPlay(shake){
 function renderResult(){
   let r=null;try{r=JSON.parse(lsGet(LAST)||'null')}catch(e){}
   if(!r||!num(r.n)||!num(r.stars)||!Array.isArray(r.worlds)){view='home';lsSet(VIEW,'home');renderHome();return;}
-  const ta=r.mode==='ta'&&r.ta&&num(r.ta.n)?r.ta:null, rk=ta?rankOf():null;
+  const rl=isLv(r.level)?r.level:3, ta=r.mode==='ta'&&r.ta&&num(r.ta.n)?r.ta:null, rk=ta?rankOf(rl):null;
   let h=`<div class="topbar"><h1>分配法則ラボ</h1></div><section class="card pop"><p class="res-big">${r.mode==='mission'?'🎉 ミッションクリア！':ta?`⚡ ${TA_SEC}秒で ${ta.n}問！`:r.mode==='daily'?(r.free?'🧠 きょうの難問（今日はクリア済み・練習）':'🧠 きょうの難問 クリア！'):r.mode==='my'?'✏️ マイ問題おわり！':'練習おわり！'}</p>`;
-  if(ta)h+=`<p>${ta.newBest?'<b>🏅 自己ベスト更新！</b>　':''}自己ベスト ${num(ta.best)?ta.best:0}問${rk?`　ランク <b>${esc(rk.name)}</b>（直近の平均 ${rk.avg}秒）`:''}</p>`;
+  if(r.mode!=='daily'&&r.mode!=='my')h+=`<p class="muted" style="margin:0">むずかしさ ${rl} ${esc(DIFF_NAMES[rl])}</p>`;
+  if(ta)h+=`<p>${ta.newBest?'<b>🏅 自己ベスト更新！</b>　':''}むずかしさ ${rl} の自己ベスト ${num(ta.best)?ta.best:0}問${rk?`　ランク <b>${esc(rk.name)}</b>（直近の平均 ${rk.avg}秒）`:''}</p>`;
   h+=`<p>★ ${r.stars} / ${r.n*3}　（★3つは ${num(r.three)?r.three:0}問）</p><p>もらった点 <b>+${num(r.xp)?r.xp:0}</b>${r.bonus?`（${r.mode==='daily'?'難問ボーナス':'ミッションボーナス'} ${r.bonus}点をふくむ）`:''}${r.free?(r.mode==='my'?'　マイ問題は点なしの練習です':'　今日はクリア済みなので練習（点なし）'):''}</p>`;
   if(r.lv1>r.lv0)h+=`<p class="res-big" style="color:var(--accent)">⬆ レベル${r.lv1}になった！ 「${esc(titleOf(r.lv1))}」</p>`;
   for(const id of (Array.isArray(r.cards)?r.cards:[])){const nm=cardName(id);if(nm)h+=`<p class="newcard">🃏 新しい技カード「${vx(nm)}」</p>`;}
