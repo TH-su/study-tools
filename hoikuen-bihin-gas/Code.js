@@ -22,7 +22,7 @@ const COLS = ['id', 'data', 'deleted', 'rev', 'updated_at', 'updated_by', 'batch
 const DEEP_FIELDS = ['checks', 'photoLabels', 'manuals'];   // manuals: one entry per model, registered from any device
 // sha256 of the operator key (the key itself is kept outside the repository)
 const OP_KEY_HASH = '7b712982a122e88ad57902e3d916ee1e96bd4b80d694db7bfb784a1fa760f35e';
-const SESSION_DAYS = 30, PW_ITER = 3000, MAX_CELL = 45000;
+const SESSION_DAYS = 30, PW_ITER = 500, MAX_CELL = 45000;
 const MIME_OK = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 /* ---------------------------------------------------------------- entry points */

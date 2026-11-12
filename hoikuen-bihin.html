@@ -1670,8 +1670,9 @@ async function applyMerge(src, add, insertOnly){
     ops.push(['meta','put',{ key:'settings', ...ns }, { base:{ key:'settings', ...S.settings } }]);
   }
   await writeOps(ops);
-  await sync(true);   // full refresh: anything the server declined (deleted there) leaves this device's copy again
-  await loadAll();
+  await loadAll();   // shown at once; photos upload in the background
+  // full refresh afterwards: anything the server declined (deleted there) leaves this device's copy again
+  if (insertOnly) await sync(true); else sync(true);
 }
 async function importBackup(file){
   let data;
