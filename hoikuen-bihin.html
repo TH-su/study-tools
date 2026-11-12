@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>保育園 物品管理台帳</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
-<meta name="description" content="保育園の備品・遊具・消耗品を写真つきで管理する台帳（端末内保存）">
+<meta name="description" content="保育園の備品・遊具・消耗品を写真つきで管理する台帳（複数の端末で共有）">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
 <style>
 :root{
@@ -66,7 +66,7 @@ table.tb td.nm{min-width:7em}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .toolbar input[type=search]{flex:1 1 220px}
-input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;font-size:16px;width:100%}
+input[type=text],input[type=search],input[type=number],input[type=date],input[type=email],input[type=password],input[type=url],select,textarea{min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;font-size:16px;width:100%}
 textarea{min-height:80px;resize:vertical}
 .toolbar select{width:auto;flex:0 1 auto;max-width:100%}
 label.f{display:block;font-size:.9375rem;color:var(--sub);margin-bottom:10px}
@@ -106,6 +106,11 @@ details.grp > summary .caret{margin-left:auto;transition:transform .15s;color:va
 details.grp[open] > summary .caret{transform:rotate(90deg)}
 .irow{display:flex;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);cursor:pointer;width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;min-height:56px}
 .irow:hover{background:var(--pri-l)}
+.irw{display:flex;border-top:1px solid var(--line)}
+.irw > .irow{border-top:0;flex:1;min-width:0}
+.man{min-width:56px;min-height:44px;border:0;border-left:1px solid var(--line);background:none;cursor:pointer;font-size:1.3rem;color:var(--ink)}
+.man:hover{background:var(--pri-l)}
+td .man{border:1px solid var(--line);border-radius:10px}
 .irow .c1{flex:1;min-width:0}
 .irow .c1 .a{font-weight:600}
 .irow .c1 .b{font-size:.875rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis}
@@ -149,6 +154,18 @@ details.filters > summary::-webkit-details-marker{display:none}
 .pt td.code{white-space:nowrap}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #printArea{display:none}
+.sync{min-width:44px;white-space:nowrap}
+.sync .w{display:none}
+@media (min-width:600px){.sync .w{display:inline}.sync .n{display:none}}
+.sync.ng{background:var(--ng-l) !important;color:var(--ng) !important;border-color:var(--ng) !important}
+.auth{max-width:460px;margin:24px auto;padding:0 16px}
+body.auth-on main, body.auth-on nav.tabs, body.auth-on .hbtn{display:none !important}
+body.auth-on{padding-bottom:24px}
+.amsg{padding:10px 12px;border-radius:10px;margin-bottom:12px;border:1px solid var(--ng);background:var(--ng-l);color:var(--ink)}
+.amsg.ok{border-color:var(--ok);background:var(--ok-l)}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1.6rem;letter-spacing:.08em;font-weight:700;padding:12px;border:2px dashed var(--pri);border-radius:12px;text-align:center;background:var(--pri-l);user-select:all;overflow-wrap:anywhere}
+.mrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:8px 0}
+.mrow .e{overflow-wrap:anywhere;min-width:0;flex:1 1 200px}
 @media print{
   @page{size:A4 landscape;margin:10mm}
   body{background:#fff;color:#000;padding:0}
@@ -175,9 +192,36 @@ details.filters > summary::-webkit-details-marker{display:none}
 <body>
 <header class="hdr">
   <h1>保育園 物品管理台帳<span class="org" id="orgName"></span></h1>
-  <button type="button" id="btnScanTop" aria-label="QRコードを読み取って備品を探す">QR</button>
-  <button type="button" id="btnAddTop">＋ 登録</button>
+  <button type="button" id="syncChip" class="sync hbtn" aria-label="同期の状態を見る">…</button>
+  <button type="button" id="btnScanTop" class="hbtn" aria-label="QRコードを読み取って備品を探す">QR</button>
+  <button type="button" id="btnAddTop" class="hbtn">＋ 登録</button>
 </header>
+<section class="auth" id="auth" hidden aria-label="ログイン">
+  <div class="card">
+    <h2 id="authTitle" style="margin-top:0">ログイン</h2>
+    <div id="authMsg" class="amsg" role="alert" hidden></div>
+    <form id="authLogin" novalidate>
+      <label class="f"><span>メールアドレス</span><input type="email" id="lgEmail" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false"></label>
+      <label class="f"><span>パスワード</span><input type="password" id="lgPw" autocomplete="current-password"></label>
+      <button type="submit" class="btn pri" id="lgBtn" style="width:100%">ログイン</button>
+    </form>
+    <form id="authCode" novalidate hidden>
+      <p class="muted" style="margin-top:0">園の管理者から受け取ったコード（12文字）で、自分のパスワードを決めて始めます。パスワードを忘れた時の「再設定コード」もここに入れます。</p>
+      <label class="f"><span>メールアドレス（コードを受け取った物）</span><input type="email" id="cdEmail" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false"></label>
+      <label class="f"><span>コード</span><input type="text" id="cdCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="例：ABCD-EFGH-JKLM"></label>
+      <label class="f"><span>新しいパスワード（8文字以上）</span><input type="password" id="cdPw" autocomplete="new-password"></label>
+      <label class="f"><span>新しいパスワード（確認のためもう一度）</span><input type="password" id="cdPw2" autocomplete="new-password"></label>
+      <button type="submit" class="btn pri" id="cdBtn" style="width:100%">パスワードを決めて始める</button>
+    </form>
+    <div id="orgPick" hidden></div>
+    <div class="row" style="margin-top:12px">
+      <button type="button" class="btn" id="toCode">招待コード・再設定コードをお持ちの方</button>
+      <button type="button" class="btn" id="toLogin" hidden>ログインに戻る</button>
+      <button type="button" class="btn" id="authOut" hidden>ログアウト</button>
+    </div>
+    <p class="hint">パスワードを忘れた時は、園の管理者に「再設定コード」を出してもらい、上のボタンから入れてください。</p>
+  </div>
+</section>
 <nav class="tabs" role="tablist" aria-label="画面の切り替え">
   <button role="tab" data-view="home" aria-selected="true"><span class="ic" aria-hidden="true">🏠</span>ホーム</button>
   <button role="tab" data-view="ledger" aria-selected="false"><span class="ic" aria-hidden="true">📒</span>台帳</button>
@@ -234,16 +278,18 @@ details.filters > summary::-webkit-details-marker{display:none}
 <script>
 'use strict';
 /* =========================================================
-   保育園 物品管理台帳  — data lives in this browser (IndexedDB)
-   stores: items(品目) / assets(個体) / photos / logs / stocktakes / meta
+   保育園 物品管理台帳 — shared between devices
+   The server (Google Apps Script web app + a spreadsheet per 園) is the source of truth. IndexedDB holds a per-org cache + an outbox (queue).
+   stores: items(品目) / assets(個体) / photos / logs / stocktakes / meta + queue / local
    ========================================================= */
-const DB_NAME = 'hoikuen-bihin', DB_VER = 1;
+const API_URL = 'https://script.google.com/macros/s/AKfycbxBJj3WompHkbEN0dGbtPAHUub6Vxn1QVbjUSLjQpRfyCNwEvh9ddOFgqntyzi9U1FVlA/exec';   // the GAS web app (/exec). Every request carries this app's own login token.
+const DB_NAME = 'hoikuen-bihin', DB_VER = 1;   // the previous (device-only) version's database — read only, never deleted
 const VIEWS = ['home','ledger','supplies','stock','settings'];
 const LS_VIEW = 'hbk_view', LS_MODE = 'hbk_ledgerMode';
 const STATUSES = ['使用中','保管中','修理中','貸出中','紛失・所在不明','廃棄済'];
 const CONDITIONS = ['良好','やや傷あり','要修理','使用不可'];
 const LOG_TYPES = ['点検','修理','消毒・清掃','移動','メモ'];
-const PHOTO_LABELS = ['外観','型番・銘板','保証書・領収書','破損箇所','その他'];
+const PHOTO_LABELS = ['外観','型番・銘板','保証書・領収書','取扱説明書','破損箇所','その他'];
 const DISPOSAL_METHODS = ['廃棄（粗大ごみ・産廃）','リサイクル・売却','譲渡','返却（リース等）','その他'];
 const DEFAULT_MASTERS = {
   categories: ['遊具（屋外）','玩具・教材','絵本・図書','楽器','家具（机・椅子・棚）','寝具・午睡用品','調理・給食用品','衛生・保健用品','家電・空調','IT・事務機器','カメラ・映像機器','防災・安全用品','行事用品','乳児用品','清掃用品','その他'],
@@ -276,10 +322,11 @@ function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add
 function opt(list, sel, blank){ return (blank != null ? `<option value="">${esc(blank)}</option>` : '') + list.map(v => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join(''); }
 function withCurrent(list, cur){ return (cur && !list.includes(cur)) ? [...list, cur] : list; }
 
-/* ---------- IndexedDB ---------- */
-function openDB(){
+/* ---------- local cache (IndexedDB) ---------- */
+const DATA_STORES = ['items','assets','logs','stocktakes','meta','photos'];
+function openStores(name, ver, extra){
   return new Promise((res, rej) => {
-    const r = indexedDB.open(DB_NAME, DB_VER);
+    const r = indexedDB.open(name, ver);
     r.onupgradeneeded = () => {
       const d = r.result;
       if (!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath:'id' });
@@ -288,35 +335,287 @@ function openDB(){
       if (!d.objectStoreNames.contains('logs')) d.createObjectStore('logs', { keyPath:'id' });
       if (!d.objectStoreNames.contains('stocktakes')) d.createObjectStore('stocktakes', { keyPath:'id' });
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath:'key' });
+      if (extra) { if (!d.objectStoreNames.contains('queue')) d.createObjectStore('queue', { keyPath:'seq', autoIncrement:true }); if (!d.objectStoreNames.contains('local')) d.createObjectStore('local', { keyPath:'k' }); }
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
+    r.onblocked = () => rej(new Error('ほかのタブがこの台帳を開いています。ほかのタブを閉じてから再読み込みしてください'));
   });
 }
+const cacheName = () => `hbsync_${ORG.id}_${ME.uid}`;
 const rq = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const getAll = s => rq(db.transaction(s).objectStore(s).getAll());
 const getOne = (s, k) => rq(db.transaction(s).objectStore(s).get(k));
-/* write several records atomically: ops = [[store, 'put'|'delete', value|key], ...] */
-function writeOps(ops){
+function idbTx(stores, fn){
   return new Promise((res, rej) => {
-    const stores = [...new Set(ops.map(o => o[0]))];
-    const t = db.transaction(stores, 'readwrite');
-    try { for (const [s, kind, v] of ops) { const os = t.objectStore(s); kind === 'delete' ? os.delete(v) : os.put(v); } }
-    catch(e) { try { t.abort(); } catch(e2) {} rej(e); return; }
-    t.oncomplete = () => res();
-    t.onerror = () => rej(t.error);
-    t.onabort = () => rej(t.error || new Error('保存が中断されました'));
+    const t = db.transaction(stores, 'readwrite'); let out;
+    try { out = fn(t); } catch(e) { try { t.abort(); } catch(e2) {} rej(e); return; }
+    t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('保存が中断されました'));
   });
 }
-async function saveMeta(){ await writeOps([['meta','put',{ key:'masters', ...S.masters }], ['meta','put',{ key:'settings', ...S.settings }]]); }
+const idbPut = (s, v) => idbTx([s], t => { t.objectStore(s).put(v); });
+const getLocal = async k => { const r = await getOne('local', k); return r ? r.v : undefined; };
+const setLocal = (k, v) => idbPut('local', { k, v });
+// one writer at a time (local writes and applying downloaded rows never interleave)
+let lockP = Promise.resolve();
+function locked(fn){ const p = lockP.then(fn, fn); lockP = p.catch(() => {}); return p; }
 
+/* ---------- merge rules (same as the server's hb_private.merge) ---------- */
+const TABLE_OF = { items:'items', assets:'assets', logs:'logs', stocktakes:'stocktakes', meta:'settings', photos:'photos' };
+const STORE_OF = Object.fromEntries(Object.entries(TABLE_OF).map(([s, t]) => [t, s]));
+const DEEP_FIELDS = new Set(['checks', 'photoLabels', 'manuals']);
+const ARRAY_FIELDS = new Set(['photoIds', 'categories', 'locations', 'classes', 'fundings']);
+const LOCAL_FIELDS = { photos:new Set(['blob', 'thumb', 'uploaded']), meta:new Set(['key', 'lastBackup']) };
+const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v);
+const stable = v => JSON.stringify(v, (k, x) => isObj(x) ? Object.keys(x).sort().reduce((o, kk) => (o[kk] = x[kk], o), {}) : x) ?? 'undefined';
+function mergeJS(cur, set, inc, arr){
+  const nd = { ...(cur || {}) };
+  if (isObj(set)) for (const [k, v] of Object.entries(set)) {
+    if (!(DEEP_FIELDS.has(k) && isObj(v))) { nd[k] = v; continue; }
+    const o = { ...(isObj(nd[k]) ? nd[k] : {}) };
+    for (const [kk, vv] of Object.entries(v)) o[kk] = (k === 'manuals' && isObj(vv) && isObj(o[kk])) ? { ...o[kk], ...vv } : vv;   // same rule as the server
+    nd[k] = o;
+  }
+  if (isObj(inc)) for (const [k, v] of Object.entries(inc)) { if (typeof v !== 'number') continue; const b = typeof nd[k] === 'number' ? nd[k] : (/^-?\d+(\.\d+)?$/.test(String(nd[k] ?? '')) ? Number(nd[k]) : 0); nd[k] = b + v; }
+  if (isObj(arr)) for (const [k, v] of Object.entries(arr)) {
+    if (!isObj(v)) continue;
+    const rem = Array.isArray(v.rem) ? v.rem : [], res = (Array.isArray(nd[k]) ? nd[k] : []).filter(e => !rem.includes(e));
+    for (const e of (Array.isArray(v.add) ? v.add : [])) if (!res.includes(e)) res.push(e);
+    if (Array.isArray(v.order)) { const pos = e => { const i = v.order.indexOf(e); return i < 0 ? v.order.length : i; }; nd[k] = res.map((e, i) => [e, pos(e), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]); }
+    else nd[k] = res;
+  }
+  return nd;
+}
+/* which fields did the user change? (base = what the screen showed, next = what is being saved) */
+function diffRec(s, base, next, inc){
+  const skip = LOCAL_FIELDS[s] || new Set(), set = {}, arr = {};
+  for (const k of Object.keys(next)) {
+    const b = next[k];
+    if (k === 'id' || skip.has(k) || b === undefined || (inc && k in inc)) continue;
+    if (!base) { set[k] = b; continue; }
+    const a = base[k];
+    if (stable(a) === stable(b)) continue;
+    if (ARRAY_FIELDS.has(k) && Array.isArray(a) && Array.isArray(b)) {
+      const add = b.filter(x => !a.includes(x)), rem = a.filter(x => !b.includes(x));
+      arr[k] = { add, rem, order:b };   // items added on another device meanwhile are kept; this screen's order wins
+      continue;
+    }
+    if (DEEP_FIELDS.has(k) && isObj(a) && isObj(b)) { const sub = {}; for (const kk of Object.keys(b)) if (stable(a[kk]) !== stable(b[kk])) sub[kk] = b[kk]; if (Object.keys(sub).length) set[k] = sub; continue; }
+    set[k] = b;
+  }
+  return { set, arr };
+}
+
+/* write several records atomically: ops = [[store, 'put'|'delete', value|key, {base, inc}?], ...]
+   Locally the change is applied at once (in one transaction together with its outbox entry);
+   the server only receives the fields that changed, so edits made on another device are kept. */
+function writeOps(ops){ return locked(() => writeOpsInner(ops)).then(r => { scheduleSync(); return r; }); }
+async function writeOpsInner(ops){
+  if (!db || !ORG) throw new Error('ログインしていません');
+  const sops = [], uploads = [], local = [], seen = new Map();
+  for (const [s, kind, v, x] of ops) {
+    if (!TABLE_OF[s]) throw new Error('保存先が正しくありません：' + s);
+    const key = kind === 'delete' ? v : (v && (s === 'meta' ? v.key : v.id));
+    if (typeof key !== 'string' || !key || key.length > 64) throw new Error('保存するデータの形が正しくありません');
+    const mk = s + '|' + key;
+    const prev = seen.has(mk) ? seen.get(mk) : ((await getOne(s, key)) || null);
+    if (kind === 'delete') { sops.push({ t:TABLE_OF[s], id:key, k:'delete' }); local.push([s, 'delete', key]); seen.set(mk, null); continue; }
+    if (!isObj(v)) throw new Error('保存するデータの形が正しくありません');
+    const inc = x && isObj(x.inc) ? x.inc : null;
+    if (x && x.create && prev) continue;   // already here: a migration / restore never changes existing records
+    const rec0 = { ...v };
+    if (s === 'photos' && !prev) { rec0.path = `${ORG.id}/${key}`; if (v.thumb) rec0.thumbPath = `${ORG.id}/${key}_t`; }
+    const { set, arr } = diffRec(s, prev ? ((x && x.base) || prev) : null, rec0, inc);
+    if (prev && !Object.keys(set).length && !Object.keys(arr).length && !inc) continue;   // nothing changed
+    const op = { t:TABLE_OF[s], id:key };
+    if (x && x.create) op.k = 'create';   // the server adds it only if the id never existed (a deleted record stays deleted)
+    if (Object.keys(set).length || !prev) op.set = set;
+    if (Object.keys(arr).length) op.arr = arr;
+    if (inc) op.inc = inc;
+    sops.push(op);
+    const rec = mergeJS(prev, op.set, op.inc, op.arr);
+    if (s === 'meta') rec.key = key; else rec.id = key;
+    if (s === 'photos') {
+      if (v.blob) { rec.blob = v.blob; rec.thumb = v.thumb || null; }
+      if (v.blob && !(prev && prev.uploaded)) { rec.uploaded = false; uploads.push(key); }
+    }
+    local.push([s, 'put', rec]); seen.set(mk, rec);
+  }
+  if (!sops.length) return;
+  const entry = { batch:uid() + uid(), ops:sops, uploads, at:new Date().toISOString() };
+  await idbTx([...new Set(local.map(l => l[0])), 'queue'], t => {
+    for (const [s, k, v] of local) k === 'delete' ? t.objectStore(s).delete(v) : t.objectStore(s).put(v);
+    t.objectStore('queue').add(entry);
+  });
+}
+async function saveMeta(base){
+  await writeOps([
+    ['meta', 'put', { key:'masters', ...S.masters }, base ? { base:{ key:'masters', ...base.masters } } : undefined],
+    ['meta', 'put', { key:'settings', ...S.settings }, base ? { base:{ key:'settings', ...base.settings } } : undefined]
+  ]);
+}
+
+/* reading never writes (multi-device-sync 原則9) */
 async function loadAll(){
   const [items, assets, logs, stocktakes, meta] = await Promise.all(['items','assets','logs','stocktakes','meta'].map(getAll));
   S.items = items; S.assets = assets; S.logs = logs; S.stocktakes = stocktakes;
   const m = meta.find(x => x.key === 'masters'), st = meta.find(x => x.key === 'settings');
-  S.masters = m ? { categories:m.categories, locations:m.locations, classes:m.classes, fundings:m.fundings } : JSON.parse(JSON.stringify(DEFAULT_MASTERS));
+  const list = (v, d) => Array.isArray(v) ? v.filter(x => typeof x === 'string') : [...d];
+  S.masters = m ? { categories:list(m.categories, DEFAULT_MASTERS.categories), locations:list(m.locations, DEFAULT_MASTERS.locations), classes:list(m.classes, DEFAULT_MASTERS.classes), fundings:list(m.fundings, DEFAULT_MASTERS.fundings) } : JSON.parse(JSON.stringify(DEFAULT_MASTERS));
   S.settings = { ...DEFAULT_SETTINGS, ...(st || {}) }; delete S.settings.key;
-  if (!m || !st) await saveMeta();
+  S.settings.lastBackup = (await getLocal('lastBackup')) || '';
+}
+
+/* ---------- server sync ---------- */
+let ME = null, ORG = null, ORGS = [], AUTH = null;
+const LS_ORG = 'hbk_org', LS_LEGACY = 'hbk_legacy', LS_AUTH = 'hbk-auth';
+// one POST per call; text/plain keeps it a "simple" request (the GAS web app cannot answer CORS preflights)
+async function api(action, body = {}){
+  const r = await fetchT(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body:JSON.stringify({ ...body, action, token:AUTH ? AUTH.token : undefined }) }, /^(photo|fetchPdf)/.test(action) ? 180000 : 45000);
+  if (!r.ok) { const e = new Error('サーバーが応答しませんでした（' + r.status + '）'); e.code = 'http'; throw e; }
+  let j; try { j = await r.json(); } catch(err) { const e = new Error('サーバーの応答を読めませんでした（準備中の可能性があります）'); e.code = 'bad_response'; throw e; }
+  if (!isObj(j)) { const e = new Error('サーバーの応答の形が正しくありません'); e.code = 'bad_response'; throw e; }
+  if (!j.ok) { const e = new Error(typeof j.message === 'string' ? j.message : '失敗しました'); e.code = String(j.error || 'server'); throw e; }
+  return j;
+}
+const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
+function b64ToBlob(b64, type){ const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type:type || '' }); }
+const SYNC = { pending:0, parked:0, oldest:'', busy:false, online:true, lastOk:'', err:'', ready:false, proto:0 };
+// errors the server will give every time for the same change: such a change is set aside (kept, exportable), not retried forever
+const PERMANENT = ['bad_input', 'too_large'];
+const isNetErr = e => !navigator.onLine || /fetch|network|load failed|timeout|abort/i.test(String((e && (e.message || e.name)) || e));
+function fetchT(url, opts = {}, ms = 45000){ const c = new AbortController(), t = setTimeout(() => c.abort(), ms); if (opts.signal) opts.signal.addEventListener('abort', () => c.abort()); return fetch(url, { ...opts, signal:c.signal }).finally(() => clearTimeout(t)); }
+function syncError(e){
+  if (isNetErr(e)) { SYNC.online = false; return; }
+  const m = String((e && (e.message || e.code)) || e), c = e && e.code;
+  if (c === 'auth') SYNC.err = 'ログインの期限が切れました。ログインし直してください（送れていない変更は端末に残っています）';
+  else if (c === 'forbidden') SYNC.err = 'この園に書き込む権限がありません。園の管理者に確かめてください';
+  else SYNC.err = '送信できませんでした：' + m;
+}
+async function uploadPhoto(pid){
+  const rec = await getOne('photos', pid);
+  if (!rec || rec.uploaded || !rec.blob) return;
+  const type = rec.blob.type || (rec.kind === 'pdf' ? 'application/pdf' : 'image/jpeg');
+  await api('photoPut', { org:ORG.id, id:pid, which:'main', mime:type, b64:await blobToB64(rec.blob) });
+  if (rec.thumb) await api('photoPut', { org:ORG.id, id:pid, which:'thumb', mime:rec.thumb.type || 'image/jpeg', b64:await blobToB64(rec.thumb) });
+  await locked(async () => { const cur = await getOne('photos', pid); if (cur) await idbPut('photos', { ...cur, uploaded:true }); });
+}
+async function flush(){
+  if (SYNC.proto < 1) return false;
+  for (;;) {
+    const e = (await getAll('queue')).find(x => !x.failed);
+    if (!e) return true;
+    try {
+      for (const pid of (e.uploads || [])) await uploadPhoto(pid);
+      const n = Math.ceil(e.ops.length / 400) || 1;
+      for (let i = e.done || 0; i < n; i++) {
+        const part = e.ops.slice(i * 400, (i + 1) * 400);
+        await api('apply', { org:ORG.id, batch:n > 1 ? e.batch + ':' + i : e.batch, ops:part });
+        if (n > 1) { e.done = i + 1; await idbPut('queue', e); }
+      }
+      await idbTx(['queue'], t => t.objectStore('queue').delete(e.seq));
+      SYNC.err = ''; SYNC.online = true;
+    } catch(err) {
+      if (err && PERMANENT.includes(err.code)) { e.failed = { code:err.code, message:String(err.message || ''), at:new Date().toISOString() }; await idbPut('queue', e); continue; }
+      syncError(err); return false;
+    }
+  }
+}
+async function pull(full){
+  // the server numbers every change (rev) and only shows rows of fully written batches, so "since" is exact
+  const since = full ? 0 : (Number(await getLocal('cursor')) || 0);
+  let j;
+  try { j = await api('pull', { org:ORG.id, since }); } catch(err) { syncError(err); return false; }
+  const rev = Number(j.rev);
+  if (!isFinite(rev) || rev < 0) { syncError(new Error('サーバーの応答の形が正しくありません')); return false; }
+  const changed = await locked(() => applyPulled(isObj(j.rows) ? j.rows : {}, full && since === 0, rev));
+  SYNC.lastOk = new Date().toISOString(); SYNC.online = true; SYNC.ready = true;
+  if (changed) { await loadAll(); softRender(); }
+  return true;
+}
+/* apply downloaded rows to the cache; changes still waiting in the outbox are laid on top (受信データは検査する) */
+async function applyPulled(got, full, rev){
+  const pend = new Map();
+  for (const e of await getAll('queue')) if (!e.failed) for (const op of e.ops) { const k = op.t + '|' + op.id; if (!pend.has(k)) pend.set(k, []); pend.get(k).push(op); }
+  const left = {};
+  if (full) for (const s of DATA_STORES) left[s] = new Set(await rq(db.transaction(s).objectStore(s).getAllKeys()));
+  let changed = false;
+  await idbTx([...DATA_STORES, 'local'], t => {
+    for (const tb of Object.values(TABLE_OF)) {
+      const rows = Array.isArray(got[tb]) ? got[tb] : [];
+      const s = STORE_OF[tb], os = t.objectStore(s);
+      for (const row of rows) {
+        if (!row || typeof row.id !== 'string' || !row.id || row.id.length > 64 || typeof row.rev !== 'number') continue;
+        if (full) left[s].delete(row.id);
+        const data = isObj(row.data) ? row.data : null;
+        if (!data && !row.deleted) continue;
+        const ops = pend.get(tb + '|' + row.id);
+        const g = os.get(row.id);
+        g.onsuccess = () => {
+          const old = g.result;
+          // deleted on the server and nothing of ours is waiting → remove; an edit of ours that is waiting will revive it
+          if (row.deleted && (!ops || ops.every(o => o.k === 'delete'))) { if (old) { os.delete(row.id); changed = true; } return; }
+          let rec = { ...(data || {}) };
+          if (ops) for (const o of ops) rec = o.k === 'delete' ? null : mergeJS(rec || {}, o.set, o.inc, o.arr);
+          if (!rec) return;   // deleted here, not yet sent
+          delete rec.blob; delete rec.thumb; delete rec.uploaded;
+          if (s === 'meta') rec.key = row.id; else rec.id = row.id;
+          if (s === 'photos' && old) { if (old.blob) rec.blob = old.blob; if (old.thumb) rec.thumb = old.thumb; if (old.uploaded != null) rec.uploaded = old.uploaded; }
+          const strip = o => { const c = { ...o }; delete c.blob; delete c.thumb; delete c.uploaded; return stable(c); };
+          if (!old || strip(old) !== strip(rec)) { os.put(rec); changed = true; }
+        };
+      }
+    }
+    if (full) for (const s of DATA_STORES) for (const k of left[s]) if (!pend.has(TABLE_OF[s] + '|' + k)) { t.objectStore(s).delete(k); changed = true; }
+    t.objectStore('local').put({ k:'cursor', v:rev });
+  });
+  return changed;
+}
+let syncRun = null, syncAgain = false, syncFull = false, syncTimer = 0;
+function sync(full){
+  if (full) syncFull = true;
+  if (syncRun) { syncAgain = true; return syncRun; }
+  const p = (async () => {
+    await null;   // syncRun is assigned before any of this runs (an offline run used to finish first and stay "running")
+    SYNC.busy = true; updateSyncUI();
+    try {
+      do { syncAgain = false; const f = syncFull; syncFull = false;
+        if (!navigator.onLine) { SYNC.online = false; break; }
+        await flush(); if (!SYNC.online) break; await pull(f);
+      } while (syncAgain);
+    } finally { SYNC.busy = false; }
+  })();
+  syncRun = p;
+  p.finally(() => { if (syncRun === p) syncRun = null; updateSyncUI(); }).catch(() => {});
+  return p;
+}
+function scheduleSync(){ clearTimeout(syncTimer); updateSyncUI(); syncTimer = setTimeout(() => sync(), 250); }
+const syncNow = (ms = 8000) => Promise.race([sync(), new Promise(r => setTimeout(r, ms))]);
+let renderDeferred = false;
+function softRender(){
+  const ae = document.activeElement;
+  const typing = ae && ae.closest && ae.closest('main') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && !ae.closest('.toolbar');
+  if (typing || curView === 'settings') { renderDeferred = true; updateSyncUI(); return; }
+  render();
+}
+document.addEventListener('focusout', () => setTimeout(() => {
+  const ae = document.activeElement;
+  if (renderDeferred && curView !== 'settings' && !(ae && ae.closest && ae.closest('main') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) { renderDeferred = false; render(); }
+}, 0));
+async function updateSyncUI(){
+  if (db && ORG) { try { const all = await getAll('queue'), q = all.filter(x => !x.failed); SYNC.pending = q.length; SYNC.parked = all.length - q.length; SYNC.oldest = q.length ? q[0].at : ''; } catch(e) {} }
+  const b = $('#syncChip'); if (!b) return;
+  const n = SYNC.pending;
+  let ic, w, lbl, ng = false;
+  if (SYNC.err) { ic = '⚠'; w = n ? `未送信 ${n}` : '要確認'; lbl = '同期できていません。' + SYNC.err; ng = true; }
+  else if (!SYNC.online) { ic = '⏳'; w = n ? `送信待ち ${n}` : 'オフライン'; lbl = `通信できません。${n ? `変更${n}件はこの端末に保存し、通信が戻ったら送ります。` : ''}`; }
+  else if (SYNC.busy || n) { ic = '↻'; w = n ? `送信中 ${n}` : '確認中'; lbl = n ? `変更${n}件を送っています` : 'サーバーと確かめています'; }
+  else if (SYNC.ready) { ic = '✓'; w = '同期済み'; lbl = '同期済みです（最終確認 ' + new Date(SYNC.lastOk).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' }) + '）'; }
+  else { ic = '…'; w = '読み込み中'; lbl = '読み込み中'; }
+  b.innerHTML = `<span aria-hidden="true">${ic}${n ? `<span class="n">${n}</span>` : ''}</span><span class="w" aria-hidden="true"> ${esc(w)}</span>`;
+  b.setAttribute('aria-label', lbl + '（押すと詳しく見られます）'); b.title = lbl;
+  b.classList.toggle('ng', ng);
+  ['#syncInfo', '#syncInfo2'].forEach(id => { const si = $(id); if (si) si.textContent = lbl; });
 }
 
 /* ---------- domain helpers ---------- */
@@ -349,7 +648,21 @@ async function photoUrl(id, big){
   const k = id + (big ? ':b' : ':t');
   if (urlCache.has(k)) return urlCache.get(k);
   const p = await getOne('photos', id); if (!p) return '';
-  const u = URL.createObjectURL(big ? p.blob : (p.thumb || p.blob)); urlCache.set(k, u); return u;
+  let b = big ? p.blob : (p.thumb || p.blob);
+  if (!b) b = await fetchPhoto(p, big || !p.thumbPath);
+  if (!b) return '';
+  const u = URL.createObjectURL(b); urlCache.set(k, u); return u;
+}
+/* download a photo the cache does not have yet (from the 園's private Drive folder, after the login check), keep it for offline use */
+async function fetchPhoto(p, main){
+  if (!AUTH || !ORG || !navigator.onLine) return null;
+  try {
+    const j = await api('photoGet', { org:ORG.id, id:p.id, which:main ? 'main' : 'thumb' });
+    if (typeof j.b64 !== 'string' || !j.b64) return null;
+    const blob = b64ToBlob(j.b64, typeof j.mime === 'string' ? j.mime : '');
+    await locked(async () => { const cur = await getOne('photos', p.id); if (cur) await idbPut('photos', { ...cur, [main ? 'blob' : 'thumb']:blob, uploaded:true }); });
+    return blob;
+  } catch(e) { return null; }
 }
 async function hydrate(root = document){
   for (const img of $$('img[data-ph]', root)) {
@@ -394,7 +707,7 @@ function show(v){
   window.scrollTo(0, 0);
 }
 function render(){
-  $('#orgName').textContent = S.settings.orgName || '';
+  $('#orgName').textContent = S.settings.orgName || (ORG && ORG.name) || '';
   ({ home:renderHome, ledger:renderLedger, supplies:renderSupplies, stock:renderStock, settings:renderSettings })[curView]();
 }
 
@@ -414,9 +727,14 @@ function computeAlerts(){
   for (const i of S.items.filter(i => i.kind === 'consumable')) {
     if (i.reorderPoint != null && i.reorderPoint !== '' && Number(i.stock || 0) <= Number(i.reorderPoint)) A.push({ lv:'warn', t:'消耗品の補充が必要です', m:`${i.name} — 在庫 ${i.stock || 0}${i.unit || ''}（発注点 ${i.reorderPoint}）`, supply:i.id });
   }
-  if (S.assets.length && persistState === false) A.push({ lv:'warn', t:'データが自動で消される可能性があります', m:'このブラウザは保存領域を「消えにくい保存」にしていません。スマホはホーム画面に追加して使い、ときどきバックアップを保存してください。', go:'settings' });
+  const byCode = new Map();
+  for (const a of S.assets) { const c = String(a.code || '').toUpperCase(); if (!c) continue; if (!byCode.has(c)) byCode.set(c, []); byCode.get(c).push(a); }
+  for (const [c, arr] of byCode) if (arr.length > 1) A.unshift({ lv:'ng', t:'管理番号が重複しています', m:`${arr[0].code} が${arr.length}件あります（${arr.map(a => itemOf(a).name).join('・')}）。どれか1件を編集して番号を変え、ラベルを貼り直してください。`, id:arr[0].id });
+  if (SYNC.parked) A.unshift({ lv:'ng', t:'サーバーが受け取れなかった変更があります', m:`${SYNC.parked}件（大きすぎる・形が正しくない等）。消さずにこの端末に残しています。「同期の状態」から書き出して保存し、運営者に知らせてください。`, sync:true });
+  if (SYNC.pending && SYNC.oldest && (Date.now() - Date.parse(SYNC.oldest)) > 10 * 60000) A.unshift({ lv:'ng', t:'サーバーに送れていない変更があります', m:`${SYNC.pending}件の変更がこの端末にだけ残っています。${SYNC.err || '通信できる場所で開いてください。'}`, sync:true });
+  if (legacyState && legacyState.n && !legacyState.done) A.unshift({ lv:'warn', t:'この端末に前の版の台帳データがあります', m:`備品${legacyState.n}件。設定の「前の版のデータ」から、この園のサーバーへ移せます（端末の元のデータは消しません）。`, go:'settings' });
   const lb = S.settings.lastBackup;
-  if (S.assets.length && (!lb || daysUntil(isoDay(lb)) < -30)) A.unshift({ lv:'warn', t:'バックアップをおすすめします', m: lb ? `前回のバックアップは ${jdate(isoDay(lb))}。データはこの端末の中だけに保存されています。` : 'まだ一度もバックアップしていません。データはこの端末の中だけに保存されています。', go:'settings' });
+  if (S.assets.length && (!lb || daysUntil(isoDay(lb)) < -30)) A.push({ lv:'warn', t:'バックアップをおすすめします', m: lb ? `この端末での前回のバックアップは ${jdate(isoDay(lb))}。データはサーバーに保存されていますが、念のため月に1回ほど写真込みで保存しておくと安心です。` : 'データはサーバーに保存されていますが、念のため月に1回ほど写真込みのバックアップを保存しておくと安心です。', go:'settings' });
   return A;
 }
 
@@ -451,7 +769,7 @@ function renderHome(){
     <div class="card"><h3 style="margin-top:0">最近の記録</h3>${recent.length ? `<ul class="tl">${recent.map(l => { const a = S.assets.find(x => x.id === l.assetId); const i = a ? itemOf(a) : S.items.find(x => x.id === l.itemId); return `<li><div class="d">${jdate(l.date)} ${esc(l.type)}${l.by ? '・' + esc(l.by) : ''}</div>${esc(i ? i.name : '')}${a ? '（' + esc(a.code) + '）' : ''} ${esc(l.detail)}</li>`; }).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}</div>
     ${S.assets.length === 0 && S.items.length === 0 ? `<div class="card"><h3 style="margin-top:0">はじめに</h3><p>右上の「＋ 登録」から備品を登録します。写真・型番・購入日・金額・保管場所を入れておくと、同じ「カメラ」でも1台ずつ区別して管理できます。</p><div class="row"><button type="button" class="btn pri" id="hAdd">最初の備品を登録する</button><button type="button" class="btn" id="hDemo">見本データを入れて試す</button></div></div>` : ''}
   `;
-  $$('#alertList .alert').forEach(b => b.onclick = () => { const x = alerts[b.dataset.i]; if (x.id) openAsset(x.id); else if (x.supply) show('supplies'); else if (x.go) show(x.go); });
+  $$('#alertList .alert').forEach(b => b.onclick = () => { const x = alerts[b.dataset.i]; if (x.id) openAsset(x.id); else if (x.supply) show('supplies'); else if (x.sync) openSyncDlg(); else if (x.go) show(x.go); });
   $$('#v-home [data-filter]').forEach(b => b.onclick = () => { let [k, v] = b.dataset.filter.split('|'); resetFilters(); if (v === '未分類' || v === '未設定') v = '__none'; const sel = k === 'cat' ? $('#fCat') : $('#fLoc'); if (![...sel.options].some(o => o.value === v)) sel.insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`); sel.value = v; show('ledger'); });
   const ha = $('#hAdd'); if (ha) ha.onclick = () => openAssetForm();
   const hd = $('#hDemo'); if (hd) hd.onclick = loadDemo;
@@ -525,15 +843,16 @@ function renderLedger(){
       const units = arr.reduce((s, a) => s + (Number(a.qty) || 1), 0);
       const models = new Set(arr.map(a => a.model).filter(Boolean)).size;
       return `<details class="grp"${groups.size <= 3 || $('#q').value ? ' open' : ''}><summary>${thumbHtml(arr.find(a => (a.photoIds || []).length) || arr[0], true)}<div style="min-width:0"><div class="nm">${esc(it.name)}</div><div class="meta">${esc(it.category || '未分類')}・${arr.length}件（${units}点）${models > 1 ? `・型番${models}種類` : ''}・合計 ${yen(tot)}</div></div><span class="caret" aria-hidden="true">›</span></summary>
-        ${arr.map(a => assetRow(a)).join('')}
+        ${arr.map(a => assetRowM(a)).join('')}
         <div class="grpfoot row"><button type="button" class="btn sm" data-addsame="${esc(iid)}">＋ 同じ品目で別の1台を追加</button><button type="button" class="btn sm" data-edititem="${esc(iid)}">品目名・分類を編集</button></div></details>`;
     }).join('');
   } else {
-    body.innerHTML = `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th><span class="sr">選択</span></th><th>写真</th><th>管理番号</th><th>品名</th><th>型番／メーカー</th><th>購入日</th><th class="num">金額</th><th>保管場所</th><th>クラス</th><th>状態</th></tr></thead><tbody>
-      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td class="nw">${esc(a.code)}</td><td class="nm">${esc(it.name)}${Number(a.qty) > 1 ? ` ×${Number(a.qty)}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td class="nw">${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td></tr>`; }).join('')}
+    body.innerHTML = `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th><span class="sr">選択</span></th><th>写真</th><th>管理番号</th><th>品名</th><th>型番／メーカー</th><th>購入日</th><th class="num">金額</th><th>保管場所</th><th>クラス</th><th>状態</th><th><span class="sr">取扱説明書</span><span aria-hidden="true">📘</span></th></tr></thead><tbody>
+      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td class="nw">${esc(a.code)}</td><td class="nm">${esc(it.name)}${Number(a.qty) > 1 ? ` ×${Number(a.qty)}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td class="nw">${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td><td>${manBtn(a)}</td></tr>`; }).join('')}
       </tbody></table></div>`;
   }
-  $$('[data-open]', body).forEach(r => r.addEventListener('click', e => { if (e.target.closest('input.sel')) return; openAsset(r.dataset.open); }));
+  $$('[data-open]', body).forEach(r => r.addEventListener('click', e => { if (e.target.closest('input.sel') || e.target.closest('.man')) return; openAsset(r.dataset.open); }));
+  wireMan(body);
   syncBulk();
   $$('input.sel', body).forEach(c => c.addEventListener('change', () => { c.checked ? selected.add(c.dataset.sel) : selected.delete(c.dataset.sel); renderLedgerSumOnly(); }));
   $$('[data-addsame]', body).forEach(b => b.onclick = () => openAssetForm(null, { itemId:b.dataset.addsame }));
@@ -561,7 +880,7 @@ function openBulkForm(){
       if (cls && a.className !== cls) { u.className = cls; ch.push('使用クラス'); }
       if (st && a.status !== st) { u.status = st; ch.push('状態'); }
       if (ch.length) ops.push(['logs','put',newLog({ assetId:a.id, type:'編集', detail:'一括変更：' + ch.join('、') })]);
-      ops.push(['assets','put',u]); n++;
+      ops.push(['assets','put',u,{ base:a }]); n++;
     }
     if (!ops.length) { toast('変更できる物がありませんでした'); return; }
     try { await writeOps(ops); } catch(e) { alert('変更できませんでした。データは元のままです。\n' + e.message); return; }
@@ -569,10 +888,108 @@ function openBulkForm(){
   };
 }
 function renderLedgerSumOnly(){ syncBulk(); const list = filteredAssets(); $('#ledgerSum').textContent = `${list.length}件・合計 ${yen(list.reduce((s, a) => s + totalPrice(a), 0)) || '¥0'}${selected.size ? `　／　ラベル印刷に選択中 ${selected.size}件` : ''}`; }
+/* ---------- 取扱説明書（品目×型番ごとに1つ。同じ型番の物は同じ取説を使う） ---------- */
+// maker → its own web site (each domain checked to answer on 2026-11-12); used only inside a Google "site:" search,
+// never to build a deep link we have not opened ourselves
+const MAKER_SITES = [
+  [/パナソニック|panasonic|ナショナル/i, 'panasonic.jp'], [/シャープ|sharp/i, 'jp.sharp'], [/東芝|toshiba/i, 'toshiba-lifestyle.com'],
+  [/日立|hitachi/i, 'hitachi.co.jp'], [/ダイキン|daikin/i, 'daikin.co.jp'], [/象印|zojirushi/i, 'zojirushi.co.jp'], [/タイガー|tiger/i, 'tiger-corporation.com'],
+  [/アイリス|iris\s*ohyama/i, 'irisohyama.co.jp'], [/エプソン|epson/i, 'epson.jp'], [/ブラザー|brother/i, 'brother.co.jp'], [/ヤマハ|yamaha/i, 'jp.yamaha.com'],
+  [/ソニー|sony/i, 'sony.jp'], [/三菱/i, 'mitsubishielectric.co.jp'], [/リコー|ricoh/i, 'ricoh.co.jp'], [/キヤノン|キャノン|canon/i, 'canon.jp'],
+  [/ニコン|nikon/i, 'nikon-image.com'], [/富士通|fujitsu|fmv/i, 'fmv.com'], [/カシオ|casio/i, 'casio.com'], [/コクヨ|kokuyo/i, 'kokuyo.co.jp'],
+  [/ジャクエツ|jakuets/i, 'jakuets.co.jp'], [/カワイ|河合|kawai/i, 'kawai.jp']
+];
+const manKey = m => half(m || '').toUpperCase().replace(/[\s　]+/g, '');
+const okUrl = u => /^https?:\/\/[^\s<>"']{3,2000}$/.test(String(u || ''));
+function manualOf(a){
+  const it = S.items.find(i => i.id === a.itemId);
+  const m = it && isObj(it.manuals) ? it.manuals[manKey(a.model)] : null;
+  if (m && (okUrl(m.url) || m.pdfId)) return { url:okUrl(m.url) ? m.url : '', pdfId:m.pdfId || '', note:m.note || '', shared:true };
+  // a PDF attached to this unit with the label 取扱説明書 counts too
+  const pid = (a.photoIds || []).find(id => (a.photoLabels || {})[id] === '取扱説明書');
+  return pid ? { url:'', pdfId:pid, note:'', shared:false } : null;
+}
+function manualSearch(a){
+  const it = itemOf(a), maker = (a.maker || '').trim(), model = (a.model || '').trim();
+  const words = [maker, model || it.name].filter(Boolean).join(' ');
+  const q = t => 'https://www.google.com/search?q=' + encodeURIComponent(t);
+  const out = [{ label:'🔎 取説を探す', url:q(words + ' 取扱説明書') }, { label:'🔎 PDFだけ探す', url:q(words + ' 取扱説明書 filetype:pdf') }];
+  const site = maker && (MAKER_SITES.find(([re]) => re.test(maker)) || [])[1];
+  if (site) out.push({ label:`🔎 ${maker}のサイトで探す`, url:q(`${model || it.name} 取扱説明書 site:${site}`) });
+  return out;
+}
+const manBtn = a => manualOf(a) ? `<button type="button" class="man" data-man="${esc(a.id)}" aria-label="${esc(a.code)}の取扱説明書を開く" title="取扱説明書を開く">📘</button>` : '';
+// opens the saved PDF first (works without the original site), otherwise the registered link
+async function openManual(a){
+  const m = a && manualOf(a); if (!m) return;
+  let w = null; try { w = window.open('', '_blank'); } catch(e) {}
+  if (w) { try { w.opener = null; } catch(e) {} }
+  let u = '';
+  if (m.pdfId && await getOne('photos', m.pdfId)) u = await photoUrl(m.pdfId, true);
+  if (!u) u = m.url;
+  if (!u) { if (w) w.close(); toast('取説を開けませんでした（通信を確かめてください）'); return; }
+  if (w) { w.location.href = u; return; }
+  // pop-ups blocked: keep the ledger open; the PDF is saved as a file, a web page opens through a link in a new tab
+  const el = Object.assign(document.createElement('a'), { href:u, target:'_blank', rel:'noopener noreferrer' });
+  if (u.startsWith('blob:')) el.download = '取扱説明書.pdf';
+  document.body.appendChild(el); el.click(); el.remove();
+}
+function wireMan(root){ $$('[data-man]', root).forEach(b => b.onclick = e => { e.stopPropagation(); openManual(S.assets.find(x => x.id === b.dataset.man)); }); }
+function openManualForm(assetId){
+  const a = S.assets.find(x => x.id === assetId); if (!a) return;
+  const it = S.items.find(i => i.id === a.itemId); if (!it) { toast('品目が見つかりません'); return; }
+  const key = manKey(a.model), cur = (isObj(it.manuals) && it.manuals[key]) || {};
+  const same = S.assets.filter(x => x.itemId === a.itemId && manKey(x.model) === key).length;
+  let pdfId = cur.pdfId || '', newPdf = null, fetchId = '', fetchUrl = '';
+  openDlg(`<div class="dh"><h2>取扱説明書 — ${esc(it.name)}${a.model ? '（' + esc(a.model) + '）' : ''}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><p class="muted" style="margin-top:0">${a.model ? `型番「${esc(a.model)}」の${esc(it.name)}` : `型番の無い${esc(it.name)}`}（${same}件）に共通で登録します。</p>
+    <div class="row" style="margin-bottom:12px">${manualSearch(a).map(l => `<a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join('')}</div>
+    <label class="f"><span>取扱説明書のURL（メーカーのページや PDF）</span><input type="url" id="mUrl" value="${esc(cur.url || '')}" inputmode="url" autocomplete="off" placeholder="https://"></label>
+    <div class="row" style="margin-bottom:6px"><label class="btn sm">📄 PDF を添付<input type="file" id="mPdf" accept="application/pdf" hidden></label><button type="button" class="btn sm" id="mFetch">⬇ URL の PDF を台帳に保存</button></div>
+    <div class="hint" id="mPdfInfo">${pdfId ? '保存した PDF があります（リンクが切れても開けます）' : 'PDF を保存しておくと、メーカーのページが無くなっても開けます。'}</div>
+    <label class="f" style="margin-top:10px"><span>メモ（ページ番号など）</span><input type="text" id="mNote" value="${esc(cur.note || '')}" autocomplete="off"></label></div>
+    <div class="df">${cur.url || cur.pdfId ? '<button type="button" class="btn" id="mDel">登録を外す</button>' : ''}<button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="mSave">保存する</button></div>`, 'dlg2');
+  $('#mPdf').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { newPdf = await makePhoto(f); newPdf.label = '取扱説明書'; pdfId = newPdf.id; $('#mPdfInfo').textContent = 'PDF を添付しました：' + f.name + '（保存すると登録されます）'; } catch(err) { toast(err.message); } };
+  $('#mFetch').onclick = async () => {
+    const url = $('#mUrl').value.trim();
+    if (!okUrl(url)) { toast('先に PDF の URL を入れてください'); $('#mUrl').focus(); return; }
+    if (!navigator.onLine) { toast('通信できる所で行ってください'); return; }
+    if (fetchUrl !== url) { fetchId = uid(); fetchUrl = url; }   // pressing again for the same URL re-uses the id: no duplicate copy
+    const id = fetchId; $('#mFetch').disabled = true; $('#mPdfInfo').textContent = 'サーバーに保存しています…';
+    try {
+      await api('fetchPdf', { org:ORG.id, id, url });
+      let name = url.split('?')[0].split('/').pop() || 'manual.pdf'; try { name = decodeURIComponent(name); } catch(e) {}
+      name = name.slice(0, 120);
+      await writeOps([['photos','put',{ id, kind:'pdf', name, label:'取扱説明書', createdAt:new Date().toISOString(), uploaded:true }]]);
+      pdfId = id; newPdf = null; $('#mPdfInfo').textContent = 'PDF を台帳に保存しました（保存すると登録されます）';
+    } catch(err) { $('#mPdfInfo').textContent = isNetErr(err) ? '通信できませんでした' : err.message; }
+    finally { const b = $('#mFetch'); if (b) b.disabled = false; }
+  };
+  const save = async entry => {
+    const ops = [];
+    if (newPdf) ops.push(['photos','put',newPdf]);
+    ops.push(['items','put',{ ...it, manuals:{ ...(isObj(it.manuals) ? it.manuals : {}), [key]:entry }, updatedAt:new Date().toISOString() },{ base:it }]);
+    ops.push(['logs','put',newLog({ assetId:a.id, type:'メモ', detail:entry ? '取扱説明書を登録' : '取扱説明書の登録を外した' })]);
+    await writeOps(ops); await loadAll(); closeDlg('dlg2'); toast(entry ? '取説を登録しました' : '登録を外しました'); openAsset(a.id); render();
+  };
+  $('#mSave').onclick = () => {
+    const url = $('#mUrl').value.trim();
+    if (url && !okUrl(url)) { toast('URL は https:// から始まる形で入れてください'); $('#mUrl').focus(); return; }
+    if (!url && !pdfId) { toast('URL を入れるか PDF を添付してください'); return; }
+    // only what was changed in this form is sent: a link registered meanwhile on another device stays
+    const note = $('#mNote').value.trim(), entry = { model:a.model || '', at:new Date().toISOString(), by:ME ? ME.email : '' };
+    if (url !== (cur.url || '')) entry.url = url;
+    if (pdfId !== (cur.pdfId || '')) entry.pdfId = pdfId;
+    if (note !== (cur.note || '')) entry.note = note;
+    save(entry);
+  };
+  const del = $('#mDel'); if (del) del.onclick = () => { if (confirm('この型番の取説の登録を外します（保存した PDF は残ります）。よろしいですか？')) save(null); };
+}
 function assetRow(a){
   const sub = [a.model, a.purchaseDate ? '購入 ' + jdate(a.purchaseDate) : '', yen(totalPrice(a)), a.location, a.className].filter(Boolean).join('・');
   return `<button type="button" class="irow" data-open="${esc(a.id)}">${thumbHtml(a)}<div class="c1"><div class="a">${esc(a.code)}${Number(a.qty) > 1 ? ` <span class="muted">×${Number(a.qty)}</span>` : ''}${a.serial ? ` <span class="muted" style="font-weight:400">S/N ${esc(a.serial)}</span>` : ''}</div><div class="b">${esc(sub)}</div></div><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></button>`;
 }
+const assetRowM = a => `<div class="irw">${assetRow(a)}${manBtn(a)}</div>`;
 
 /* ---------- dialogs ---------- */
 function openDlg(html, id = 'dlg'){
@@ -608,8 +1025,11 @@ function openAsset(id){
         ${dd('メモ', esc(a.note).replace(/\n/g, '<br>'))}
         ${dd('登録日', jdate(isoDay(a.createdAt)))}${dd('最終更新', jdate(isoDay(a.updatedAt)))}
       </dl>
+      <h3>取扱説明書</h3>
+      <div class="row">${manualOf(a) ? '<button type="button" class="btn pri" id="aMan">📘 取説を見る</button>' : ''}<button type="button" class="btn" id="aManEdit">${manualOf(a) ? '取説の登録を変える' : '＋ 取説を登録'}</button>${manualOf(a) ? '' : manualSearch(a).map(l => `<a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join('')}</div>
+      ${manualOf(a) && manualOf(a).note ? `<div class="hint">${esc(manualOf(a).note)}</div>` : ''}
 
-      ${siblings.length ? `<h3>同じ品目のほかの${siblings.length}件</h3><div class="card" style="padding:0;overflow:hidden">${siblings.slice(0, 20).map(assetRow).join('')}</div>` : ''}
+      ${siblings.length ? `<h3>同じ品目のほかの${siblings.length}件</h3><div class="card" style="padding:0;overflow:hidden">${siblings.slice(0, 20).map(assetRowM).join('')}</div>` : ''}
       <h3>記録（点検・修理・消毒・移動など）</h3>
       ${logs.length ? `<ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)}　${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}${l.by ? '・記録 ' + esc(l.by) : ''}${l.cost ? '・費用 ' + yen(l.cost) : ''}</div>${esc(l.detail).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}
     </div>
@@ -631,6 +1051,9 @@ function openAsset(id){
   (a.photoLabels && Object.entries(a.photoLabels) || []).forEach(([pid, lb]) => { const c = $(`[data-cap="${CSS.escape(pid)}"]`, d); if (c) c.textContent = lb; });
   hydrate(d).then(() => $$('[data-view]', d).forEach(im => im.onclick = () => { if (im.tagName === 'SPAN') { try { pendingWin = window.open('', '_blank'); } catch(e) {} } viewPhoto(im.dataset.view); }));
   $$('[data-open]', d).forEach(r => r.onclick = () => openAsset(r.dataset.open));
+  wireMan(d);
+  const am = $('#aMan'); if (am) am.onclick = () => openManual(a);
+  $('#aManEdit').onclick = () => openManualForm(a.id);
   $('#aEdit').onclick = () => openAssetForm(a.id);
   $('#aDup').onclick = () => openAssetForm(null, { copyFrom:a.id });
   $('#aLog').onclick = () => openLogForm(a.id);
@@ -729,7 +1152,7 @@ async function openAssetForm(id, opts = {}){
     renderFormPhotos();
   });
   $('#afSave').onclick = () => saveAssetForm(editing);
-  setTimeout(() => { if (!editing && !it) $('#fItem').focus(); }, 50);
+  setTimeout(() => { const fi = $('#fItem'); if (!editing && !it && fi) fi.focus(); }, 50);
 }
 function renderFormPhotos(){
   const box = $('#fphotos'); if (!box) return;
@@ -746,6 +1169,8 @@ async function saveAssetForm(editing){
   if ($('#fPrice').value.trim() && price == null) { toast('購入金額は数字で入れてください'); $('#fPrice').focus(); return; }
   const qty = Math.max(1, parseInt(half($('#fQty').value), 10) || 1);
   const copies = editing ? 1 : Math.min(200, Math.max(1, parseInt($('#fCopies').value, 10) || 1));
+  // pick up numbers another device has just used, so new management numbers do not collide
+  if (!editing && navigator.onLine) { $('#afSave').disabled = true; try { await syncNow(3000); } finally { const b = $('#afSave'); if (b) b.disabled = false; } }
   let code = half($('#fCode').value);
   const dupA = code ? findByCode(code) : null;
   if (dupA && (!editing || dupA.id !== editing.id)) { toast('その管理番号はすでに使われています'); $('#fCode').focus(); return; }
@@ -758,7 +1183,7 @@ async function saveAssetForm(editing){
     item = null;
   }
   if (!item) { item = { id:uid(), name, category:cat, kind:'equipment', createdAt:now, updatedAt:now }; ops.push(['items','put',item]); }
-  else if (cat && item.category !== cat) { item = { ...item, category:cat, updatedAt:now }; ops.push(['items','put',item]); }
+  else if (cat && item.category !== cat) { const b0 = item; item = { ...item, category:cat, updatedAt:now }; ops.push(['items','put',item,{ base:b0 }]); }
   // photos
   const photoIds = formPhotos.map(p => p.id), photoLabels = {};
   formPhotos.forEach(p => { photoLabels[p.id] = p.label || ''; if (p.isNew) ops.push(['photos','put',{ ...p.rec, label:p.label }]); });
@@ -777,7 +1202,7 @@ async function saveAssetForm(editing){
     if (editing.status === '廃棄済' && upd.status !== '廃棄済') Object.assign(upd, { disposalDate:'', disposalReason:'', disposalMethod:'', disposalApprover:'' });
     if (editing.status === '貸出中' && upd.status !== '貸出中') upd.loan = null;
     const changed = diffFields(editing, upd);
-    ops.push(['assets','put',upd]);
+    ops.push(['assets','put',upd,{ base:editing }]);
     if (changed.length) ops.push(['logs','put',newLog({ assetId:upd.id, type:'編集', detail:'変更：' + changed.join('、') })]);
     if (editing.location !== upd.location && upd.location) ops.push(['logs','put',newLog({ assetId:upd.id, type:'移動', detail:`${editing.location || '未設定'} → ${upd.location}` })]);
     created.push(upd);
@@ -820,10 +1245,10 @@ function openItemForm(itemId){
     const other = S.items.find(i => i.id !== it.id && i.name === name && i.kind !== 'consumable');
     if (other) {
       if (!confirm(`「${name}」はすでにあります。2つの品目をまとめますか？（${n}件が「${name}」に移ります）`)) return;
-      const ops = S.assets.filter(a => a.itemId === it.id).map(a => ['assets','put',{ ...a, itemId:other.id, updatedAt:new Date().toISOString() }]);
+      const ops = S.assets.filter(a => a.itemId === it.id).map(a => ['assets','put',{ ...a, itemId:other.id, updatedAt:new Date().toISOString() },{ base:a }]);
       ops.push(['items','delete',it.id]);
       await writeOps(ops);
-    } else await writeOps([['items','put',{ ...it, name, category:$('#iCat').value, updatedAt:new Date().toISOString() }]]);
+    } else await writeOps([['items','put',{ ...it, name, category:$('#iCat').value, updatedAt:new Date().toISOString() },{ base:it }]]);
     await loadAll(); closeDlg(); toast('保存しました'); render();
   };
 }
@@ -855,7 +1280,7 @@ function openLogForm(assetId){
     if (t === '修理' && res === '対応済み' && upd.status === '修理中') upd.status = '使用中';
     if (res === '要対応' && upd.condition !== '使用不可') upd.condition = '要修理';
     if (res === '対応済み' && (upd.condition === '要修理')) upd.condition = '良好';
-    await writeOps([['assets','put',upd], ['logs','put',newLog({ assetId:a.id, type:t, date, result:res, detail, by:$('#lBy').value.trim(), cost:numOrNull($('#lCost').value) })]]);
+    await writeOps([['assets','put',upd,{ base:a }], ['logs','put',newLog({ assetId:a.id, type:t, date, result:res, detail, by:$('#lBy').value.trim(), cost:numOrNull($('#lCost').value) })]]);
     await loadAll(); closeDlg('dlg2'); toast('記録しました'); openAsset(a.id); render();
   };
 }
@@ -871,14 +1296,14 @@ function openLoanForm(assetId){
   $('#loSave').onclick = async () => {
     const to = $('#loTo').value.trim(); if (!to) { toast('貸出先を入れてください'); return; }
     const loan = { to, out:$('#loOut').value || today(), due:$('#loDue').value, prevStatus:a.status };
-    await writeOps([['assets','put',{ ...a, status:'貸出中', loan, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'貸出', date:loan.out, detail:`${to}へ貸出${loan.due ? '（返却予定 ' + jdate(loan.due) + '）' : ''} ${$('#loNote').value}`.trim() })]]);
+    await writeOps([['assets','put',{ ...a, status:'貸出中', loan, updatedAt:new Date().toISOString() },{ base:a }], ['logs','put',newLog({ assetId:a.id, type:'貸出', date:loan.out, detail:`${to}へ貸出${loan.due ? '（返却予定 ' + jdate(loan.due) + '）' : ''} ${$('#loNote').value}`.trim() })]]);
     await loadAll(); closeDlg('dlg2'); toast('貸出を記録しました'); openAsset(a.id); render();
   };
 }
 async function doReturn(assetId){
   const a = S.assets.find(x => x.id === assetId);
   const back = (a.loan && a.loan.prevStatus && a.loan.prevStatus !== '貸出中') ? a.loan.prevStatus : '使用中';
-  await writeOps([['assets','put',{ ...a, status:back, loan:null, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'返却', detail:`${a.loan ? a.loan.to : ''}から返却` })]]);
+  await writeOps([['assets','put',{ ...a, status:back, loan:null, updatedAt:new Date().toISOString() },{ base:a }], ['logs','put',newLog({ assetId:a.id, type:'返却', detail:`${a.loan ? a.loan.to : ''}から返却` })]]);
   await loadAll(); toast('返却を記録しました'); openAsset(a.id); render();
 }
 function openDisposeForm(assetId){
@@ -901,14 +1326,14 @@ function openDisposeForm(assetId){
     const reason = $('#dReason').value.trim(); if (!reason) { toast('廃棄理由を入れてください'); $('#dReason').focus(); return; }
     const ap = $('#dApproval') ? $('#dApproval').value.trim() : '';
     const upd = { ...a, status:'廃棄済', disposalDate:$('#dDate').value || today(), disposalMethod:$('#dMethod').value, disposalReason:reason + (ap ? `（承認：${ap}）` : ''), disposalApprover:$('#dApprover').value.trim(), loan:null, updatedAt:new Date().toISOString() };
-    await writeOps([['assets','put',upd], ['logs','put',newLog({ assetId:a.id, type:'廃棄', date:upd.disposalDate, detail:`${upd.disposalMethod || ''} ${upd.disposalReason}`.trim(), by:upd.disposalApprover })]]);
+    await writeOps([['assets','put',upd,{ base:a }], ['logs','put',newLog({ assetId:a.id, type:'廃棄', date:upd.disposalDate, detail:`${upd.disposalMethod || ''} ${upd.disposalReason}`.trim(), by:upd.disposalApprover })]]);
     await loadAll(); closeDlg('dlg2'); toast('廃棄済みにしました'); openAsset(a.id); render();
   };
 }
 async function undispose(assetId){
   const a = S.assets.find(x => x.id === assetId);
   if (!confirm('廃棄を取り消して「保管中」に戻しますか？（廃棄の記録は履歴に残ります）')) return;
-  await writeOps([['assets','put',{ ...a, status:'保管中', disposalDate:'', disposalReason:'', disposalMethod:'', disposalApprover:'', updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'メモ', detail:`廃棄を取り消し（取り消し前：${a.disposalDate || ''} ${a.disposalMethod || ''} ${a.disposalReason || ''}）`.trim() })]]);
+  await writeOps([['assets','put',{ ...a, status:'保管中', disposalDate:'', disposalReason:'', disposalMethod:'', disposalApprover:'', updatedAt:new Date().toISOString() },{ base:a }], ['logs','put',newLog({ assetId:a.id, type:'メモ', detail:`廃棄を取り消し（取り消し前：${a.disposalDate || ''} ${a.disposalMethod || ''} ${a.disposalReason || ''}）`.trim() })]]);
   await loadAll(); openAsset(a.id); render();
 }
 async function deleteAsset(assetId){
@@ -958,7 +1383,7 @@ function openSupplyForm(id){
     const name = $('#cName').value.trim(); if (!name) { toast('品名を入れてください'); return; }
     const now = new Date().toISOString();
     const rec = { ...(id ? it : { id:uid(), createdAt:now, kind:'consumable' }), name, category:$('#cCat').value, unit:$('#cUnit').value.trim(), stock:Number($('#cStock').value) || 0, reorderPoint:numOrNull($('#cReorder').value), unitPrice:numOrNull($('#cPrice').value), location:$('#cLoc').value, vendor:$('#cVendor').value.trim(), note:$('#cNote').value.trim(), updatedAt:now };
-    const ops = [['items','put',rec]];
+    const ops = [['items','put',rec, id ? { base:it } : undefined]];
     if (id && Number(it.stock || 0) !== rec.stock) ops.push(['logs','put',newLog({ itemId:rec.id, type:'在庫修正', detail:`${it.stock || 0} → ${rec.stock}` })]);
     await writeOps(ops); await loadAll(); closeDlg(); toast('保存しました'); render();
   };
@@ -983,7 +1408,7 @@ function openIoForm(id, kind){
     const stock = (Number(it.stock) || 0) + (kind === 'in' ? q : -q);
     if (stock < 0 && !confirm('在庫がマイナスになります。記録しますか？')) return;
     const detail = [kind === 'out' && $('#ioCls').value ? $('#ioCls').value : '', $('#ioNote').value.trim()].filter(Boolean).join(' ');
-    await writeOps([['items','put',{ ...it, stock, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ itemId:it.id, type:kind === 'in' ? '入庫' : '出庫', qty:q, date:$('#ioDate').value || today(), by:$('#ioBy').value.trim(), detail, cost:kind === 'in' ? numOrNull($('#ioCost').value) : null })]]);
+    await writeOps([['items','put',{ ...it, stock, updatedAt:new Date().toISOString() },{ base:it, inc:{ stock:kind === 'in' ? q : -q } }], ['logs','put',newLog({ itemId:it.id, type:kind === 'in' ? '入庫' : '出庫', qty:q, date:$('#ioDate').value || today(), by:$('#ioBy').value.trim(), detail, cost:kind === 'in' ? numOrNull($('#ioCost').value) : null })]]);
     await loadAll(); closeDlg(); toast('記録しました'); render();
   };
 }
@@ -1007,6 +1432,7 @@ function renderStock(){
     };
     return;
   }
+  const st0 = JSON.parse(JSON.stringify(st));   // what this screen shows: only fields changed from here are sent
   const targets = stTargets(st);
   const done = targets.filter(a => st.checks[a.id]), todo = targets.filter(a => !st.checks[a.id]);
   const moved = done.filter(a => st.checks[a.id].foundLocation && st.checks[a.id].foundLocation !== a.location);
@@ -1021,14 +1447,14 @@ function renderStock(){
     ${todo.length ? [...byLoc.entries()].map(([loc, arr]) => `<details class="grp" open><summary><div><div class="nm">${esc(loc)}</div><div class="meta">${arr.length}件</div></div><span class="caret" aria-hidden="true">›</span></summary>${arr.map(a => `<div class="irow" style="cursor:default">${thumbHtml(a)}<div class="c1"><div class="a">${esc(itemOf(a).name)}　<span class="muted">${esc(a.code)}</span></div><div class="b">${esc([a.model, a.className].filter(Boolean).join('・'))}</div></div><button type="button" class="btn sm pri" data-chk="${esc(a.id)}">あった</button></div>`).join('')}</details>`).join('') : '<div class="card">すべて確認できました。</div>'}
     <div class="row" style="margin-top:16px"><button type="button" class="btn pri" id="stFinish">棚卸を終える</button><button type="button" class="btn" id="stCancel">中止する</button></div>`;
   hydrate(box);
-  $('#stHere').onchange = async () => { st.here = $('#stHere').value; await writeOps([['stocktakes','put',st]]); };
+  $('#stHere').onchange = async () => { st.here = $('#stHere').value; await writeOps([['stocktakes','put',st,{ base:st0 }]]); };
   const check = async (a, how) => {
     if (!a) { toast('台帳にない管理番号です'); return; }
     if (!stTargets(st).includes(a)) { toast(`${a.code} は今回の棚卸の対象外です（${a.location || '場所未設定'}）`); return; }
     if (st.checks[a.id]) { toast(`${itemOf(a).name}（${a.code}）は確認済みです`); return; }
     st.checks[a.id] = { at:new Date().toISOString(), how, foundLocation:st.here || '' };
-    const ops = [['stocktakes','put',st]];
-    if (a.status === '紛失・所在不明') { ops.push(['assets','put',{ ...a, status:'使用中', updatedAt:new Date().toISOString() }]); ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：所在不明だった物を発見` })]); }
+    const ops = [['stocktakes','put',st,{ base:st0 }]];
+    if (a.status === '紛失・所在不明') { ops.push(['assets','put',{ ...a, status:'使用中', updatedAt:new Date().toISOString() },{ base:a }]); ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：所在不明だった物を発見` })]); }
     await writeOps(ops); await loadAll();
     toast(`✓ ${itemOf(a).name}（${a.code}）`); if (navigator.vibrate) navigator.vibrate(60);
     renderStock();
@@ -1039,8 +1465,8 @@ function renderStock(){
   $('#stScan').onclick = () => openScanner(code => { check(findByCode(code), 'qr'); return true; }, true);
   $$('[data-fix]', box).forEach(b => b.onclick = async () => {
     const a = S.assets.find(x => x.id === b.dataset.fix), to = st.checks[a.id].foundLocation;
-    await writeOps([['assets','put',{ ...a, location:to, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'移動', detail:`棚卸で修正：${a.location || '未設定'} → ${to}` })]]);
-    st.checks[a.id].foundLocation = to; await writeOps([['stocktakes','put',st]]); await loadAll(); renderStock();
+    await writeOps([['assets','put',{ ...a, location:to, updatedAt:new Date().toISOString() },{ base:a }], ['logs','put',newLog({ assetId:a.id, type:'移動', detail:`棚卸で修正：${a.location || '未設定'} → ${to}` })]]);
+    st.checks[a.id].foundLocation = to; await writeOps([['stocktakes','put',st,{ base:st0 }]]); await loadAll(); renderStock();
   });
   $('#stCancel').onclick = async () => { if (!confirm('この棚卸を中止します（確認した結果は消えます）。よろしいですか？')) return; await writeOps([['stocktakes','delete',st.id]]); await loadAll(); renderStock(); };
   $('#stFinish').onclick = async () => {
@@ -1048,8 +1474,8 @@ function renderStock(){
     if (todo.length) markLost = confirm(`未確認が${todo.length}件あります。\n\n「OK」→ 未確認の物を「紛失・所在不明」にして終える（貸出中の物は除く）\n「キャンセル」→ 状態は変えずに終える`);
     const now = new Date().toISOString(), ops = [];
     done.forEach(a => ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：確認${st.checks[a.id].foundLocation && st.checks[a.id].foundLocation !== a.location ? '（' + st.checks[a.id].foundLocation + 'で発見）' : ''}` })]));
-    todo.forEach(a => { ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：未確認` })]); if (markLost && a.status !== '貸出中') ops.push(['assets','put',{ ...a, status:'紛失・所在不明', updatedAt:now }]); });
-    ops.push(['stocktakes','put',{ ...st, finishedAt:now, result:{ found:done.length, missing:todo.length, moved:moved.length, targets:targets.length } }]);
+    todo.forEach(a => { ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：未確認` })]); if (markLost && a.status !== '貸出中') ops.push(['assets','put',{ ...a, status:'紛失・所在不明', updatedAt:now },{ base:a }]); });
+    ops.push(['stocktakes','put',{ ...st, finishedAt:now, result:{ found:done.length, missing:todo.length, moved:moved.length, targets:targets.length } },{ base:st0 }]);
     await writeOps(ops); await loadAll(); toast('棚卸を終えました'); renderStock();
   };
 }
@@ -1123,8 +1549,10 @@ function printLabels(ids){
 function printSheet(id){
   const a = S.assets.find(x => x.id === id), it = itemOf(a), logs = assetLogs(id);
   const rows = [['管理番号', a.code], ['品目', it.name], ['分類', it.category], ['型番', a.model], ['メーカー', a.maker], ['製造番号', a.serial], ['数量', a.qty || 1], ['購入日', jdate(a.purchaseDate)], ['購入先', a.vendor], ['購入金額(税込)', yen(totalPrice(a))], ['財源', a.funding], ['補助金名', a.subsidyName], ['処分制限期限', jdate(a.restrictUntil)], ['保証期限', jdate(a.warrantyUntil)], ['リース・契約期限', jdate(a.leaseUntil)], ['付属品', a.accessories], ['耐用年数', a.usefulLife ? a.usefulLife + '年' : ''], ['保管場所', a.location], ['使用クラス', a.className], ['状態', a.status], ['廃棄日', jdate(a.disposalDate)], ['廃棄理由', a.disposalReason], ['メモ', a.note]].filter(r => r[1]);
+  const man = manualOf(a);
+  if (man) rows.push(['取扱説明書', man.url || '台帳に PDF を保存（台帳の画面から開けます）']);
   const tag = confirm('ラベル（QRコード）も一緒に印刷しますか？');
-  doPrint(`<div class="sheet">${prHead('備品個票')}<h1>${esc(it.name)}（${esc(a.code)}）</h1><div style="display:flex;gap:6mm;align-items:flex-start"><div class="phs">${(a.photoIds || []).slice(0, 4).map(p => `<img data-ph="${esc(p)}" data-big="1" alt="">`).join('')}</div>${tag ? `<div class="lbl" style="width:60mm">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(it.name)}</div></div>` : ''}</div>
+  doPrint(`<div class="sheet">${prHead('備品個票')}<h1>${esc(it.name)}（${esc(a.code)}）</h1><div style="display:flex;gap:6mm;align-items:flex-start"><div class="phs">${(a.photoIds || []).slice(0, 4).map(p => `<img data-ph="${esc(p)}" data-big="1" alt="">`).join('')}</div>${tag ? `<div class="lbl" style="width:60mm">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(it.name)}</div></div>` : ''}${man && man.url ? `<div class="lbl" style="width:60mm">${qrSvg(man.url)}<div class="t"><b>取扱説明書</b>読み取ると開きます</div></div>` : ''}</div>
     <table>${rows.map(r => `<tr><th style="width:35mm">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>
     ${logs.length ? `<h3>記録</h3><table><tr><th>日付</th><th>種類</th><th>内容</th><th>記録者</th></tr>${logs.map(l => `<tr><td>${jdate(l.date)}</td><td>${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}</td><td>${esc(l.detail)}${l.cost ? '（' + yen(l.cost) + '）' : ''}</td><td>${esc(l.by)}</td></tr>`).join('')}</table>` : ''}</div>`);
 }
@@ -1135,7 +1563,7 @@ function printOrder(low){
 /* ---------- CSV ---------- */
 const CSV_COLS = [['管理番号','code'],['品目','_item'],['分類','_cat'],['型番','model'],['メーカー','maker'],['製造番号','serial'],['数量','qty'],['購入日','purchaseDate'],['購入先','vendor'],['購入金額(税込・単価)','price'],['財源','funding'],['補助金名','subsidyName'],['処分制限期限','restrictUntil'],['保証期限','warrantyUntil'],['リース・契約期限','leaseUntil'],['付属品','accessories'],['耐用年数','usefulLife'],['保管場所','location'],['使用クラス','className'],['状態','status'],['傷み具合','condition'],['点検周期(月)','inspectCycle'],['次回点検日','nextInspection'],['タグ','tags'],['廃棄日','disposalDate'],['廃棄理由','disposalReason'],['廃棄方法','disposalMethod'],['メモ','note']];
 const csvCell = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-function download(name, blob){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+function download(name, blob){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000); }
 function exportCsv(list){
   const lines = [CSV_COLS.map(c => c[0]).join(',')];
   for (const a of list) { const it = itemOf(a); lines.push(CSV_COLS.map(([, k]) => csvCell(k === '_item' ? it.name : k === '_cat' ? it.category : a[k])).join(',')); }
@@ -1199,7 +1627,7 @@ async function importCsv(file){
     if (!rec.qty) rec.qty = 1;
     rec.code = code || nextCode(reserved); reserved.add(rec.code.toUpperCase()); codesInFile.add(rec.code.toUpperCase());
     rec.updatedAt = now;
-    ops.push(['assets','put',rec]);
+    ops.push(['assets','put',rec, ex ? { base:ex } : undefined]);
     ops.push(['logs','put',newLog({ assetId:rec.id, type:ex ? '編集' : '登録', detail:'CSV取り込み' })]);
     ex ? nUpd++ : nNew++;
   }
@@ -1215,12 +1643,52 @@ async function dataUrlToBlob(u){ return (await fetch(u)).blob(); }
 async function exportBackup(){
   toast('バックアップを作っています…');
   const photos = await getAll('photos');
+  // photos taken on other devices may not be in this device's cache yet
+  let miss = 0;
+  for (const p of photos) { if (!p.blob) p.blob = await fetchPhoto(p, true); if (!p.thumb && p.thumbPath) p.thumb = await fetchPhoto(p, false); if (!p.blob) miss++; }
+  if (miss) { alert(`写真${miss}枚をサーバーから取り出せませんでした。通信できる所で、もう一度お試しください。`); return; }
   const ph = [];
   for (const p of photos) ph.push({ id:p.id, label:p.label, kind:p.kind || '', name:p.name || '', createdAt:p.createdAt, blob:await blobToDataUrl(p.blob), thumb:p.thumb ? await blobToDataUrl(p.thumb) : '' });
-  const meta = await getAll('meta');
+  const meta = (await getAll('meta')).map(m => { const c = { ...m }; delete c.lastBackup; return c; });
   const data = { app:'hoikuen-bihin', version:1, exportedAt:new Date().toISOString(), items:S.items, assets:S.assets, logs:S.logs, stocktakes:S.stocktakes, meta, photos:ph };
   download(`物品台帳バックアップ_${today()}.json`, new Blob([JSON.stringify(data)], { type:'application/json' }));
-  S.settings.lastBackup = new Date().toISOString(); await saveMeta(); render();
+  S.settings.lastBackup = new Date().toISOString(); await setLocal('lastBackup', S.settings.lastBackup); render();
+}
+/* add records the server does not have yet (backup restore / migration of the previous version's data).
+   Existing records are never changed or removed, and the same file can be imported again without duplicates. */
+async function planMerge(src){
+  const have = k => new Set(S[k].map(x => x.id));
+  const hi = have('items'), ha = have('assets'), hl = have('logs'), hs = have('stocktakes');
+  const hp = new Set((await getAll('photos')).map(p => p.id));
+  const add = { items:src.items.filter(x => !hi.has(x.id)), assets:src.assets.filter(x => !ha.has(x.id)), logs:(src.logs || []).filter(x => !hl.has(x.id)), stocktakes:(src.stocktakes || []).filter(x => !hs.has(x.id)), photos:(src.photos || []).filter(x => !hp.has(x.id)) };
+  const codes = new Map(S.assets.map(a => [String(a.code).toUpperCase(), a.id]));
+  const dup = add.assets.filter(a => a.code && codes.has(String(a.code).toUpperCase())).length;
+  return { add, dup, same:src.assets.length - add.assets.length };
+}
+async function applyMerge(src, add, insertOnly){
+  const ops = [];
+  // migration of the previous version: a record deleted on purpose on the server stays deleted.
+  // backup restore: bringing deleted records back is the point of a backup, so it may revive them.
+  const C = insertOnly ? { create:true } : undefined;
+  add.items.forEach(v => ops.push(['items','put',v,C])); add.assets.forEach(v => ops.push(['assets','put',v,C]));
+  add.logs.forEach(v => ops.push(['logs','put',v,C])); add.stocktakes.forEach(v => ops.push(['stocktakes','put',v,C]));
+  add.photos.forEach(v => ops.push(['photos','put',v,C]));
+  const m = (src.meta || []).find(x => x && x.key === 'masters'), st = (src.meta || []).find(x => x && x.key === 'settings');
+  if (m) {
+    const nm = {}; let ch = false;
+    for (const k of ['categories','locations','classes','fundings']) { const cur = S.masters[k] || []; const extra = (Array.isArray(m[k]) ? m[k] : []).filter(v => typeof v === 'string' && v && !cur.includes(v)); nm[k] = [...cur, ...extra]; if (extra.length) ch = true; }
+    if (ch) ops.push(['meta','put',{ key:'masters', ...nm }, { base:{ key:'masters', ...S.masters } }]);
+  }
+  if (st) {
+    const ns = { ...S.settings };
+    if (!ns.orgName && typeof st.orgName === 'string') ns.orgName = st.orgName;
+    ns.seq = Math.max(Number(ns.seq) || 1, Number(st.seq) || 1);
+    ops.push(['meta','put',{ key:'settings', ...ns }, { base:{ key:'settings', ...S.settings } }]);
+  }
+  await writeOps(ops);
+  await loadAll();   // shown at once; photos upload in the background
+  // full refresh afterwards: anything the server declined (deleted there) leaves this device's copy again
+  if (insertOnly) await sync(true); else sync(true);
 }
 async function importBackup(file){
   let data;
@@ -1234,25 +1702,17 @@ async function importBackup(file){
   const D = /^\d{4}-\d{2}-\d{2}$/;
   data.assets = data.assets.map(a => { const o = { ...a }; ['qty','price','usefulLife','inspectCycle'].forEach(k => { if (o[k] != null && o[k] !== '') { const n = Number(o[k]); o[k] = isNaN(n) ? null : n; } }); ['purchaseDate','restrictUntil','warrantyUntil','leaseUntil','nextInspection','disposalDate'].forEach(k => { if (o[k] && !D.test(o[k])) o[k] = ''; }); if (!STATUSES.includes(o.status)) o.status = '使用中'; if (!Array.isArray(o.photoIds)) o.photoIds = []; o.code = String(o.code ?? ''); return o; });
   if (data.assets.length === 0 && data.items.length === 0 && (S.assets.length || S.items.length)) { alert('このバックアップは中身が空です。いまのデータを守るため、復元を止めました。\n（データを消したい時は「すべてのデータを消す」を使ってください）'); return; }
-  if (!confirm(`バックアップ（${jdate(isoDay(data.exportedAt))}作成・備品${data.assets.length}件・写真${(data.photos || []).length}枚）で、いまの端末のデータを置き換えます。\nいまのデータ（備品${S.assets.length}件）は消えます。よろしいですか？`)) return;
+  await syncNow();
+  const plan = await planMerge({ ...data, logs:arr('logs'), stocktakes:arr('stocktakes'), photos:arr('photos') });
+  const n = plan.add.items.length + plan.add.assets.length + plan.add.logs.length + plan.add.stocktakes.length + plan.add.photos.length;
+  if (!n) { alert('このバックアップの中身は、すべて台帳にあります。追加する物はありません。'); return; }
+  if (!confirm(`バックアップ（${jdate(isoDay(data.exportedAt))}作成）から、台帳にまだ無い物を追加します。\n・備品 ${plan.add.assets.length}件／品目 ${plan.add.items.length}件／記録 ${plan.add.logs.length}件／写真 ${plan.add.photos.length}枚\n${plan.same ? `・すでにある備品${plan.same}件は変えません\n` : ''}${plan.dup ? `・管理番号がほかの備品と重なる物が${plan.dup}件あります（そのまま追加し、ホームに「重複」として出します）\n` : ''}台帳から削除した物も、バックアップにあれば元に戻ります。いまのデータは消えません。この園のすべての端末に反映されます。よろしいですか？`)) return;
   let photos;
-  try { photos = await Promise.all((data.photos || []).map(async p => ({ id:p.id, label:p.label, kind:p.kind || '', name:p.name || '', createdAt:p.createdAt, blob:await dataUrlToBlob(p.blob), thumb:p.thumb ? await dataUrlToBlob(p.thumb) : null }))); }
+  try { photos = await Promise.all(plan.add.photos.map(async p => ({ id:p.id, label:p.label, kind:p.kind || '', name:p.name || '', createdAt:p.createdAt, blob:await dataUrlToBlob(p.blob), thumb:p.thumb ? await dataUrlToBlob(p.thumb) : null }))); }
   catch(e) { alert('写真の読み込みに失敗しました。データは変更していません。'); return; }
-  await new Promise((res, rej) => {
-    const stores = ['items','assets','photos','logs','stocktakes','meta'];
-    const t = db.transaction(stores, 'readwrite');
-    t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('中断しました'));
-    try {
-      stores.forEach(s => t.objectStore(s).clear());
-      data.items.forEach(v => t.objectStore('items').put(v));
-      data.assets.forEach(v => t.objectStore('assets').put(v));
-      arr('logs').forEach(v => t.objectStore('logs').put(v));
-      arr('stocktakes').forEach(v => t.objectStore('stocktakes').put(v));
-      arr('meta').forEach(v => t.objectStore('meta').put(v));
-      photos.forEach(v => t.objectStore('photos').put(v));
-    } catch(e) { try { t.abort(); } catch(e2) {} rej(e); }
-  }).then(async () => { urlCache.clear(); await loadAll(); toast('復元しました'); render(); })
-    .catch(e => alert('復元できませんでした。データは元のままです。\n' + (e && e.message)));
+  try { await applyMerge(data, { ...plan.add, photos }); }
+  catch(e) { alert('復元できませんでした。データは元のままです。\n' + (e && e.message)); return; }
+  urlCache.clear(); toast(`追加しました（備品${plan.add.assets.length}件）`); render();
 }
 
 /* ---------- SETTINGS ---------- */
@@ -1262,7 +1722,25 @@ async function renderSettings(){
   try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); usage = `使用量 約${(e.usage / 1048576).toFixed(1)}MB／使える目安 約${(e.quota / 1073741824).toFixed(1)}GB`; } } catch(e) {}
   let persisted = false; try { persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false; } catch(e) {}
   const ta = (id, label, list) => `<label class="f"><span>${label}（1行に1つ）</span><textarea id="${id}" rows="6">${esc(list.join('\n'))}</textarea></label>`;
+  const base0 = JSON.parse(JSON.stringify({ masters:S.masters, settings:S.settings }));
+  const admin = ORG && ORG.role === 'admin';
+  const lg = legacyState;
   $('#v-settings').innerHTML = `<h2>設定</h2>
+    <div class="card"><h3 style="margin-top:0">アカウントと同期</h3>
+      <p style="margin-top:0">ログイン中：<b>${esc(ME ? ME.email : '')}</b><br>園：${esc(S.settings.orgName || (ORG && ORG.name) || '')}（${admin ? '管理者' : '職員'}）</p>
+      <p class="muted" id="syncInfo" role="status"></p>
+      <div class="row"><button type="button" class="btn" id="aSync">↻ 今すぐ同期</button><button type="button" class="btn" id="aJoin">招待コードで別の園に参加</button>${ORGS.length > 1 ? '<button type="button" class="btn" id="aSwitch">園を切り替える</button>' : ''}<button type="button" class="btn" id="aOut">ログアウト</button></div>
+      <div class="hint">台帳はサーバーに保存され、同じ園の人が使うすべての端末で同じ内容が見えます。通信できない間の変更はこの端末に保存し、通信が戻ったら自動で送ります。</div></div>
+    ${admin ? `<div class="card" id="memCard"><h3 style="margin-top:0">メンバー（この園の職員）</h3><div id="memList" class="muted">読み込み中…</div>
+      <h3>職員を招待する</h3><div class="fgrid">
+        <label class="f"><span>招待する人のメールアドレス</span><input type="email" id="invEmail" autocomplete="off" inputmode="email" autocapitalize="off" spellcheck="false"></label>
+        <label class="f"><span>役割</span><select id="invRole"><option value="member">職員（台帳の閲覧・入力）</option><option value="admin">管理者（職員の招待もできる）</option></select></label></div>
+      <button type="button" class="btn pri" id="invBtn">招待コードを出す</button>
+      <div class="hint">コードは7日間・1回だけ使えます。本人がこのページの「招待コード・再設定コードをお持ちの方」から、自分でパスワードを決めて始めます（管理者にもパスワードは見えません）。</div></div>` : ''}
+    ${lg && lg.n ? `<div class="card"><h3 style="margin-top:0">前の版のデータ（この端末の中）</h3>
+      <p style="margin-top:0">前の版でこの端末に保存した台帳があります（備品${lg.n}件・写真${lg.photos}枚）。${lg.done ? `<br><b>移行済み</b>（${jdate(isoDay(lg.done.at))}・確認済み）。端末の元のデータはそのまま残しています。` : ''}</p>
+      <button type="button" class="btn ${lg.done ? '' : 'pri'}" id="lgMove">${lg.done ? 'もう一度確かめて足りない分を移す' : 'この園のサーバーへ移す'}</button>
+      <div class="hint">サーバーにまだ無い物だけを足します。何度押しても二重にはなりません。端末の元のデータは消しません。</div></div>` : ''}
     <div class="card"><h3 style="margin-top:0">基本</h3><div class="fgrid">
       <label class="f"><span>園の名前（画面・印刷に表示）</span><input type="text" id="sOrg" value="${esc(s.orgName)}" autocomplete="off"></label>
       <label class="f"><span>管理番号の頭文字</span><input type="text" id="sPrefix" value="${esc(s.codePrefix)}" autocomplete="off"><div class="hint">次の番号：${esc(peekCode())}</div></label>
@@ -1272,29 +1750,158 @@ async function renderSettings(){
       <div class="hint">名前を変えても、登録済みの備品の値はそのまま残ります。</div></div>
     <div class="row" style="margin-bottom:16px"><button type="button" class="btn pri" id="sSave">設定を保存する</button></div>
     <div class="card"><h3 style="margin-top:0">バックアップと移行</h3>
-      <p style="margin-top:0">データ（写真を含む）は<b>この端末のこのブラウザの中だけ</b>に保存されます。機種変更・別の端末で使う時や、もしもの時のために、ときどきバックアップを保存してください。</p>
-      <p class="muted">前回のバックアップ：${s.lastBackup ? jdate(isoDay(s.lastBackup)) : 'まだありません'}　${esc(usage)}　${persisted ? '・消えにくい保存：有効' : ''}</p>
-      <div class="row"><button type="button" class="btn pri" id="bExp">⬇ バックアップを保存（写真込み）</button><button type="button" class="btn" id="bImp">⬆ バックアップから復元</button></div>
+      <p style="margin-top:0">データ（写真を含む）はサーバーに保存されています。もしもの時のために、ときどき写真込みのバックアップを保存しておくと安心です。前の版（端末だけに保存していた頃）のバックアップも、ここから取り込めます。</p>
+      <p class="muted">この端末での前回のバックアップ：${s.lastBackup ? jdate(isoDay(s.lastBackup)) : 'まだありません'}　${esc(usage)}　${persisted ? '・消えにくい保存：有効' : ''}</p>
+      <div class="row"><button type="button" class="btn pri" id="bExp">⬇ バックアップを保存（写真込み）</button><button type="button" class="btn" id="bImp">⬆ バックアップから取り込む（足りない分を追加）</button></div>
       <h3>表計算ソフトとのやりとり（CSV）</h3>
       <div class="row"><button type="button" class="btn" id="cExpAll">⬇ 全件をCSVで保存</button><button type="button" class="btn" id="cImp">⬆ CSVから取り込む</button></div>
       <div class="hint">Excel等で作った台帳を取り込めます。1行目の見出しは「CSVで保存」した形に合わせてください（品目の列は必須、管理番号が同じ行は更新）。写真はCSVに入りません。</div></div>
-    <div class="card"><h3 style="margin-top:0">データの消去</h3><p class="muted" style="margin-top:0">この端末の台帳データをすべて消します。先にバックアップを保存してください。</p><button type="button" class="btn ng" id="sWipe">すべてのデータを消す</button></div>`;
+    ${admin ? `<div class="card"><h3 style="margin-top:0">データの消去</h3><p class="muted" style="margin-top:0">この園の台帳データ（備品・写真・記録・棚卸）を、<b>すべての端末から</b>消します。先にバックアップを保存してください。サーバーには「消した印」を付けて残るため、運営者に頼めば戻せます。</p><button type="button" class="btn ng" id="sWipe">すべてのデータを消す</button></div>` : ''}`;
   $('#sSave').onclick = async () => {
     const lines = id => [...new Set($(id).value.split('\n').map(x => x.trim()).filter(Boolean))];
     S.masters = { categories:lines('#mCat'), locations:lines('#mLoc'), classes:lines('#mCls'), fundings:lines('#mFund') };
     S.settings.orgName = $('#sOrg').value.trim(); S.settings.codePrefix = $('#sPrefix').value.trim(); S.settings.assetThreshold = Number($('#sThr').value) || 100000;
-    await saveMeta(); toast('保存しました'); render();
+    await saveMeta(base0); await loadAll(); toast('保存しました'); renderDeferred = false; render();
   };
+  $('#aSync').onclick = async () => { await sync(true); toast(SYNC.err ? '同期できませんでした' : (SYNC.online ? '同期しました' : '通信できません')); };
+  $('#aOut').onclick = logout;
+  $('#aJoin').onclick = joinOrg;
+  const sw = $('#aSwitch'); if (sw) sw.onclick = () => { try { localStorage.removeItem(LS_ORG); } catch(e) {} location.reload(); };
+  const lm = $('#lgMove'); if (lm) lm.onclick = migrateLegacy;
+  if (admin) { $('#invBtn').onclick = () => issueCode($('#invEmail').value.trim(), $('#invRole').value, 'join'); renderMembers(); }
+  updateSyncUI();
   $('#bExp').onclick = exportBackup;
   $('#bImp').onclick = () => $('#fileImport').click();
   $('#cExpAll').onclick = () => exportCsv([...S.assets].sort((a, b) => a.code.localeCompare(b.code, 'ja', { numeric:true })));
   $('#cImp').onclick = () => $('#fileCsv').click();
-  $('#sWipe').onclick = async () => {
-    const w = prompt('すべてのデータ（備品・写真・記録）を消します。元に戻せません。\n消す場合は「けす」と入力してください。');
+  const wp = $('#sWipe'); if (wp) wp.onclick = async () => {
+    const w = prompt('この園のすべてのデータ（備品・写真・記録）を、すべての端末から消します。\n消す場合は「けす」と入力してください。');
     if (w !== 'けす') return;
-    await new Promise((res, rej) => { const st = ['items','assets','photos','logs','stocktakes','meta']; const t = db.transaction(st, 'readwrite'); st.forEach(x => t.objectStore(x).clear()); t.oncomplete = res; t.onerror = () => rej(t.error); });
+    const photos = await getAll('photos');
+    const ops = [...S.logs.map(x => ['logs','delete',x.id]), ...S.stocktakes.map(x => ['stocktakes','delete',x.id]), ...S.assets.map(x => ['assets','delete',x.id]), ...S.items.map(x => ['items','delete',x.id]), ...photos.map(x => ['photos','delete',x.id])];
+    if (ops.length) await writeOps(ops);
     urlCache.clear(); selected.clear(); await loadAll(); toast('消去しました'); render();
   };
+}
+
+/* ---------- members / invite codes (admin) ---------- */
+async function renderMembers(){
+  const box = $('#memList'); if (!box) return;
+  let data;
+  try { data = (await api('members', { org:ORG.id })).members; } catch(e) { data = null; }
+  if (!$('#memList')) return;
+  if (!Array.isArray(data)) { box.textContent = '読み込めませんでした（通信を確かめてください）'; return; }
+  box.classList.remove('muted');
+  box.innerHTML = data.map(m => `<div class="mrow"><span class="e">${esc(m.email)}${m.user_id === ME.uid ? '（自分）' : ''}<br><span class="chip">${m.role === 'admin' ? '管理者' : '職員'}</span></span>
+    <span class="row"><button type="button" class="btn sm" data-reset="${esc(m.email)}">パスワード再設定コード</button>${m.user_id === ME.uid ? '' : `<button type="button" class="btn sm" data-role="${esc(m.user_id)}|${m.role === 'admin' ? 'member' : 'admin'}">${m.role === 'admin' ? '職員にする' : '管理者にする'}</button><button type="button" class="btn sm ng" data-rm="${esc(m.user_id)}|${esc(m.email)}">外す</button>`}</span></div>`).join('') || 'まだいません';
+  $$('[data-reset]', box).forEach(b => b.onclick = () => issueCode(b.dataset.reset, 'member', 'reset'));
+  $$('[data-role]', box).forEach(b => b.onclick = async () => { const [u, r] = b.dataset.role.split('|'); try { await api('setMember', { org:ORG.id, user:u, role:r }); toast('変更しました'); renderMembers(); } catch(e) { alert(e.message); } });
+  $$('[data-rm]', box).forEach(b => b.onclick = async () => { const [u, em] = b.dataset.rm.split('|'); if (!confirm(`${em} をこの園から外します。この人はこの園の台帳を見られなくなります。よろしいですか？`)) return; try { await api('setMember', { org:ORG.id, user:u, role:null }); toast('外しました'); renderMembers(); } catch(e) { alert(e.message); } });
+}
+async function issueCode(email, role, kind){
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('メールアドレスを入れてください'); const e = $('#invEmail'); if (e) e.focus(); return; }
+  let data;
+  try { data = await api('invite', { org:ORG.id, email, role, kind }); }
+  catch(error) { alert('コードを出せませんでした。\n' + (isNetErr(error) ? '通信を確かめてください。' : error.message)); return; }
+  const url = location.origin + location.pathname;
+  openDlg(`<div class="dh"><h2>${kind === 'reset' ? 'パスワード再設定コード' : '招待コード'}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><p style="margin-top:0">${esc(data.email)} さんに、次のコードとページの場所を伝えてください。<b>この画面を閉じると、コードはもう表示できません</b>（なくした時は出し直せます）。</p>
+    <div class="code" id="codeBox">${esc(data.code)}</div>
+    <p>使える期限：${esc(new Date(data.expires_at).toLocaleString('ja-JP'))}（1回だけ）</p>
+    <p class="muted">伝え方の例：「${esc(url)} を開き、『招待コード・再設定コードをお持ちの方』を押して、メールアドレス・このコード・自分で決めたパスワードを入れてください」</p></div>
+    <div class="df"><button type="button" class="btn" id="codeCopy">コードと手順をコピー</button><button type="button" class="btn pri" data-close>閉じる</button></div>`);
+  $('#codeCopy').onclick = async () => { try { await navigator.clipboard.writeText(`保育園 物品管理台帳\n${url}\n「招待コード・再設定コードをお持ちの方」→ メールアドレス（${data.email}）・コード ${data.code} ・自分で決めたパスワード\n期限：${new Date(data.expires_at).toLocaleString('ja-JP')}`); toast('コピーしました'); } catch(e) { toast('コピーできませんでした。画面のコードを書き写してください'); } };
+  const e = $('#invEmail'); if (e && kind === 'join') e.value = '';
+  renderMembers();
+}
+async function joinOrg(){
+  const c = prompt('別の園の管理者から受け取った招待コード（12文字）を入れてください。\n（いまログインしているメールアドレス宛てのコードだけ使えます）');
+  if (!c) return;
+  let data;
+  try { data = await api('join', { code:c }); } catch(error) { alert(isNetErr(error) ? '通信できませんでした。' : error.message); return; }
+  try { localStorage.setItem(LS_ORG, JSON.stringify({ uid:ME.uid, id:data.org_id, role:'' })); } catch(e) {}
+  location.reload();
+}
+async function logout(){
+  await updateSyncUI();
+  if (SYNC.pending || SYNC.parked) {
+    if (!confirm(`まだサーバーに送れていない変更が${SYNC.pending + SYNC.parked}件あります。\nログアウトしても、この端末の控えに残し、次に同じ人がログインした時に送ります。ログアウトしますか？`)) return;
+  } else if (!confirm('ログアウトします。この端末に置いていた台帳の控え（写真を含む）も消します（データはサーバーに残ります）。よろしいですか？')) return;
+  // the local copy is removed only when the server holds everything (原則8)
+  const clearCache = !SYNC.pending && !SYNC.parked && SYNC.ready && !SYNC.err;
+  const name = cacheName();
+  clearInterval(pollTimer);
+  try { db.close(); } catch(e) {}
+  if (clearCache) await new Promise(r => { const q = indexedDB.deleteDatabase(name); q.onsuccess = q.onerror = q.onblocked = () => r(); });
+  await signOutLocal();
+  try { localStorage.removeItem(LS_ORG); } catch(e) {}
+  location.reload();
+}
+
+/* ---------- previous version's data on this device (IndexedDB 'hoikuen-bihin') ---------- */
+let legacyState = null;
+async function readLegacy(){
+  try { if (indexedDB.databases) { const l = await indexedDB.databases(); if (!l.some(d => d.name === DB_NAME)) return null; } } catch(e) {}
+  let ldb;
+  try { ldb = await openStores(DB_NAME, DB_VER, false); } catch(e) { return null; }
+  try {
+    const all = s => rq(ldb.transaction(s).objectStore(s).getAll());
+    const [items, assets, logs, stocktakes, meta, photos] = await Promise.all(['items','assets','logs','stocktakes','meta','photos'].map(all));
+    const okId = v => v && typeof v === 'object' && typeof v.id === 'string' && v.id;
+    return { items:items.filter(okId), assets:assets.filter(okId), logs:logs.filter(okId), stocktakes:stocktakes.filter(okId), meta:meta.filter(v => v && typeof v.key === 'string'), photos:photos.filter(okId) };
+  } finally { ldb.close(); }
+}
+async function checkLegacy(){
+  const L = await readLegacy();
+  if (!L || (!L.assets.length && !L.items.length)) { legacyState = null; return; }
+  let done = null; try { done = JSON.parse(localStorage.getItem(LS_LEGACY) || 'null'); } catch(e) {}
+  legacyState = { n:L.assets.length, photos:L.photos.length, done:done && done.uid === ME.uid ? done : null };
+}
+async function migrateLegacy(){
+  const L = await readLegacy();
+  if (!L || (!L.assets.length && !L.items.length)) { toast('前の版のデータはありません'); return; }
+  if (!navigator.onLine) { alert('通信できる所で行ってください。'); return; }
+  await syncNow();
+  const plan = await planMerge(L);
+  const n = plan.add.items.length + plan.add.assets.length + plan.add.logs.length + plan.add.photos.length + plan.add.stocktakes.length;
+  if (n) {
+    if (!confirm(`この端末に前の版で保存した台帳（備品${L.assets.length}件・写真${L.photos.length}枚）を、「${S.settings.orgName || ORG.name}」のサーバーへ移します。\n・サーバーにまだ無い物だけを足します（備品${plan.add.assets.length}件・写真${plan.add.photos.length}枚・記録${plan.add.logs.length}件）\n${plan.same ? `・すでにある備品${plan.same}件は変えません\n` : ''}${plan.dup ? `・管理番号がほかの備品と重なる物が${plan.dup}件あります（そのまま移し、ホームに「重複」として出します）\n` : ''}・端末の元のデータは消しません\nよろしいですか？`)) return;
+    await applyMerge(L, plan.add, true);
+  }
+  toast('サーバーへ送っています…');
+  await sync(true);
+  // done only when every record is seen on the server (原則6)
+  let missing = 0;
+  try {
+    for (const [t, list] of [['items', L.items], ['assets', L.assets], ['logs', L.logs], ['photos', L.photos], ['stocktakes', L.stocktakes]]) {
+      const ids = list.map(x => x.id);
+      for (let i = 0; i < ids.length; i += 300) {
+        const part = ids.slice(i, i + 300);
+        const j = await api('has', { org:ORG.id, ids:{ [t]:part } });
+        missing += part.length - ((j.has && Array.isArray(j.has[t])) ? j.has[t].length : 0);
+      }
+    }
+  } catch(e) { missing = -1; }
+  if (missing === 0 && !SYNC.pending) {
+    try { localStorage.setItem(LS_LEGACY, JSON.stringify({ uid:ME.uid, org:ORG.id, at:new Date().toISOString(), n:L.assets.length })); } catch(e) {}
+    toast('移行が終わりました（サーバーで確認済み）');
+  } else alert('まだサーバーに届いていない分があります。通信できる所で、もう一度「サーバーへ移す」を押してください（二重にはなりません）。');
+  await checkLegacy(); await loadAll(); renderDeferred = false; render();
+}
+
+/* ---------- sync status dialog ---------- */
+async function openSyncDlg(){
+  await updateSyncUI();
+  openDlg(`<div class="dh"><h2>同期の状態</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><p style="margin-top:0" id="syncInfo2" role="status"></p>
+    <dl class="dl"><dt>送れていない変更</dt><dd>${SYNC.pending}件${SYNC.parked ? `（ほかにサーバーが受け取れなかった変更 ${SYNC.parked}件）` : ''}${SYNC.oldest ? `（いちばん古い物 ${esc(new Date(SYNC.oldest).toLocaleString('ja-JP'))}）` : ''}</dd>
+    <dt>最後に確認した時刻</dt><dd>${SYNC.lastOk ? esc(new Date(SYNC.lastOk).toLocaleString('ja-JP')) : 'まだ'}</dd>
+    <dt>園</dt><dd>${esc(S.settings.orgName || (ORG && ORG.name) || '')}</dd></dl>
+    <p class="hint">通信できない間の変更はこの端末に保存し、通信が戻ったら自動で送ります。ほかの端末の変更は15秒ごとに取り込みます。</p></div>
+    <div class="df">${SYNC.pending || SYNC.parked ? '<button type="button" class="btn" id="qExp">送れていない変更を書き出す</button>' : ''}<button type="button" class="btn pri" id="qSync">今すぐ同期</button></div>`);
+  updateSyncUI();
+  $('#qSync').onclick = async () => { await sync(true); openSyncDlg(); };
+  const qe = $('#qExp'); if (qe) qe.onclick = async () => { const q = await getAll('queue'); download(`物品台帳_未送信_${today()}.json`, new Blob([JSON.stringify({ app:'hoikuen-bihin', kind:'outbox', org:ORG.id, exportedAt:new Date().toISOString(), entries:q.map(e => ({ batch:e.batch, at:e.at, failed:e.failed || null, ops:e.ops })) })], { type:'application/json' })); };
 }
 
 /* ---------- demo data ---------- */
@@ -1345,10 +1952,108 @@ window.addEventListener('unhandledrejection', e => {
   alert('保存または読み込みができませんでした。いまの操作は反映されていない可能性があります。\n画面を再読み込みして、内容を確かめてください。\n（空き容量が少ない時に起きやすいです）\n' + m);
 });
 
-(async function init(){
-  try { db = await openDB(); await loadAll(); }
-  catch(e) { document.querySelector('main').innerHTML = `<div class="card" style="color:var(--ng)">データの保存場所を開けませんでした。プライベートブラウズを切るか、別のブラウザでお試しください。<br>${esc(e.message)}</div>`; return; }
+$('#syncChip').onclick = openSyncDlg;
+
+/* ---------- sign-in ---------- */
+function authMsg(text, good){ const m = $('#authMsg'); m.hidden = !text; m.textContent = text || ''; m.classList.toggle('ok', !!good); }
+function showAuth(mode, msg){
+  document.body.classList.add('auth-on'); $('#auth').hidden = false;
+  const code = mode === 'code', pick = mode === 'pick';
+  $('#authLogin').hidden = code || pick || mode === 'noorg'; $('#authCode').hidden = !code; $('#orgPick').hidden = !pick;
+  $('#toCode').hidden = code || pick; $('#toLogin').hidden = !code; $('#authOut').hidden = !(pick || mode === 'noorg');
+  $('#authTitle').textContent = code ? '招待コード・再設定コード' : pick ? '園を選ぶ' : mode === 'noorg' ? '園に所属していません' : 'ログイン';
+  authMsg(msg || (mode === 'noorg' ? 'このアカウントは、まだどの園にも所属していません。園の管理者から招待コードを受け取り、「招待コード・再設定コードをお持ちの方」から入れてください。' : ''));
+  const f = code ? $('#cdEmail') : $('#lgEmail'); if (f && !pick) setTimeout(() => f.focus(), 30);
+}
+function hideAuth(){ document.body.classList.remove('auth-on'); $('#auth').hidden = true; }
+$('#toCode').onclick = () => showAuth('code');
+$('#toLogin').onclick = () => showAuth('login');
+// sign out on this device even without a connection (the server-side session is ended when it can be reached)
+async function signOutLocal(){ try { await Promise.race([api('logout'), new Promise(r => setTimeout(r, 5000))]); } catch(e) {} AUTH = null; try { localStorage.removeItem(LS_AUTH); } catch(e) {} }
+function saveAuth(j){ AUTH = { token:j.token, uid:j.user.uid, email:j.user.email }; try { localStorage.setItem(LS_AUTH, JSON.stringify(AUTH)); } catch(e) {} }
+$('#authOut').onclick = async () => { await signOutLocal(); location.reload(); };
+$('#authLogin').onsubmit = async e => {
+  e.preventDefault();
+  const email = $('#lgEmail').value.trim(), pw = $('#lgPw').value;
+  if (!email || !pw) { authMsg('メールアドレスとパスワードを入れてください'); return; }
+  $('#lgBtn').disabled = true; authMsg('');
+  try {
+    let j;
+    try { j = await api('login', { email, password:pw }); }
+    catch(error) { authMsg(isNetErr(error) ? '通信できませんでした。電波・Wi-Fiを確かめてください。' : error.code === 'login' ? 'メールアドレスかパスワードが違います。忘れた時は、園の管理者に再設定コードを出してもらってください。' : error.message); return; }
+    $('#lgPw').value = '';
+    saveAuth(j);
+    await startSession(j.user, j.orgs);
+  } finally { $('#lgBtn').disabled = false; }
+};
+$('#authCode').onsubmit = async e => {
+  e.preventDefault();
+  const email = $('#cdEmail').value.trim(), code = $('#cdCode').value.trim(), pw = $('#cdPw').value;
+  if (!email || !code) { authMsg('メールアドレスとコードを入れてください'); return; }
+  if (pw.length < 8) { authMsg('パスワードは8文字以上にしてください'); $('#cdPw').focus(); return; }
+  if (pw !== $('#cdPw2').value) { authMsg('確認のパスワードが一致しません'); $('#cdPw2').focus(); return; }
+  $('#cdBtn').disabled = true; authMsg('');
+  try {
+    try { await api('redeem', { email, code, password:pw }); }
+    catch(err) { authMsg(isNetErr(err) ? '通信できませんでした。電波・Wi-Fiを確かめてください。' : err.message); return; }
+    let j;
+    try { j = await api('login', { email, password:pw }); }
+    catch(err) { showAuth('login', 'パスワードを設定しました。ログインしてください。'); $('#authMsg').classList.add('ok'); return; }
+    ['#cdPw','#cdPw2','#cdCode'].forEach(id => $(id).value = '');
+    saveAuth(j);
+    await startSession(j.user, j.orgs);
+  } finally { $('#cdBtn').disabled = false; }
+};
+async function startSession(user, knownOrgs){
+  ME = { uid:user.uid, email:user.email };
+  let saved = null; try { saved = JSON.parse(localStorage.getItem(LS_ORG) || 'null'); } catch(e) {}
+  if (saved && saved.uid !== ME.uid) saved = null;
+  let orgs = Array.isArray(knownOrgs) ? knownOrgs : null;
+  if (!orgs && navigator.onLine) {
+    try { const j = await api('me'); if (Array.isArray(j.orgs)) orgs = j.orgs; }
+    catch(e) { if (e.code === 'auth') { await signOutLocal(); showAuth('login', 'ログインの期限が切れました。もう一度ログインしてください。'); return; } }
+  }
+  if (orgs) {
+    ORGS = orgs.filter(o => o && typeof o.org_id === 'string');
+    if (!ORGS.length) { showAuth('noorg'); return; }
+    const o = ORGS.find(x => saved && x.org_id === saved.id) || (ORGS.length === 1 ? ORGS[0] : null);
+    if (!o) {
+      showAuth('pick', 'この台帳を使う園を選んでください。');
+      $('#orgPick').innerHTML = ORGS.map((x, i) => `<button type="button" class="btn" style="width:100%;margin-bottom:8px" data-pick="${i}">${esc(x.name)}（${x.role === 'admin' ? '管理者' : '職員'}）</button>`).join('');
+      $$('[data-pick]').forEach(b => b.onclick = () => { const x = ORGS[Number(b.dataset.pick)]; try { localStorage.setItem(LS_ORG, JSON.stringify({ uid:ME.uid, id:x.org_id, role:x.role })); } catch(e) {} startSession(user, ORGS); });
+      return;
+    }
+    ORG = { id:o.org_id, name:o.name, role:o.role };
+  } else {
+    // offline: open the 園 this person last used on this device (its cache)
+    if (!saved) { showAuth('login', 'はじめて使う時は通信が必要です。通信できる所で開いてください。'); return; }
+    ORG = { id:saved.id, name:'', role:saved.role };
+  }
+  try { localStorage.setItem(LS_ORG, JSON.stringify({ uid:ME.uid, id:ORG.id, role:ORG.role })); } catch(e) {}
+  await openApp();
+}
+let pollTimer = 0;
+async function openApp(){
+  try { db = await openStores(cacheName(), 1, true); }
+  catch(e) { hideAuth(); document.querySelector('main').innerHTML = `<div class="card" style="color:var(--ng)">データの保存場所を開けませんでした。プライベートブラウズを切るか、別のブラウザでお試しください。<br>${esc(e.message)}</div>`; return; }
+  hideAuth();
   try { if (navigator.storage && navigator.storage.persist) persistState = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch(e) {}
+  SYNC.proto = 1;
+  if (navigator.onLine) {
+    // capability check (原則7): the sync protocol is used only once the server declares it
+    try { const v = await api('version'); if (v.app !== 'hoikuen-bihin' || !(Number(v.proto) >= 1)) { SYNC.proto = 0; SYNC.err = 'サーバーの版が合いません。運営者に連絡してください（送れていない変更は端末に残っています）'; } } catch(e) {}
+  }
+  const first = (await getLocal('cursor')) === undefined;
+  await loadAll();
+  if (first) {
+    $('#v-home').innerHTML = '<div class="card" role="status">サーバーから台帳を読み込んでいます…</div>';
+    if (!(await pull(true))) {
+      $('#v-home').innerHTML = `<div class="card" role="alert"><b>台帳を読み込めませんでした。</b><br>${esc(SYNC.err || '通信できる所で、もう一度開いてください。')}<br><br><button type="button" class="btn pri" onclick="location.reload()">もう一度読み込む</button></div>`;
+      updateSyncUI(); return;
+    }
+    await loadAll();
+  }
+  await checkLegacy();
   let v = 'home', m = 'group';
   try { v = localStorage.getItem(LS_VIEW) || 'home'; m = localStorage.getItem(LS_MODE) || 'group'; } catch(e) {}
   ledgerMode = ['group','table'].includes(m) ? m : 'group';
@@ -1356,6 +2061,20 @@ window.addEventListener('unhandledrejection', e => {
   if (window.matchMedia('(min-width: 900px)').matches) $('#filters').open = true;
   show(VIEWS.includes(v) ? v : 'home');
   window.__ready = true;
+  if (!first) sync(true); else updateSyncUI();
+  pollTimer = setInterval(() => { if (document.visibilityState === 'visible') sync(); }, 15000);
+}
+window.addEventListener('online', () => { SYNC.online = true; if (ORG && db) sync(); });
+window.addEventListener('offline', () => { SYNC.online = false; updateSyncUI(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ORG && db) sync(); });
+
+(async function init(){
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(API_URL) && !/^http:\/\/127\.0\.0\.1:\d+\/exec$/.test(API_URL)) {
+    document.querySelector('main').innerHTML = '<div class="card" role="alert">サーバーの設定がありません。運営者に連絡してください。</div>'; return;
+  }
+  try { const a = JSON.parse(localStorage.getItem(LS_AUTH) || 'null'); if (a && typeof a.token === 'string' && typeof a.uid === 'string' && typeof a.email === 'string') AUTH = a; } catch(e) {}
+  if (!AUTH) { showAuth('login'); return; }
+  await startSession({ uid:AUTH.uid, email:AUTH.email });
 })();
 </script>
 </body>
