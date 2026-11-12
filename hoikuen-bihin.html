@@ -489,7 +489,7 @@ function syncError(e){
   if (isNetErr(e)) { SYNC.online = false; return; }
   const m = String((e && (e.message || e.code)) || e), c = e && e.code;
   if (c === 'auth') SYNC.err = 'ログインの期限が切れました。ログインし直してください（送れていない変更は端末に残っています）';
-  else if (c === 'forbidden') SYNC.err = 'この園に書き込む権限がありません。園の管理者に確かめてください';
+  else if (c === 'forbidden') SYNC.err = /期限/.test(m) ? m : 'この園に書き込む権限がありません。園の管理者に確かめてください';
   else SYNC.err = '送信できませんでした：' + m;
 }
 async function uploadPhoto(pid){
@@ -696,6 +696,7 @@ const photoRefCount = (pid, exceptAssetId) => S.assets.filter(a => a.id !== exce
 const SUPPORT_LABEL = '運営サポート（シルバーユニックス）';
 const roleLabel = r => r === 'admin' ? '管理者' : r === 'support' ? SUPPORT_LABEL : '職員';
 // records written while the operator supports a 園 say so, so the 園 can see who changed what
+const byText = l => [l.by, l.support && l.by !== SUPPORT_LABEL ? SUPPORT_LABEL : ''].filter(Boolean).join('／');
 function newLog(o){ const l = { id: uid(), at: new Date().toISOString(), date: today(), by:'', detail:'', ...o }; if (ORG && ORG.role === 'support' && !l.by) l.by = SUPPORT_LABEL; return l; }
 
 /* ---------- navigation (restores the view on reload) ---------- */
@@ -769,7 +770,7 @@ function renderHome(){
       <div class="card"><h3 style="margin-top:0">分類別</h3>${sumTable(byCat, 'cat')}</div>
       <div class="card"><h3 style="margin-top:0">保管場所別</h3>${sumTable(byLoc, 'loc')}</div>
     </div>
-    <div class="card"><h3 style="margin-top:0">最近の記録</h3>${recent.length ? `<ul class="tl">${recent.map(l => { const a = S.assets.find(x => x.id === l.assetId); const i = a ? itemOf(a) : S.items.find(x => x.id === l.itemId); return `<li><div class="d">${jdate(l.date)} ${esc(l.type)}${l.by ? '・' + esc(l.by) : ''}</div>${esc(i ? i.name : '')}${a ? '（' + esc(a.code) + '）' : ''} ${esc(l.detail)}</li>`; }).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}</div>
+    <div class="card"><h3 style="margin-top:0">最近の記録</h3>${recent.length ? `<ul class="tl">${recent.map(l => { const a = S.assets.find(x => x.id === l.assetId); const i = a ? itemOf(a) : S.items.find(x => x.id === l.itemId); return `<li><div class="d">${jdate(l.date)} ${esc(l.type)}${byText(l) ? '・' + esc(byText(l)) : ''}</div>${esc(i ? i.name : '')}${a ? '（' + esc(a.code) + '）' : ''} ${esc(l.detail)}</li>`; }).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}</div>
     ${S.assets.length === 0 && S.items.length === 0 ? `<div class="card"><h3 style="margin-top:0">はじめに</h3><p>右上の「＋ 登録」から備品を登録します。写真・型番・購入日・金額・保管場所を入れておくと、同じ「カメラ」でも1台ずつ区別して管理できます。</p><div class="row"><button type="button" class="btn pri" id="hAdd">最初の備品を登録する</button><button type="button" class="btn" id="hDemo">見本データを入れて試す</button></div></div>` : ''}
   `;
   $$('#alertList .alert').forEach(b => b.onclick = () => { const x = alerts[b.dataset.i]; if (x.id) openAsset(x.id); else if (x.supply) show('supplies'); else if (x.sync) openSyncDlg(); else if (x.go) show(x.go); });
@@ -1034,7 +1035,7 @@ function openAsset(id){
 
       ${siblings.length ? `<h3>同じ品目のほかの${siblings.length}件</h3><div class="card" style="padding:0;overflow:hidden">${siblings.slice(0, 20).map(assetRowM).join('')}</div>` : ''}
       <h3>記録（点検・修理・消毒・移動など）</h3>
-      ${logs.length ? `<ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)}　${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}${l.by ? '・記録 ' + esc(l.by) : ''}${l.cost ? '・費用 ' + yen(l.cost) : ''}</div>${esc(l.detail).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}
+      ${logs.length ? `<ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)}　${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}${byText(l) ? '・記録 ' + esc(byText(l)) : ''}${l.cost ? '・費用 ' + yen(l.cost) : ''}</div>${esc(l.detail).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}
     </div>
       <h3>そのほかの操作</h3>
       <div class="row">
@@ -1380,7 +1381,7 @@ function openSupplyForm(id){
       <label class="f"><span>置き場所</span><select id="cLoc">${opt(withCurrent(S.masters.locations, it.location), it.location || '', '選んでください')}</select></label>
       <label class="f"><span>購入先</span><input type="text" id="cVendor" value="${esc(it.vendor || '')}" autocomplete="off"></label>
     </div><label class="f"><span>メモ（型番・品番など）</span><input type="text" id="cNote" value="${esc(it.note || '')}" autocomplete="off"></label>
-    ${logs.length ? `<h3>入出庫の記録</h3><ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)} ${esc(l.type)}${l.by ? '・' + esc(l.by) : ''}</div>${esc(l.qty != null ? (l.type === '入庫' ? '+' : '−') + l.qty : '')} ${esc(l.detail)}</li>`).join('')}</ul>` : ''}</div>
+    ${logs.length ? `<h3>入出庫の記録</h3><ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)} ${esc(l.type)}${byText(l) ? '・' + esc(byText(l)) : ''}</div>${esc(l.qty != null ? (l.type === '入庫' ? '+' : '−') + l.qty : '')} ${esc(l.detail)}</li>`).join('')}</ul>` : ''}</div>
     <div class="df">${id ? '<button type="button" class="btn" id="cDel">削除</button>' : ''}<button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="cSave">保存する</button></div>`);
   $('#cSave').onclick = async () => {
     const name = $('#cName').value.trim(); if (!name) { toast('品名を入れてください'); return; }
@@ -1557,7 +1558,7 @@ function printSheet(id){
   const tag = confirm('ラベル（QRコード）も一緒に印刷しますか？');
   doPrint(`<div class="sheet">${prHead('備品個票')}<h1>${esc(it.name)}（${esc(a.code)}）</h1><div style="display:flex;gap:6mm;align-items:flex-start"><div class="phs">${(a.photoIds || []).slice(0, 4).map(p => `<img data-ph="${esc(p)}" data-big="1" alt="">`).join('')}</div>${tag ? `<div class="lbl" style="width:60mm">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(it.name)}</div></div>` : ''}${man && man.url ? `<div class="lbl" style="width:60mm">${qrSvg(man.url)}<div class="t"><b>取扱説明書</b>読み取ると開きます</div></div>` : ''}</div>
     <table>${rows.map(r => `<tr><th style="width:35mm">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>
-    ${logs.length ? `<h3>記録</h3><table><tr><th>日付</th><th>種類</th><th>内容</th><th>記録者</th></tr>${logs.map(l => `<tr><td>${jdate(l.date)}</td><td>${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}</td><td>${esc(l.detail)}${l.cost ? '（' + yen(l.cost) + '）' : ''}</td><td>${esc(l.by)}</td></tr>`).join('')}</table>` : ''}</div>`);
+    ${logs.length ? `<h3>記録</h3><table><tr><th>日付</th><th>種類</th><th>内容</th><th>記録者</th></tr>${logs.map(l => `<tr><td>${jdate(l.date)}</td><td>${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}</td><td>${esc(l.detail)}${l.cost ? '（' + yen(l.cost) + '）' : ''}</td><td>${esc(byText(l))}</td></tr>`).join('')}</table>` : ''}</div>`);
 }
 function printOrder(low){
   doPrint(prHead('消耗品 発注リスト') + `<table class="pt"><thead><tr><th>品名</th><th>置き場所</th><th>在庫</th><th>発注点</th><th>単価</th><th>購入先</th><th>メモ</th><th>発注数</th></tr></thead><tbody>${low.map(i => `<tr><td>${esc(i.name)}</td><td>${esc(i.location)}</td><td>${esc(i.stock || 0)}${esc(i.unit || '')}</td><td>${esc(i.reorderPoint)}</td><td>${yen(i.unitPrice)}</td><td>${esc(i.vendor)}</td><td>${esc(i.note)}</td><td style="width:20mm"></td></tr>`).join('')}</tbody></table>`);

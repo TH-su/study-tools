@@ -56,7 +56,7 @@ function route_(r) {
   switch (r.action) {
     case 'me': return { ok: true, user: userInfo_(uid), orgs: myOrgs_(uid) };
     case 'logout': endSession_(r.token); return { ok: true };
-    case 'apply': role_(uid, r.org); return apply_(uid, r.org, r.batch, r.ops);
+    case 'apply': return apply_(uid, r.org, r.batch, r.ops, role_(uid, r.org));
     case 'pull': role_(uid, r.org); return pull_(r.org, r.since);
     case 'has': role_(uid, r.org); return has_(r.org, r.ids);
     case 'photoPut': role_(uid, r.org); return photoPut_(r);
@@ -87,7 +87,7 @@ function reg_() {
 }
 const REG_SHEETS = {
   orgs: ['org_id', 'name', 'sheet_id', 'folder_id', 'created_at'],
-  users: ['uid', 'email', 'pw', 'created_at'],
+  users: ['uid', 'email', 'pw', 'created_at', 'kind'],
   members: ['org_id', 'uid', 'role', 'created_at', 'expires'],
   sessions: ['token_hash', 'uid', 'expires'],
   invites: ['id', 'org_id', 'email', 'role', 'kind', 'code_hash', 'created_by', 'created_at', 'expires', 'used_at', 'used_by', 'attempts']
@@ -260,7 +260,8 @@ function redeem_(r) {
     const users = regRows_('users'); let u = users.find(x => x.email === email);
     if (inv.kind === 'join') {
       if (u) fail_('exists', 'このメールアドレスはすでに登録されています。ログインしてから「設定 → 招待コードで別の園に参加」でコードを入れてください');
-      u = { uid: 'u' + randomToken_(1), email: email, pw: makePw_(pw), created_at: new Date().toISOString() };
+      if (inv.role === 'support') usersHeader_();
+      u = { uid: 'u' + randomToken_(1), email: email, pw: makePw_(pw), created_at: new Date().toISOString(), kind: inv.role === 'support' ? 'support' : '' };
       regAppend_('users', u);
       if (!regRows_('members').some(m => m.uid === u.uid && m.org_id === inv.org_id)) addMember_(inv.org_id, u.uid, inv.role);
     } else {
@@ -285,6 +286,7 @@ function join_(uid, code) {
   });
 }
 function supportExpiry_(days) { return new Date(Date.now() + (days || SUPPORT_DAYS) * 864e5).toISOString(); }
+function usersHeader_() { const sh = sheet_(reg_(), 'users', REG_SHEETS.users); if (sh.getRange(1, 5).getValue() !== 'kind') sh.getRange(1, 5).setValue('kind'); }
 function membersHeader_() { const sh = sheet_(reg_(), 'members', REG_SHEETS.members); if (sh.getRange(1, 5).getValue() !== 'expires') sh.getRange(1, 5).setValue('expires'); }
 function addMember_(orgId, uid, role) {
   membersHeader_();
@@ -342,6 +344,8 @@ function op_(r) {
     const days = Math.min(365, Math.max(1, Number(r.days) || SUPPORT_DAYS));
     const u = regRows_('users').find(x => x.email === email);
     if (u) {
+      // only an account created from a support code (never one somebody else may have registered with this address)
+      if (u.kind !== 'support') fail_('bad_input', 'this address belongs to a regular account; a support account must be created from a support code');
       membersHeader_();
       const m = regRows_('members').find(x => x.org_id === o.org_id && x.uid === u.uid);
       if (m && m.role !== 'support') fail_('bad_input', 'already a regular member');
@@ -349,6 +353,7 @@ function op_(r) {
       if (m) regUpdate_('members', m._row, row); else regAppend_('members', row);
       return { ok: true, member: true, expires: row.expires };
     }
+    if (r.days && days !== SUPPORT_DAYS) fail_('bad_input', 'no account yet: the period starts at ' + SUPPORT_DAYS + ' days when the code is used; change it afterwards with setSupportExpiry');
     return Object.assign({ ok: true, member: false }, newInvite_(o.org_id, email, 'support', 'join', ''));
   });
   if (r.op === 'setSupportExpiry') return withLock_(() => {
@@ -417,7 +422,7 @@ function loadTable_(ss, t) {
   }
   return { sh: sh, list: list, map: map, dirty: false };
 }
-function apply_(uid, orgId, batch, ops) {
+function apply_(uid, orgId, batch, ops, role) {
   if (typeof batch !== 'string' || batch.length < 1 || batch.length > 100) fail_('bad_input', 'bad batch id');
   if (!Array.isArray(ops) || ops.length > 1000) fail_('bad_input', 'bad ops');
   ops.forEach(op => {   // validate everything before writing anything (a bad batch changes nothing)
@@ -448,6 +453,7 @@ function apply_(uid, orgId, batch, ops) {
       // 'create' (migration / backup): only when the id never existed — a record deleted on purpose stays deleted
       if (op.k === 'create' && cur) return;
       const nd = merge_(cur ? cur.data : {}, op.set, op.inc, op.arr);
+      if (op.t === 'logs' && role === 'support') nd.support = true;   // written during 運営サポート
       if (JSON.stringify(nd).length > MAX_CELL) fail_('too_large', '1件のデータが大きすぎます');
       if (cur) { cur.data = nd; cur.deleted = false; touch(op.t, cur); }   // a patch revives a tombstone
       else { const rec = { id: op.id, data: nd, deleted: false, _i: tb.list.length }; tb.list.push(rec); tb.map[op.id] = rec; touch(op.t, rec); }
