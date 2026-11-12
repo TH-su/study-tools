@@ -563,16 +563,19 @@ let syncRun = null, syncAgain = false, syncFull = false, syncTimer = 0;
 function sync(full){
   if (full) syncFull = true;
   if (syncRun) { syncAgain = true; return syncRun; }
-  syncRun = (async () => {
+  const p = (async () => {
+    await null;   // syncRun is assigned before any of this runs (an offline run used to finish first and stay "running")
     SYNC.busy = true; updateSyncUI();
     try {
       do { syncAgain = false; const f = syncFull; syncFull = false;
         if (!navigator.onLine) { SYNC.online = false; break; }
         await flush(); if (!SYNC.online) break; await pull(f);
       } while (syncAgain);
-    } finally { SYNC.busy = false; syncRun = null; await updateSyncUI(); }
+    } finally { SYNC.busy = false; }
   })();
-  return syncRun;
+  syncRun = p;
+  p.finally(() => { if (syncRun === p) syncRun = null; updateSyncUI(); }).catch(() => {});
+  return p;
 }
 function scheduleSync(){ clearTimeout(syncTimer); updateSyncUI(); syncTimer = setTimeout(() => sync(), 250); }
 const syncNow = (ms = 8000) => Promise.race([sync(), new Promise(r => setTimeout(r, ms))]);
@@ -1033,7 +1036,7 @@ async function openAssetForm(id, opts = {}){
     renderFormPhotos();
   });
   $('#afSave').onclick = () => saveAssetForm(editing);
-  setTimeout(() => { if (!editing && !it) $('#fItem').focus(); }, 50);
+  setTimeout(() => { const fi = $('#fItem'); if (!editing && !it && fi) fi.focus(); }, 50);
 }
 function renderFormPhotos(){
   const box = $('#fphotos'); if (!box) return;
@@ -1704,7 +1707,7 @@ async function logout(){
   clearInterval(pollTimer);
   try { db.close(); } catch(e) {}
   if (clearCache) await new Promise(r => { const q = indexedDB.deleteDatabase(name); q.onsuccess = q.onerror = q.onblocked = () => r(); });
-  try { await sb.auth.signOut({ scope:'local' }); } catch(e) {}
+  await signOutLocal();
   try { localStorage.removeItem(LS_ORG); } catch(e) {}
   location.reload();
 }
@@ -1840,7 +1843,9 @@ function showAuth(mode, msg){
 function hideAuth(){ document.body.classList.remove('auth-on'); $('#auth').hidden = true; }
 $('#toCode').onclick = () => showAuth('code');
 $('#toLogin').onclick = () => showAuth('login');
-$('#authOut').onclick = async () => { try { await sb.auth.signOut({ scope:'local' }); } catch(e) {} location.reload(); };
+// sign out on this device even without a connection (supabase-js keeps the session when the server cannot be reached)
+async function signOutLocal(){ try { await Promise.race([sb.auth.signOut({ scope:'local' }), new Promise(r => setTimeout(r, 5000))]); } catch(e) {} try { localStorage.removeItem('hbk-auth'); localStorage.removeItem('hbk-auth-code-verifier'); } catch(e) {} }
+$('#authOut').onclick = async () => { await signOutLocal(); location.reload(); };
 $('#authLogin').onsubmit = async e => {
   e.preventDefault();
   const email = $('#lgEmail').value.trim(), pw = $('#lgPw').value;

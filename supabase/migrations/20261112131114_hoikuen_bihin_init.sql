@@ -182,7 +182,9 @@ begin
     v_found := cur is not null;
 
     if v_kind = 'delete' then
-      if v_found then
+      -- an item that another device has just given a live unit stays (its name would otherwise vanish)
+      if v_found and not (t = 'items' and exists (
+          select 1 from public.assets a where a.org_id = p_org and not a.deleted and a.data ->> 'itemId' = v_id)) then
         execute format('update public.%I set deleted = true where org_id = $1 and id = $2', t) using p_org, v_id;
       end if;
     else
