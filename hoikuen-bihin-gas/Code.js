@@ -17,8 +17,9 @@
 const APP = 'hoikuen-bihin', PROTO = 1;
 const ROOT_NAME = '保育園物品管理台帳_サーバーデータ（別法人用）';
 const TABLES = ['items', 'assets', 'logs', 'stocktakes', 'settings', 'photos'];
-const COLS = ['id', 'data', 'deleted', 'rev', 'updated_at', 'updated_by'];
-const DEEP_FIELDS = ['checks', 'photoLabels'];
+// batch = the last write batch that touched the row (lets a retry after a half-finished write skip what is already there)
+const COLS = ['id', 'data', 'deleted', 'rev', 'updated_at', 'updated_by', 'batch'];
+const DEEP_FIELDS = ['checks', 'photoLabels', 'manuals'];   // manuals: one entry per model, registered from any device
 // sha256 of the operator key (the key itself is kept outside the repository)
 const OP_KEY_HASH = '7b712982a122e88ad57902e3d916ee1e96bd4b80d694db7bfb784a1fa760f35e';
 const SESSION_DAYS = 30, PW_ITER = 3000, MAX_CELL = 45000;
@@ -58,6 +59,7 @@ function route_(r) {
     case 'has': role_(uid, r.org); return has_(r.org, r.ids);
     case 'photoPut': role_(uid, r.org); return photoPut_(r);
     case 'photoGet': role_(uid, r.org); return photoGet_(r);
+    case 'fetchPdf': role_(uid, r.org); return fetchPdf_(r);
     case 'members': admin_(uid, r.org); return { ok: true, members: members_(r.org) };
     case 'invite': return issueInvite_(uid, r.org, r.email, r.role || 'member', r.kind || 'join');
     case 'setMember': return setMember_(uid, r.org, r.user, r.role);
@@ -90,9 +92,18 @@ const REG_SHEETS = {
 };
 function sheet_(ss, name, header) {
   let sh = ss.getSheetByName(name);
-  if (!sh) { sh = ss.insertSheet(name); sh.getRange(1, 1, sh.getMaxRows(), header.length).setNumberFormat('@'); sh.getRange(1, 1, 1, header.length).setValues([header]); sh.setFrozenRows(1); }
+  if (!sh) { sh = ss.insertSheet(name); sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).setNumberFormat('@'); sh.getRange(1, 1, 1, header.length).setValues([header]); sh.setFrozenRows(1); }
   return sh;
 }
+// a new sheet has 1000 rows and getRange() past the end throws: grow it first (new rows also plain text)
+function ensureRows_(sh, n) {
+  const max = sh.getMaxRows();
+  if (max >= n) return;
+  const add = n - max + 500;
+  sh.insertRowsAfter(max, add);
+  sh.getRange(max + 1, 1, add, sh.getMaxColumns()).setNumberFormat('@');
+}
+function appendSafe_(sh, row) { const r = sh.getLastRow() + 1; ensureRows_(sh, r); sh.getRange(r, 1, 1, row.length).setValues([row]); }
 // whole sheet as objects (row = 1-based sheet row)
 function rows_(sh) {
   const v = sh.getDataRange().getValues(); const h = v[0] || [];
@@ -102,14 +113,15 @@ function rows_(sh) {
 }
 function regRows_(name) { return rows_(sheet_(reg_(), name, REG_SHEETS[name])); }
 // orgs / members are read on every request: keep a 60-second copy, dropped on every change
+// the copy carries a generation number; any change bumps it, so a copy read just before a change is never used after it
 function regCached_(name) {
-  const c = CacheService.getScriptCache(), k = 'reg_' + name, hit = c.get(k);
-  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
-  const v = regRows_(name); try { c.put(k, JSON.stringify(v), 60); } catch (e) {}
+  const c = CacheService.getScriptCache(), k = 'reg_' + name, gen = props_().getProperty('gen_' + name) || '0', hit = c.get(k);
+  if (hit) { try { const o = JSON.parse(hit); if (o.g === gen) return o.v; } catch (e) {} }
+  const v = regRows_(name); try { c.put(k, JSON.stringify({ g: gen, v: v }), 60); } catch (e) {}
   return v;
 }
-function regChanged_(name) { CacheService.getScriptCache().remove('reg_' + name); }
-function regAppend_(name, obj) { const h = REG_SHEETS[name]; sheet_(reg_(), name, h).appendRow(h.map(k => obj[k] == null ? '' : obj[k])); regChanged_(name); }
+function regChanged_(name) { props_().setProperty('gen_' + name, String(Date.now()) + Math.random().toString(36).slice(2, 6)); CacheService.getScriptCache().remove('reg_' + name); }
+function regAppend_(name, obj) { const h = REG_SHEETS[name]; appendSafe_(sheet_(reg_(), name, h), h.map(k => obj[k] == null ? '' : obj[k])); regChanged_(name); }
 function regUpdate_(name, row, obj) { const h = REG_SHEETS[name]; sheet_(reg_(), name, h).getRange(row, 1, 1, h.length).setValues([h.map(k => obj[k] == null ? '' : obj[k])]); regChanged_(name); }
 function regDelete_(name, row) { sheet_(reg_(), name, REG_SHEETS[name]).deleteRow(row); regChanged_(name); }
 function org_(orgId) {
@@ -147,10 +159,13 @@ const normCode_ = c => String(c || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase(
 function login_(r) {
   const email = normEmail_(r.email), pw = String(r.password || '');
   const cache = CacheService.getScriptCache(), fk = 'fail_' + sha256_(email);
-  const fails = Number(cache.get(fk) || 0);
-  if (fails >= 10) fail_('locked', 'ログインの失敗が続いたため、15分ほど待ってからお試しください');
+  withLock_(() => {   // count the attempt first: many guesses sent at once still cannot exceed 10 per 15 minutes
+    const n = Number(cache.get(fk) || 0);
+    if (n >= 10) fail_('locked', 'ログインの失敗が続いたため、15分ほど待ってからお試しください（ログイン中のほかの端末はそのまま使えます）');
+    cache.put(fk, String(n + 1), 900);
+  });
   const u = regRows_('users').find(x => x.email === email);
-  if (!u || !checkPw_(pw, u.pw)) { cache.put(fk, String(fails + 1), 900); fail_('login', 'メールアドレスかパスワードが違います'); }
+  if (!u || !checkPw_(pw, u.pw)) fail_('login', 'メールアドレスかパスワードが違います');
   cache.remove(fk);
   const token = randomToken_(2);
   withLock_(() => regAppend_('sessions', { token_hash: hid_(token), uid: u.uid, expires: new Date(Date.now() + SESSION_DAYS * 864e5).toISOString() }));
@@ -160,10 +175,10 @@ function session_(token) {
   if (!token || typeof token !== 'string' || token.length < 32) fail_('auth', 'ログインしてください');
   const th = hid_(token), cache = CacheService.getScriptCache();
   const c = cache.get('s_' + th);
-  if (c) return c;
+  if (c) { const i = c.indexOf('|'), uid = c.slice(0, i); if ((props_().getProperty('sgen_' + uid) || '0') === c.slice(i + 1)) return uid; }
   const s = regRows_('sessions').find(x => x.token_hash === th);
   if (!s || new Date(s.expires) < new Date()) fail_('auth', 'ログインの期限が切れました。もう一度ログインしてください');
-  cache.put('s_' + th, s.uid, 600);
+  cache.put('s_' + th, s.uid + '|' + (props_().getProperty('sgen_' + s.uid) || '0'), 600);
   return s.uid;
 }
 function endSession_(token) {
@@ -245,6 +260,7 @@ function redeem_(r) {
       if (!u || !resetStillAllowed_(inv, u)) fail_('invalid', 'コードが正しくないか、期限が切れています');
       u.pw = makePw_(pw); regUpdate_('users', u._row, u);
       // a new password ends every existing session of that person
+      props_().setProperty('sgen_' + u.uid, String(Date.now()));   // cached copies of the old sessions stop working at once
       regRows_('sessions').forEach(s => { if (s.uid === u.uid && s.token_hash !== 'ended') { CacheService.getScriptCache().remove('s_' + s.token_hash); regUpdate_('sessions', s._row, { token_hash: 'ended', uid: s.uid, expires: new Date(0).toISOString() }); } });
     }
     inv.used_at = new Date().toISOString(); inv.used_by = u.uid; regUpdate_('invites', inv._row, inv);
@@ -272,7 +288,11 @@ function setMember_(uid, orgId, target, role) {
     const mem = regRows_('members'), m = mem.find(x => x.org_id === orgId && x.uid === target);
     if (!m) fail_('bad_input', 'この園のメンバーではありません');
     if ((role == null || role === 'member') && m.role === 'admin' && mem.filter(x => x.org_id === orgId && x.role === 'admin').length <= 1) fail_('bad_input', '管理者が1人もいなくなるため変更できません');
-    if (role == null) regDelete_('members', m._row);
+    if (role == null) {
+      regDelete_('members', m._row);
+      const u = regRows_('users').find(x => x.uid === target), now = new Date();
+      if (u) regRows_('invites').forEach(x => { if (x.org_id === orgId && x.email === u.email && !x.used_at && new Date(x.expires) > now) { x.expires = now.toISOString(); regUpdate_('invites', x._row, x); } });
+    }
     else { m.role = role; regUpdate_('members', m._row, m); }
     return { ok: true };
   });
@@ -347,7 +367,8 @@ function loadTable_(ss, t) {
   const list = [];
   for (let i = 1; i < v.length; i++) {
     let data; try { data = JSON.parse(v[i][1]); } catch (e) { data = {}; }
-    const rec = { id: String(v[i][0]), data: isObj_(data) ? data : {}, deleted: v[i][2] === true || v[i][2] === 'TRUE', rev: Number(v[i][3]) || 0, updated_at: v[i][4], updated_by: v[i][5], _i: list.length };
+    const rec = { id: String(v[i][0]), data: isObj_(data) ? data : {}, deleted: v[i][2] === true || v[i][2] === 'TRUE', rev: Number(v[i][3]) || 0, updated_at: v[i][4], updated_by: v[i][5], batch: String(v[i][6] || ''), _i: list.length };
+    rec.b0 = rec.batch;
     list.push(rec); map[rec.id] = rec;
   }
   return { sh: sh, list: list, map: map, dirty: false };
@@ -369,9 +390,11 @@ function apply_(uid, orgId, batch, ops) {
     const T = {}; const tab = t => T[t] || (T[t] = loadTable_(ss, t));
     const p = props_(); let rev = Number(p.getProperty(revKey_(orgId)) || 0);
     const now = new Date().toISOString();
-    const touch = (t, rec) => { rev++; rec.rev = rev; rec.updated_at = now; rec.updated_by = uid; tab(t).dirty = true; };
+    const touch = (t, rec) => { rev++; rec.rev = rev; rec.updated_at = now; rec.updated_by = uid; rec.batch = batch; tab(t).dirty = true; };
     ops.forEach(op => {
       const tb = tab(op.t), cur = tb.map[op.id];
+      // already written by an earlier, half-finished run of this same batch: do not apply it twice (stock deltas)
+      if (cur && cur.b0 === batch) return;
       if (op.k === 'delete') {
         if (!cur || cur.deleted) return;
         // an item that another device has just given a live unit stays (its name would otherwise vanish)
@@ -390,9 +413,10 @@ function apply_(uid, orgId, batch, ops) {
     });
     Object.keys(T).forEach(t => {
       const tb = T[t]; if (!tb.dirty || !tb.list.length) return;
-      tb.sh.getRange(2, 1, tb.list.length, COLS.length).setValues(tb.list.map(r => [r.id, JSON.stringify(r.data), r.deleted, r.rev, r.updated_at || '', r.updated_by || '']));
+      ensureRows_(tb.sh, tb.list.length + 1);
+      tb.sh.getRange(2, 1, tb.list.length, COLS.length).setValues(tb.list.map(r => [r.id, JSON.stringify(r.data), r.deleted, r.rev, r.updated_at || '', r.updated_by || '', r.batch || '']));
     });
-    ap.appendRow([batch, now]);
+    appendSafe_(ap, [batch, now]);
     SpreadsheetApp.flush();
     p.setProperty(revKey_(orgId), String(rev));   // rows above this number are only shown once everything is written
     return { ok: true, n: ops.length, rev: rev };
@@ -439,7 +463,7 @@ function photoPut_(r) {
     const ex = rows_(sh).find(x => x.key === key);
     if (ex) return { ok: true, same: true };   // the same photo id is never re-used with other content
     const f = DriveApp.getFolderById(o.folder_id).createFile(Utilities.newBlob(bytes, r.mime, key));
-    sh.appendRow([key, f.getId()]);
+    appendSafe_(sh, [key, f.getId()]);
     return { ok: true };
   });
 }
@@ -451,5 +475,29 @@ function photoGet_(r) {
   return { ok: true, mime: b.getContentType(), b64: Utilities.base64Encode(b.getBytes()) };
 }
 
+// keep a copy of a manual PDF that is on the web (in case the link breaks later). Stored like an attached PDF.
+function fetchPdf_(r) {
+  const key = fileKey_({ id: r.id, which: 'main' });
+  const url = String(r.url || '');
+  if (!/^https?:\/\/[^\s]{4,2000}$/.test(url)) fail_('bad_input', 'URL の形が正しくありません');
+  let res;
+  try { res = UrlFetchApp.fetch(url, { followRedirects: true, muteHttpExceptions: true, validateHttpsCertificates: true }); }
+  catch (e) { fail_('fetch', 'そのURLを開けませんでした'); }
+  if (res.getResponseCode() !== 200) fail_('fetch', 'そのURLを開けませんでした（' + res.getResponseCode() + '）');
+  const bytes = res.getContent();
+  const isPdf = bytes.length > 4 && bytes[0] === 37 && bytes[1] === 80 && bytes[2] === 68 && bytes[3] === 70;   // %PDF
+  if (!isPdf) fail_('not_pdf', 'PDF ではないため保存できません（説明書のページのURLは、そのまま登録してください）');
+  if (bytes.length > 15 * 1048576) fail_('too_large', 'PDF が大きすぎます（15MBまで）');
+  const o = org_(r.org);
+  return withLock_(() => {
+    const ss = SpreadsheetApp.openById(o.sheet_id), sh = sheet_(ss, 'files', ['key', 'file_id']);
+    if (!rows_(sh).some(x => x.key === key)) {
+      const f = DriveApp.getFolderById(o.folder_id).createFile(Utilities.newBlob(bytes, 'application/pdf', key));
+      appendSafe_(sh, [key, f.getId()]);
+    }
+    return { ok: true, size: bytes.length };
+  });
+}
+
 /* used once from the editor/authorize flow: touches every service the app needs (gas-deploy-auth 鉄則2) */
-function setup() { root_(); reg_(); return { ok: true }; }
+function setup() { root_(); reg_(); UrlFetchApp.getRequest('https://www.google.com/'); return { ok: true }; }

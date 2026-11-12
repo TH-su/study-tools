@@ -106,6 +106,11 @@ details.grp > summary .caret{margin-left:auto;transition:transform .15s;color:va
 details.grp[open] > summary .caret{transform:rotate(90deg)}
 .irow{display:flex;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);cursor:pointer;width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;min-height:56px}
 .irow:hover{background:var(--pri-l)}
+.irw{display:flex;border-top:1px solid var(--line)}
+.irw > .irow{border-top:0;flex:1;min-width:0}
+.man{min-width:56px;min-height:44px;border:0;border-left:1px solid var(--line);background:none;cursor:pointer;font-size:1.3rem;color:var(--ink)}
+.man:hover{background:var(--pri-l)}
+td .man{border:1px solid var(--line);border-radius:10px}
 .irow .c1{flex:1;min-width:0}
 .irow .c1 .a{font-weight:600}
 .irow .c1 .b{font-size:.875rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis}
@@ -284,7 +289,7 @@ const LS_VIEW = 'hbk_view', LS_MODE = 'hbk_ledgerMode';
 const STATUSES = ['使用中','保管中','修理中','貸出中','紛失・所在不明','廃棄済'];
 const CONDITIONS = ['良好','やや傷あり','要修理','使用不可'];
 const LOG_TYPES = ['点検','修理','消毒・清掃','移動','メモ'];
-const PHOTO_LABELS = ['外観','型番・銘板','保証書・領収書','破損箇所','その他'];
+const PHOTO_LABELS = ['外観','型番・銘板','保証書・領収書','取扱説明書','破損箇所','その他'];
 const DISPOSAL_METHODS = ['廃棄（粗大ごみ・産廃）','リサイクル・売却','譲渡','返却（リース等）','その他'];
 const DEFAULT_MASTERS = {
   categories: ['遊具（屋外）','玩具・教材','絵本・図書','楽器','家具（机・椅子・棚）','寝具・午睡用品','調理・給食用品','衛生・保健用品','家電・空調','IT・事務機器','カメラ・映像機器','防災・安全用品','行事用品','乳児用品','清掃用品','その他'],
@@ -358,7 +363,7 @@ function locked(fn){ const p = lockP.then(fn, fn); lockP = p.catch(() => {}); re
 /* ---------- merge rules (same as the server's hb_private.merge) ---------- */
 const TABLE_OF = { items:'items', assets:'assets', logs:'logs', stocktakes:'stocktakes', meta:'settings', photos:'photos' };
 const STORE_OF = Object.fromEntries(Object.entries(TABLE_OF).map(([s, t]) => [t, s]));
-const DEEP_FIELDS = new Set(['checks', 'photoLabels']);
+const DEEP_FIELDS = new Set(['checks', 'photoLabels', 'manuals']);
 const ARRAY_FIELDS = new Set(['photoIds', 'categories', 'locations', 'classes', 'fundings']);
 const LOCAL_FIELDS = { photos:new Set(['blob', 'thumb', 'uploaded']), meta:new Set(['key', 'lastBackup']) };
 const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v);
@@ -470,7 +475,9 @@ async function api(action, body = {}){
 }
 const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
 function b64ToBlob(b64, type){ const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type:type || '' }); }
-const SYNC = { pending:0, oldest:'', busy:false, online:true, lastOk:'', err:'', ready:false, proto:0 };
+const SYNC = { pending:0, parked:0, oldest:'', busy:false, online:true, lastOk:'', err:'', ready:false, proto:0 };
+// errors the server will give every time for the same change: such a change is set aside (kept, exportable), not retried forever
+const PERMANENT = ['bad_input', 'too_large'];
 const isNetErr = e => !navigator.onLine || /fetch|network|load failed|timeout|abort/i.test(String((e && (e.message || e.name)) || e));
 function fetchT(url, opts = {}, ms = 45000){ const c = new AbortController(), t = setTimeout(() => c.abort(), ms); if (opts.signal) opts.signal.addEventListener('abort', () => c.abort()); return fetch(url, { ...opts, signal:c.signal }).finally(() => clearTimeout(t)); }
 function syncError(e){
@@ -491,7 +498,7 @@ async function uploadPhoto(pid){
 async function flush(){
   if (SYNC.proto < 1) return false;
   for (;;) {
-    const e = (await rq(db.transaction('queue').objectStore('queue').openCursor()))?.value;
+    const e = (await getAll('queue')).find(x => !x.failed);
     if (!e) return true;
     try {
       for (const pid of (e.uploads || [])) await uploadPhoto(pid);
@@ -503,7 +510,10 @@ async function flush(){
       }
       await idbTx(['queue'], t => t.objectStore('queue').delete(e.seq));
       SYNC.err = ''; SYNC.online = true;
-    } catch(err) { syncError(err); return false; }
+    } catch(err) {
+      if (err && PERMANENT.includes(err.code)) { e.failed = { code:err.code, message:String(err.message || ''), at:new Date().toISOString() }; await idbPut('queue', e); continue; }
+      syncError(err); return false;
+    }
   }
 }
 async function pull(full){
@@ -521,7 +531,7 @@ async function pull(full){
 /* apply downloaded rows to the cache; changes still waiting in the outbox are laid on top (受信データは検査する) */
 async function applyPulled(got, full, rev){
   const pend = new Map();
-  for (const e of await getAll('queue')) for (const op of e.ops) { const k = op.t + '|' + op.id; if (!pend.has(k)) pend.set(k, []); pend.get(k).push(op); }
+  for (const e of await getAll('queue')) if (!e.failed) for (const op of e.ops) { const k = op.t + '|' + op.id; if (!pend.has(k)) pend.set(k, []); pend.get(k).push(op); }
   const left = {};
   if (full) for (const s of DATA_STORES) left[s] = new Set(await rq(db.transaction(s).objectStore(s).getAllKeys()));
   let changed = false;
@@ -588,7 +598,7 @@ document.addEventListener('focusout', () => setTimeout(() => {
   if (renderDeferred && curView !== 'settings' && !(ae && ae.closest && ae.closest('main') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) { renderDeferred = false; render(); }
 }, 0));
 async function updateSyncUI(){
-  if (db && ORG) { try { const q = await getAll('queue'); SYNC.pending = q.length; SYNC.oldest = q.length ? q[0].at : ''; } catch(e) {} }
+  if (db && ORG) { try { const all = await getAll('queue'), q = all.filter(x => !x.failed); SYNC.pending = q.length; SYNC.parked = all.length - q.length; SYNC.oldest = q.length ? q[0].at : ''; } catch(e) {} }
   const b = $('#syncChip'); if (!b) return;
   const n = SYNC.pending;
   let ic, w, lbl, ng = false;
@@ -715,6 +725,7 @@ function computeAlerts(){
   const byCode = new Map();
   for (const a of S.assets) { const c = String(a.code || '').toUpperCase(); if (!c) continue; if (!byCode.has(c)) byCode.set(c, []); byCode.get(c).push(a); }
   for (const [c, arr] of byCode) if (arr.length > 1) A.unshift({ lv:'ng', t:'管理番号が重複しています', m:`${arr[0].code} が${arr.length}件あります（${arr.map(a => itemOf(a).name).join('・')}）。どれか1件を編集して番号を変え、ラベルを貼り直してください。`, id:arr[0].id });
+  if (SYNC.parked) A.unshift({ lv:'ng', t:'サーバーが受け取れなかった変更があります', m:`${SYNC.parked}件（大きすぎる・形が正しくない等）。消さずにこの端末に残しています。「同期の状態」から書き出して保存し、運営者に知らせてください。`, sync:true });
   if (SYNC.pending && SYNC.oldest && (Date.now() - Date.parse(SYNC.oldest)) > 10 * 60000) A.unshift({ lv:'ng', t:'サーバーに送れていない変更があります', m:`${SYNC.pending}件の変更がこの端末にだけ残っています。${SYNC.err || '通信できる場所で開いてください。'}`, sync:true });
   if (legacyState && legacyState.n && !legacyState.done) A.unshift({ lv:'warn', t:'この端末に前の版の台帳データがあります', m:`備品${legacyState.n}件。設定の「前の版のデータ」から、この園のサーバーへ移せます（端末の元のデータは消しません）。`, go:'settings' });
   const lb = S.settings.lastBackup;
@@ -827,15 +838,16 @@ function renderLedger(){
       const units = arr.reduce((s, a) => s + (Number(a.qty) || 1), 0);
       const models = new Set(arr.map(a => a.model).filter(Boolean)).size;
       return `<details class="grp"${groups.size <= 3 || $('#q').value ? ' open' : ''}><summary>${thumbHtml(arr.find(a => (a.photoIds || []).length) || arr[0], true)}<div style="min-width:0"><div class="nm">${esc(it.name)}</div><div class="meta">${esc(it.category || '未分類')}・${arr.length}件（${units}点）${models > 1 ? `・型番${models}種類` : ''}・合計 ${yen(tot)}</div></div><span class="caret" aria-hidden="true">›</span></summary>
-        ${arr.map(a => assetRow(a)).join('')}
+        ${arr.map(a => assetRowM(a)).join('')}
         <div class="grpfoot row"><button type="button" class="btn sm" data-addsame="${esc(iid)}">＋ 同じ品目で別の1台を追加</button><button type="button" class="btn sm" data-edititem="${esc(iid)}">品目名・分類を編集</button></div></details>`;
     }).join('');
   } else {
-    body.innerHTML = `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th><span class="sr">選択</span></th><th>写真</th><th>管理番号</th><th>品名</th><th>型番／メーカー</th><th>購入日</th><th class="num">金額</th><th>保管場所</th><th>クラス</th><th>状態</th></tr></thead><tbody>
-      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td class="nw">${esc(a.code)}</td><td class="nm">${esc(it.name)}${Number(a.qty) > 1 ? ` ×${Number(a.qty)}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td class="nw">${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td></tr>`; }).join('')}
+    body.innerHTML = `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th><span class="sr">選択</span></th><th>写真</th><th>管理番号</th><th>品名</th><th>型番／メーカー</th><th>購入日</th><th class="num">金額</th><th>保管場所</th><th>クラス</th><th>状態</th><th><span class="sr">取扱説明書</span><span aria-hidden="true">📘</span></th></tr></thead><tbody>
+      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td class="nw">${esc(a.code)}</td><td class="nm">${esc(it.name)}${Number(a.qty) > 1 ? ` ×${Number(a.qty)}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td class="nw">${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td><td>${manBtn(a)}</td></tr>`; }).join('')}
       </tbody></table></div>`;
   }
-  $$('[data-open]', body).forEach(r => r.addEventListener('click', e => { if (e.target.closest('input.sel')) return; openAsset(r.dataset.open); }));
+  $$('[data-open]', body).forEach(r => r.addEventListener('click', e => { if (e.target.closest('input.sel') || e.target.closest('.man')) return; openAsset(r.dataset.open); }));
+  wireMan(body);
   syncBulk();
   $$('input.sel', body).forEach(c => c.addEventListener('change', () => { c.checked ? selected.add(c.dataset.sel) : selected.delete(c.dataset.sel); renderLedgerSumOnly(); }));
   $$('[data-addsame]', body).forEach(b => b.onclick = () => openAssetForm(null, { itemId:b.dataset.addsame }));
@@ -871,10 +883,97 @@ function openBulkForm(){
   };
 }
 function renderLedgerSumOnly(){ syncBulk(); const list = filteredAssets(); $('#ledgerSum').textContent = `${list.length}件・合計 ${yen(list.reduce((s, a) => s + totalPrice(a), 0)) || '¥0'}${selected.size ? `　／　ラベル印刷に選択中 ${selected.size}件` : ''}`; }
+/* ---------- 取扱説明書（品目×型番ごとに1つ。同じ型番の物は同じ取説を使う） ---------- */
+// maker → its own web site (each domain checked to answer on 2026-11-12); used only inside a Google "site:" search,
+// never to build a deep link we have not opened ourselves
+const MAKER_SITES = [
+  [/パナソニック|panasonic|ナショナル/i, 'panasonic.jp'], [/シャープ|sharp/i, 'jp.sharp'], [/東芝|toshiba/i, 'toshiba-lifestyle.com'],
+  [/日立|hitachi/i, 'hitachi.co.jp'], [/ダイキン|daikin/i, 'daikin.co.jp'], [/象印|zojirushi/i, 'zojirushi.co.jp'], [/タイガー|tiger/i, 'tiger-corporation.com'],
+  [/アイリス|iris\s*ohyama/i, 'irisohyama.co.jp'], [/エプソン|epson/i, 'epson.jp'], [/ブラザー|brother/i, 'brother.co.jp'], [/ヤマハ|yamaha/i, 'jp.yamaha.com'],
+  [/ソニー|sony/i, 'sony.jp'], [/三菱/i, 'mitsubishielectric.co.jp'], [/リコー|ricoh/i, 'ricoh.co.jp'], [/キヤノン|キャノン|canon/i, 'canon.jp'],
+  [/ニコン|nikon/i, 'nikon-image.com'], [/富士通|fujitsu|fmv/i, 'fmv.com'], [/カシオ|casio/i, 'casio.com'], [/コクヨ|kokuyo/i, 'kokuyo.co.jp'],
+  [/ジャクエツ|jakuets/i, 'jakuets.co.jp'], [/カワイ|河合|kawai/i, 'kawai.jp']
+];
+const manKey = m => half(m || '').toUpperCase().replace(/[\s　]+/g, '');
+const okUrl = u => /^https?:\/\/[^\s<>"']{3,2000}$/.test(String(u || ''));
+function manualOf(a){
+  const it = S.items.find(i => i.id === a.itemId);
+  const m = it && isObj(it.manuals) ? it.manuals[manKey(a.model)] : null;
+  if (m && (okUrl(m.url) || m.pdfId)) return { url:okUrl(m.url) ? m.url : '', pdfId:m.pdfId || '', note:m.note || '', shared:true };
+  // a PDF attached to this unit with the label 取扱説明書 counts too
+  const pid = (a.photoIds || []).find(id => (a.photoLabels || {})[id] === '取扱説明書');
+  return pid ? { url:'', pdfId:pid, note:'', shared:false } : null;
+}
+function manualSearch(a){
+  const it = itemOf(a), maker = (a.maker || '').trim(), model = (a.model || '').trim();
+  const words = [maker, model || it.name].filter(Boolean).join(' ');
+  const q = t => 'https://www.google.com/search?q=' + encodeURIComponent(t);
+  const out = [{ label:'🔎 取説を探す', url:q(words + ' 取扱説明書') }, { label:'🔎 PDFだけ探す', url:q(words + ' 取扱説明書 filetype:pdf') }];
+  const site = maker && (MAKER_SITES.find(([re]) => re.test(maker)) || [])[1];
+  if (site) out.push({ label:`🔎 ${maker}のサイトで探す`, url:q(`${model || it.name} 取扱説明書 site:${site}`) });
+  return out;
+}
+const manBtn = a => manualOf(a) ? `<button type="button" class="man" data-man="${esc(a.id)}" aria-label="${esc(a.code)}の取扱説明書を開く" title="取扱説明書を開く">📘</button>` : '';
+// opens the saved PDF first (works without the original site), otherwise the registered link
+async function openManual(a){
+  const m = a && manualOf(a); if (!m) return;
+  let w = null; try { w = window.open('', '_blank'); } catch(e) {}
+  if (w) { try { w.opener = null; } catch(e) {} }
+  let u = '';
+  if (m.pdfId && await getOne('photos', m.pdfId)) u = await photoUrl(m.pdfId, true);
+  if (!u) u = m.url;
+  if (!u) { if (w) w.close(); toast('取説を開けませんでした（通信を確かめてください）'); return; }
+  if (w) w.location.href = u; else location.href = u;
+}
+function wireMan(root){ $$('[data-man]', root).forEach(b => b.onclick = e => { e.stopPropagation(); openManual(S.assets.find(x => x.id === b.dataset.man)); }); }
+function openManualForm(assetId){
+  const a = S.assets.find(x => x.id === assetId); if (!a) return;
+  const it = S.items.find(i => i.id === a.itemId); if (!it) { toast('品目が見つかりません'); return; }
+  const key = manKey(a.model), cur = (isObj(it.manuals) && it.manuals[key]) || {};
+  const same = S.assets.filter(x => x.itemId === a.itemId && manKey(x.model) === key).length;
+  let pdfId = cur.pdfId || '', newPdf = null;
+  openDlg(`<div class="dh"><h2>取扱説明書 — ${esc(it.name)}${a.model ? '（' + esc(a.model) + '）' : ''}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><p class="muted" style="margin-top:0">${a.model ? `型番「${esc(a.model)}」の${esc(it.name)}` : `型番の無い${esc(it.name)}`}（${same}件）に共通で登録します。</p>
+    <div class="row" style="margin-bottom:12px">${manualSearch(a).map(l => `<a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join('')}</div>
+    <label class="f"><span>取扱説明書のURL（メーカーのページや PDF）</span><input type="url" id="mUrl" value="${esc(cur.url || '')}" inputmode="url" autocomplete="off" placeholder="https://"></label>
+    <div class="row" style="margin-bottom:6px"><label class="btn sm">📄 PDF を添付<input type="file" id="mPdf" accept="application/pdf" hidden></label><button type="button" class="btn sm" id="mFetch">⬇ URL の PDF を台帳に保存</button></div>
+    <div class="hint" id="mPdfInfo">${pdfId ? '保存した PDF があります（リンクが切れても開けます）' : 'PDF を保存しておくと、メーカーのページが無くなっても開けます。'}</div>
+    <label class="f" style="margin-top:10px"><span>メモ（ページ番号など）</span><input type="text" id="mNote" value="${esc(cur.note || '')}" autocomplete="off"></label></div>
+    <div class="df">${cur.url || cur.pdfId ? '<button type="button" class="btn" id="mDel">登録を外す</button>' : ''}<button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="mSave">保存する</button></div>`, 'dlg2');
+  $('#mPdf').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { newPdf = await makePhoto(f); newPdf.label = '取扱説明書'; pdfId = newPdf.id; $('#mPdfInfo').textContent = 'PDF を添付しました：' + f.name + '（保存すると登録されます）'; } catch(err) { toast(err.message); } };
+  $('#mFetch').onclick = async () => {
+    const url = $('#mUrl').value.trim();
+    if (!okUrl(url)) { toast('先に PDF の URL を入れてください'); $('#mUrl').focus(); return; }
+    if (!navigator.onLine) { toast('通信できる所で行ってください'); return; }
+    const id = uid(); $('#mFetch').disabled = true; $('#mPdfInfo').textContent = 'サーバーに保存しています…';
+    try {
+      await api('fetchPdf', { org:ORG.id, id, url });
+      const name = decodeURIComponent((url.split('?')[0].split('/').pop() || 'manual.pdf')).slice(0, 120);
+      await writeOps([['photos','put',{ id, kind:'pdf', name, label:'取扱説明書', createdAt:new Date().toISOString(), uploaded:true }]]);
+      pdfId = id; newPdf = null; $('#mPdfInfo').textContent = 'PDF を台帳に保存しました（保存すると登録されます）';
+    } catch(err) { $('#mPdfInfo').textContent = isNetErr(err) ? '通信できませんでした' : err.message; }
+    finally { const b = $('#mFetch'); if (b) b.disabled = false; }
+  };
+  const save = async entry => {
+    const ops = [];
+    if (newPdf) ops.push(['photos','put',newPdf]);
+    ops.push(['items','put',{ ...it, manuals:{ ...(isObj(it.manuals) ? it.manuals : {}), [key]:entry }, updatedAt:new Date().toISOString() },{ base:it }]);
+    ops.push(['logs','put',newLog({ assetId:a.id, type:'メモ', detail:entry ? '取扱説明書を登録' : '取扱説明書の登録を外した' })]);
+    await writeOps(ops); await loadAll(); closeDlg('dlg2'); toast(entry ? '取説を登録しました' : '登録を外しました'); openAsset(a.id); render();
+  };
+  $('#mSave').onclick = () => {
+    const url = $('#mUrl').value.trim();
+    if (url && !okUrl(url)) { toast('URL は https:// から始まる形で入れてください'); $('#mUrl').focus(); return; }
+    if (!url && !pdfId) { toast('URL を入れるか PDF を添付してください'); return; }
+    save({ url, pdfId, note:$('#mNote').value.trim(), model:a.model || '', at:new Date().toISOString(), by:ME ? ME.email : '' });
+  };
+  const del = $('#mDel'); if (del) del.onclick = () => { if (confirm('この型番の取説の登録を外します（保存した PDF は残ります）。よろしいですか？')) save(null); };
+}
 function assetRow(a){
   const sub = [a.model, a.purchaseDate ? '購入 ' + jdate(a.purchaseDate) : '', yen(totalPrice(a)), a.location, a.className].filter(Boolean).join('・');
   return `<button type="button" class="irow" data-open="${esc(a.id)}">${thumbHtml(a)}<div class="c1"><div class="a">${esc(a.code)}${Number(a.qty) > 1 ? ` <span class="muted">×${Number(a.qty)}</span>` : ''}${a.serial ? ` <span class="muted" style="font-weight:400">S/N ${esc(a.serial)}</span>` : ''}</div><div class="b">${esc(sub)}</div></div><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></button>`;
 }
+const assetRowM = a => `<div class="irw">${assetRow(a)}${manBtn(a)}</div>`;
 
 /* ---------- dialogs ---------- */
 function openDlg(html, id = 'dlg'){
@@ -910,8 +1009,11 @@ function openAsset(id){
         ${dd('メモ', esc(a.note).replace(/\n/g, '<br>'))}
         ${dd('登録日', jdate(isoDay(a.createdAt)))}${dd('最終更新', jdate(isoDay(a.updatedAt)))}
       </dl>
+      <h3>取扱説明書</h3>
+      <div class="row">${manualOf(a) ? '<button type="button" class="btn pri" id="aMan">📘 取説を見る</button>' : ''}<button type="button" class="btn" id="aManEdit">${manualOf(a) ? '取説の登録を変える' : '＋ 取説を登録'}</button>${manualOf(a) ? '' : manualSearch(a).map(l => `<a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join('')}</div>
+      ${manualOf(a) && manualOf(a).note ? `<div class="hint">${esc(manualOf(a).note)}</div>` : ''}
 
-      ${siblings.length ? `<h3>同じ品目のほかの${siblings.length}件</h3><div class="card" style="padding:0;overflow:hidden">${siblings.slice(0, 20).map(assetRow).join('')}</div>` : ''}
+      ${siblings.length ? `<h3>同じ品目のほかの${siblings.length}件</h3><div class="card" style="padding:0;overflow:hidden">${siblings.slice(0, 20).map(assetRowM).join('')}</div>` : ''}
       <h3>記録（点検・修理・消毒・移動など）</h3>
       ${logs.length ? `<ul class="tl">${logs.map(l => `<li><div class="d">${jdate(l.date)}　${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}${l.by ? '・記録 ' + esc(l.by) : ''}${l.cost ? '・費用 ' + yen(l.cost) : ''}</div>${esc(l.detail).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : '<div class="muted">まだ記録はありません。</div>'}
     </div>
@@ -933,6 +1035,9 @@ function openAsset(id){
   (a.photoLabels && Object.entries(a.photoLabels) || []).forEach(([pid, lb]) => { const c = $(`[data-cap="${CSS.escape(pid)}"]`, d); if (c) c.textContent = lb; });
   hydrate(d).then(() => $$('[data-view]', d).forEach(im => im.onclick = () => { if (im.tagName === 'SPAN') { try { pendingWin = window.open('', '_blank'); } catch(e) {} } viewPhoto(im.dataset.view); }));
   $$('[data-open]', d).forEach(r => r.onclick = () => openAsset(r.dataset.open));
+  wireMan(d);
+  const am = $('#aMan'); if (am) am.onclick = () => openManual(a);
+  $('#aManEdit').onclick = () => openManualForm(a.id);
   $('#aEdit').onclick = () => openAssetForm(a.id);
   $('#aDup').onclick = () => openAssetForm(null, { copyFrom:a.id });
   $('#aLog').onclick = () => openLogForm(a.id);
@@ -1428,8 +1533,10 @@ function printLabels(ids){
 function printSheet(id){
   const a = S.assets.find(x => x.id === id), it = itemOf(a), logs = assetLogs(id);
   const rows = [['管理番号', a.code], ['品目', it.name], ['分類', it.category], ['型番', a.model], ['メーカー', a.maker], ['製造番号', a.serial], ['数量', a.qty || 1], ['購入日', jdate(a.purchaseDate)], ['購入先', a.vendor], ['購入金額(税込)', yen(totalPrice(a))], ['財源', a.funding], ['補助金名', a.subsidyName], ['処分制限期限', jdate(a.restrictUntil)], ['保証期限', jdate(a.warrantyUntil)], ['リース・契約期限', jdate(a.leaseUntil)], ['付属品', a.accessories], ['耐用年数', a.usefulLife ? a.usefulLife + '年' : ''], ['保管場所', a.location], ['使用クラス', a.className], ['状態', a.status], ['廃棄日', jdate(a.disposalDate)], ['廃棄理由', a.disposalReason], ['メモ', a.note]].filter(r => r[1]);
+  const man = manualOf(a);
+  if (man) rows.push(['取扱説明書', man.url || '台帳に PDF を保存（台帳の画面から開けます）']);
   const tag = confirm('ラベル（QRコード）も一緒に印刷しますか？');
-  doPrint(`<div class="sheet">${prHead('備品個票')}<h1>${esc(it.name)}（${esc(a.code)}）</h1><div style="display:flex;gap:6mm;align-items:flex-start"><div class="phs">${(a.photoIds || []).slice(0, 4).map(p => `<img data-ph="${esc(p)}" data-big="1" alt="">`).join('')}</div>${tag ? `<div class="lbl" style="width:60mm">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(it.name)}</div></div>` : ''}</div>
+  doPrint(`<div class="sheet">${prHead('備品個票')}<h1>${esc(it.name)}（${esc(a.code)}）</h1><div style="display:flex;gap:6mm;align-items:flex-start"><div class="phs">${(a.photoIds || []).slice(0, 4).map(p => `<img data-ph="${esc(p)}" data-big="1" alt="">`).join('')}</div>${tag ? `<div class="lbl" style="width:60mm">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(it.name)}</div></div>` : ''}${man && man.url ? `<div class="lbl" style="width:60mm">${qrSvg(man.url)}<div class="t"><b>取扱説明書</b>読み取ると開きます</div></div>` : ''}</div>
     <table>${rows.map(r => `<tr><th style="width:35mm">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>
     ${logs.length ? `<h3>記録</h3><table><tr><th>日付</th><th>種類</th><th>内容</th><th>記録者</th></tr>${logs.map(l => `<tr><td>${jdate(l.date)}</td><td>${esc(l.type)}${l.result ? '・' + esc(l.result) : ''}</td><td>${esc(l.detail)}${l.cost ? '（' + yen(l.cost) + '）' : ''}</td><td>${esc(l.by)}</td></tr>`).join('')}</table>` : ''}</div>`);
 }
@@ -1700,11 +1807,11 @@ async function joinOrg(){
 }
 async function logout(){
   await updateSyncUI();
-  if (SYNC.pending) {
-    if (!confirm(`まだサーバーに送れていない変更が${SYNC.pending}件あります。\nログアウトしても、この端末の控えに残し、次に同じ人がログインした時に送ります。ログアウトしますか？`)) return;
+  if (SYNC.pending || SYNC.parked) {
+    if (!confirm(`まだサーバーに送れていない変更が${SYNC.pending + SYNC.parked}件あります。\nログアウトしても、この端末の控えに残し、次に同じ人がログインした時に送ります。ログアウトしますか？`)) return;
   } else if (!confirm('ログアウトします。この端末に置いていた台帳の控え（写真を含む）も消します（データはサーバーに残ります）。よろしいですか？')) return;
   // the local copy is removed only when the server holds everything (原則8)
-  const clearCache = !SYNC.pending && SYNC.ready && !SYNC.err;
+  const clearCache = !SYNC.pending && !SYNC.parked && SYNC.ready && !SYNC.err;
   const name = cacheName();
   clearInterval(pollTimer);
   try { db.close(); } catch(e) {}
@@ -1770,14 +1877,14 @@ async function openSyncDlg(){
   await updateSyncUI();
   openDlg(`<div class="dh"><h2>同期の状態</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
     <div class="db"><p style="margin-top:0" id="syncInfo2" role="status"></p>
-    <dl class="dl"><dt>送れていない変更</dt><dd>${SYNC.pending}件${SYNC.oldest ? `（いちばん古い物 ${esc(new Date(SYNC.oldest).toLocaleString('ja-JP'))}）` : ''}</dd>
+    <dl class="dl"><dt>送れていない変更</dt><dd>${SYNC.pending}件${SYNC.parked ? `（ほかにサーバーが受け取れなかった変更 ${SYNC.parked}件）` : ''}${SYNC.oldest ? `（いちばん古い物 ${esc(new Date(SYNC.oldest).toLocaleString('ja-JP'))}）` : ''}</dd>
     <dt>最後に確認した時刻</dt><dd>${SYNC.lastOk ? esc(new Date(SYNC.lastOk).toLocaleString('ja-JP')) : 'まだ'}</dd>
     <dt>園</dt><dd>${esc(S.settings.orgName || (ORG && ORG.name) || '')}</dd></dl>
     <p class="hint">通信できない間の変更はこの端末に保存し、通信が戻ったら自動で送ります。ほかの端末の変更は15秒ごとに取り込みます。</p></div>
-    <div class="df">${SYNC.pending ? '<button type="button" class="btn" id="qExp">送れていない変更を書き出す</button>' : ''}<button type="button" class="btn pri" id="qSync">今すぐ同期</button></div>`);
+    <div class="df">${SYNC.pending || SYNC.parked ? '<button type="button" class="btn" id="qExp">送れていない変更を書き出す</button>' : ''}<button type="button" class="btn pri" id="qSync">今すぐ同期</button></div>`);
   updateSyncUI();
   $('#qSync').onclick = async () => { await sync(true); openSyncDlg(); };
-  const qe = $('#qExp'); if (qe) qe.onclick = async () => { const q = await getAll('queue'); download(`物品台帳_未送信_${today()}.json`, new Blob([JSON.stringify({ app:'hoikuen-bihin', kind:'outbox', org:ORG.id, exportedAt:new Date().toISOString(), entries:q.map(e => ({ batch:e.batch, at:e.at, ops:e.ops })) })], { type:'application/json' })); };
+  const qe = $('#qExp'); if (qe) qe.onclick = async () => { const q = await getAll('queue'); download(`物品台帳_未送信_${today()}.json`, new Blob([JSON.stringify({ app:'hoikuen-bihin', kind:'outbox', org:ORG.id, exportedAt:new Date().toISOString(), entries:q.map(e => ({ batch:e.batch, at:e.at, failed:e.failed || null, ops:e.ops })) })], { type:'application/json' })); };
 }
 
 /* ---------- demo data ---------- */
