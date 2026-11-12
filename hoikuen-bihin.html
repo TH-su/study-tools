@@ -32,10 +32,10 @@ a{color:var(--pri)}
 .hdr{background:var(--pri);color:#fff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
 @media (prefers-color-scheme: dark){.hdr{background:#1a4a3c}}
 .hdr h1{font-size:1.1rem;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hdr .org{font-size:.8rem;opacity:.85;display:block;font-weight:400}
+.hdr .org{font-size:.875rem;opacity:.85;display:block;font-weight:400}
 .hdr button{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;min-height:44px;padding:0 14px;cursor:pointer;font-weight:600}
 nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
-nav.tabs button{flex:1;background:none;border:0;min-height:60px;cursor:pointer;color:var(--sub);font-size:.75rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav.tabs button{flex:1;background:none;border:0;min-height:60px;cursor:pointer;color:var(--sub);font-size:.8125rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 nav.tabs button .ic{font-size:1.35rem;line-height:1}
 nav.tabs button[aria-selected="true"]{color:var(--pri);font-weight:700}
 @media (min-width:900px){
@@ -51,14 +51,17 @@ h3{font-size:1rem;margin:16px 0 8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;box-shadow:var(--sh);margin-bottom:12px}
 .grid{display:grid;gap:12px}
 .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-.kpi .n{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums}
-.kpi .l{font-size:.82rem;color:var(--sub)}
+.kpi .n{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;line-height:1.25}
+[hidden]{display:none !important}
+table.tb td.nw{white-space:nowrap}
+table.tb td.nm{min-width:7em}
+.kpi .l{font-size:.875rem;color:var(--sub)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:600;text-decoration:none;color:var(--ink)}
 .btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
 @media (prefers-color-scheme: dark){.btn.pri{color:#0d1f19}}
 .btn.acc{background:var(--acc-l);border-color:var(--acc);color:var(--ink)}
 .btn.ng{background:var(--ng-l);border-color:var(--ng);color:var(--ng)}
-.btn.sm{min-height:36px;padding:0 10px;font-size:.88rem}
+.btn.sm{min-height:44px;padding:0 12px;font-size:.9375rem}
 .btn:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
@@ -66,14 +69,14 @@ h3{font-size:1rem;margin:16px 0 8px}
 input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;font-size:16px;width:100%}
 textarea{min-height:80px;resize:vertical}
 .toolbar select{width:auto;flex:0 1 auto;max-width:100%}
-label.f{display:block;font-size:.85rem;color:var(--sub);margin-bottom:10px}
+label.f{display:block;font-size:.9375rem;color:var(--sub);margin-bottom:10px}
 label.f > span{display:block;margin-bottom:3px}
 label.f .req{color:var(--ng)}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 12px}
 fieldset{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px 2px;margin:0 0 12px}
 legend{font-weight:700;padding:0 6px;font-size:.95rem}
-.hint{font-size:.78rem;color:var(--sub);margin-top:2px}
-.chip{display:inline-block;padding:1px 8px;border-radius:999px;background:var(--chip);font-size:.78rem;white-space:nowrap}
+.hint{font-size:.8125rem;color:var(--sub);margin-top:2px}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;background:var(--chip);font-size:.8125rem;white-space:nowrap}
 .st-使用中{background:var(--ok-l);color:var(--ok)}
 .st-保管中{background:var(--chip)}
 .st-修理中{background:var(--warn-l);color:var(--warn)}
@@ -88,7 +91,7 @@ legend{font-weight:700;padding:0 6px;font-size:.95rem}
 .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 table.tb{width:100%;border-collapse:collapse;font-size:.9rem}
 table.tb th,table.tb td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle;text-align:left}
-table.tb th{font-size:.8rem;color:var(--sub);font-weight:600;white-space:nowrap}
+table.tb th{font-size:.8125rem;color:var(--sub);font-weight:600;white-space:nowrap}
 table.tb tr.click{cursor:pointer}
 table.tb tr.click:hover{background:var(--pri-l)}
 .tbwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -98,14 +101,14 @@ details.grp{background:var(--card);border:1px solid var(--line);border-radius:va
 details.grp > summary{list-style:none;display:flex;gap:12px;align-items:center;padding:10px 12px;cursor:pointer;min-height:64px}
 details.grp > summary::-webkit-details-marker{display:none}
 details.grp > summary .nm{font-weight:700}
-details.grp > summary .meta{font-size:.82rem;color:var(--sub)}
+details.grp > summary .meta{font-size:.875rem;color:var(--sub)}
 details.grp > summary .caret{margin-left:auto;transition:transform .15s;color:var(--sub)}
 details.grp[open] > summary .caret{transform:rotate(90deg)}
 .irow{display:flex;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);cursor:pointer;width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;min-height:56px}
 .irow:hover{background:var(--pri-l)}
 .irow .c1{flex:1;min-width:0}
 .irow .c1 .a{font-weight:600}
-.irow .c1 .b{font-size:.8rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis}
+.irow .c1 .b{font-size:.875rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis}
 .grpfoot{padding:8px 12px;border-top:1px solid var(--line)}
 dialog{border:0;border-radius:16px;padding:0;width:min(760px,calc(100vw - 16px));max-height:calc(100vh - 24px);background:var(--card);color:var(--ink);box-shadow:0 10px 40px rgba(0,0,0,.3)}
 dialog::backdrop{background:rgba(0,0,0,.45)}
@@ -118,14 +121,14 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .ph{position:relative;width:96px}
 .ph img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:zoom-in;display:block;background:var(--chip)}
 .ph .del{position:absolute;top:-6px;right:-6px;width:32px;height:32px;border-radius:50%;border:0;background:var(--ng);color:#fff;cursor:pointer;font-weight:700}
-.ph select{font-size:12px;min-height:32px;padding:2px 4px;margin-top:4px}
-.ph .cap{font-size:.72rem;color:var(--sub);text-align:center;margin-top:2px}
+.ph select{font-size:13px;min-height:44px;padding:2px 4px;margin-top:4px}
+.ph .cap{font-size:.8125rem;color:var(--sub);text-align:center;margin-top:2px}
 .dl{display:grid;grid-template-columns:8.5em 1fr;gap:4px 12px;font-size:.92rem}
 .dl dt{color:var(--sub)}
 .dl dd{margin:0;word-break:break-word}
 .tl{list-style:none;padding:0;margin:0}
 .tl li{border-left:3px solid var(--pri);padding:4px 0 8px 12px;margin-left:4px;font-size:.9rem}
-.tl li .d{font-size:.78rem;color:var(--sub)}
+.tl li .d{font-size:.8125rem;color:var(--sub)}
 .bar{height:8px;background:var(--chip);border-radius:4px;overflow:hidden}
 .bar > i{display:block;height:100%;background:var(--pri)}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;z-index:100;font-size:.92rem;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
@@ -207,6 +210,7 @@ details.filters > summary::-webkit-details-marker{display:none}
         <button type="button" data-mode="table" aria-pressed="false">一覧表</button>
       </div>
       <div class="row">
+        <button type="button" class="btn sm acc" id="btnBulk" hidden>選んだ物をまとめて変更</button>
         <button type="button" class="btn sm" id="btnPrintLedger">🖨 台帳を印刷</button>
         <button type="button" class="btn sm" id="btnLabels">🏷 ラベル印刷</button>
         <button type="button" class="btn sm" id="btnCsv">⬇ CSV</button>
@@ -249,7 +253,7 @@ const DEFAULT_MASTERS = {
 };
 const DEFAULT_SETTINGS = { orgName:'', codePrefix:'B-', seq:1, assetThreshold:100000, lastBackup:'' };
 
-let db;
+let db, persistState = null;
 const S = { items:[], assets:[], logs:[], stocktakes:[], masters:null, settings:null };
 
 /* ---------- utils ---------- */
@@ -260,12 +264,14 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const z2 = n => String(n).padStart(2, '0');
 const ymd = (d = new Date()) => d.getFullYear() + '-' + z2(d.getMonth()+1) + '-' + z2(d.getDate());
 const today = () => ymd();
+const isoDay = iso => iso ? ymd(new Date(iso)) : '';
 function addMonths(s, m){ const d = new Date(s + 'T00:00:00'); d.setMonth(d.getMonth() + Number(m)); return ymd(d); }
 function addYears(s, y){ const d = new Date(s + 'T00:00:00'); d.setFullYear(d.getFullYear() + Number(y)); return ymd(d); }
 function daysUntil(s){ return Math.round((new Date(s + 'T00:00:00') - new Date(today() + 'T00:00:00')) / 864e5); }
 const jdate = s => s ? s.replace(/-/g, '/') : '';
 const yen = n => (n === '' || n == null || isNaN(n)) ? '' : '¥' + Math.round(Number(n)).toLocaleString('ja-JP');
-const numOrNull = v => { if (v === '' || v == null) return null; const n = Number(String(v).replace(/[¥,円\s]/g, '')); return isNaN(n) ? null : n; };
+const half = v => String(v ?? '').replace(/[０-９Ａ-Ｚａ-ｚ－．，]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[ー−‐]/g, '-').trim();
+const numOrNull = v => { if (v === '' || v == null) return null; const n = Number(half(v).replace(/[¥￥,円\s]/g, '')); return isNaN(n) ? null : n; };
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2400); }
 function opt(list, sel, blank){ return (blank != null ? `<option value="">${esc(blank)}</option>` : '') + list.map(v => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join(''); }
 function withCurrent(list, cur){ return (cur && !list.includes(cur)) ? [...list, cur] : list; }
@@ -332,6 +338,7 @@ function nextCode(){
   S.settings.seq = n;
   return c;
 }
+const findByCode = c => { c = half(c).toUpperCase(); return S.assets.find(a => String(a.code).toUpperCase() === c); };
 function peekCode(){ const keep = S.settings.seq; const c = nextCode(); S.settings.seq = keep; return c; }
 
 /* ---------- photos ---------- */
@@ -344,6 +351,8 @@ async function photoUrl(id, big){
 }
 async function hydrate(root = document){
   for (const img of $$('img[data-ph]', root)) {
+    const rec = await getOne('photos', img.dataset.ph);
+    if (rec && rec.kind === 'pdf') { const sp = Object.assign(document.createElement('span'), { className:img.className.includes('thumb') ? img.className : 'thumb lg', textContent:'📄', title:rec.name || 'PDF' }); sp.setAttribute('role', 'img'); sp.setAttribute('aria-label', 'PDF ' + (rec.name || '')); if (img.dataset.view) { sp.style.cursor = 'pointer'; sp.dataset.view = img.dataset.view; sp.style.width = sp.style.height = '96px'; sp.style.fontSize = '2.5rem'; } img.replaceWith(sp); continue; }
     const u = await photoUrl(img.dataset.ph, img.dataset.big === '1');
     if (u) img.src = u; else img.replaceWith(Object.assign(document.createElement('span'), { className:'thumb', textContent:'📷' }));
   }
@@ -358,6 +367,10 @@ function shrink(img, max, q){
   return new Promise(r => c.toBlob(r, 'image/jpeg', q));
 }
 async function makePhoto(file){
+  if (file.type === 'application/pdf') {
+    if (file.size > 15 * 1048576) throw new Error('PDFが大きすぎます（15MBまで）');
+    return { id: uid(), blob: file, thumb: null, kind:'pdf', name: file.name, label:'保証書・領収書', createdAt: new Date().toISOString() };
+  }
   const img = await loadImage(file);
   const [blob, thumb] = await Promise.all([shrink(img, 1600, .82), shrink(img, 320, .75)]);
   return { id: uid(), blob, thumb, label:'外観', createdAt: new Date().toISOString() };
@@ -391,6 +404,7 @@ function computeAlerts(){
     if (a.nextInspection) { const d = daysUntil(a.nextInspection); if (d < 0) A.push({ lv:'ng', t:'点検期限を過ぎています', m:`${nm} — ${jdate(a.nextInspection)}（${-d}日超過）`, id:a.id }); else if (d <= 14) A.push({ lv:'warn', t:'点検期限が近づいています', m:`${nm} — ${jdate(a.nextInspection)}（あと${d}日）`, id:a.id }); }
     if (a.status === '貸出中' && a.loan && a.loan.due && a.loan.due < t) A.push({ lv:'ng', t:'返却予定日を過ぎています', m:`${nm} — 貸出先：${a.loan.to || '未記入'}／予定 ${jdate(a.loan.due)}`, id:a.id });
     if (a.warrantyUntil) { const d = daysUntil(a.warrantyUntil); if (d >= 0 && d <= 30) A.push({ lv:'warn', t:'保証期限が近づいています', m:`${nm} — ${jdate(a.warrantyUntil)}（あと${d}日）`, id:a.id }); }
+    if (a.leaseUntil) { const d = daysUntil(a.leaseUntil); if (d < 0) A.push({ lv:'ng', t:'リース・保守契約の期限が過ぎています', m:`${nm} — ${jdate(a.leaseUntil)}`, id:a.id }); else if (d <= 90) A.push({ lv:'warn', t:'リース・保守契約の期限が近づいています', m:`${nm} — ${jdate(a.leaseUntil)}（あと${d}日）`, id:a.id }); }
     if (a.status === '修理中') A.push({ lv:'warn', t:'修理中', m:nm, id:a.id });
     if (a.status === '紛失・所在不明') A.push({ lv:'ng', t:'所在不明', m:nm, id:a.id });
     if (a.condition === '要修理' || a.condition === '使用不可') A.push({ lv:'warn', t:'状態が「' + a.condition + '」', m:nm, id:a.id });
@@ -398,8 +412,9 @@ function computeAlerts(){
   for (const i of S.items.filter(i => i.kind === 'consumable')) {
     if (i.reorderPoint != null && i.reorderPoint !== '' && Number(i.stock || 0) <= Number(i.reorderPoint)) A.push({ lv:'warn', t:'消耗品の補充が必要です', m:`${i.name} — 在庫 ${i.stock || 0}${i.unit || ''}（発注点 ${i.reorderPoint}）`, supply:i.id });
   }
+  if (S.assets.length && persistState === false) A.push({ lv:'warn', t:'データが自動で消される可能性があります', m:'このブラウザは保存領域を「消えにくい保存」にしていません。スマホはホーム画面に追加して使い、ときどきバックアップを保存してください。', go:'settings' });
   const lb = S.settings.lastBackup;
-  if (S.assets.length && (!lb || daysUntil(lb.slice(0, 10)) < -30)) A.unshift({ lv:'warn', t:'バックアップをおすすめします', m: lb ? `前回のバックアップは ${jdate(lb.slice(0,10))}。データはこの端末の中だけに保存されています。` : 'まだ一度もバックアップしていません。データはこの端末の中だけに保存されています。', go:'settings' });
+  if (S.assets.length && (!lb || daysUntil(isoDay(lb)) < -30)) A.unshift({ lv:'warn', t:'バックアップをおすすめします', m: lb ? `前回のバックアップは ${jdate(isoDay(lb))}。データはこの端末の中だけに保存されています。` : 'まだ一度もバックアップしていません。データはこの端末の中だけに保存されています。', go:'settings' });
   return A;
 }
 
@@ -435,7 +450,7 @@ function renderHome(){
     ${S.assets.length === 0 && S.items.length === 0 ? `<div class="card"><h3 style="margin-top:0">はじめに</h3><p>右上の「＋ 登録」から備品を登録します。写真・型番・購入日・金額・保管場所を入れておくと、同じ「カメラ」でも1台ずつ区別して管理できます。</p><div class="row"><button type="button" class="btn pri" id="hAdd">最初の備品を登録する</button><button type="button" class="btn" id="hDemo">見本データを入れて試す</button></div></div>` : ''}
   `;
   $$('#alertList .alert').forEach(b => b.onclick = () => { const x = alerts[b.dataset.i]; if (x.id) openAsset(x.id); else if (x.supply) show('supplies'); else if (x.go) show(x.go); });
-  $$('#v-home [data-filter]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.filter.split('|'); resetFilters(); if (k === 'cat') $('#fCat').value = v; else $('#fLoc').value = v; show('ledger'); });
+  $$('#v-home [data-filter]').forEach(b => b.onclick = () => { let [k, v] = b.dataset.filter.split('|'); resetFilters(); if (v === '未分類' || v === '未設定') v = '__none'; const sel = k === 'cat' ? $('#fCat') : $('#fLoc'); if (![...sel.options].some(o => o.value === v)) sel.insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`); sel.value = v; show('ledger'); });
   const ha = $('#hAdd'); if (ha) ha.onclick = () => openAssetForm();
   const hd = $('#hDemo'); if (hd) hd.onclick = loadDemo;
 }
@@ -452,8 +467,9 @@ const selected = new Set();
 function fillFilterSelects(){
   const keep = id => $(id).value;
   const v = { c:keep('#fCat'), l:keep('#fLoc'), k:keep('#fCls'), s:keep('#fSt'), f:keep('#fFund') };
-  $('#fCat').innerHTML = opt(S.masters.categories, v.c, 'すべての分類');
-  $('#fLoc').innerHTML = opt(S.masters.locations, v.l, 'すべての場所');
+  const none = cur => `<option value="__none"${cur === '__none' ? ' selected' : ''}>（未設定）</option>`;
+  $('#fCat').innerHTML = opt(S.masters.categories, v.c, 'すべての分類') + none(v.c);
+  $('#fLoc').innerHTML = opt(S.masters.locations, v.l, 'すべての場所') + none(v.l);
   $('#fCls').innerHTML = opt(S.masters.classes, v.k, 'すべてのクラス');
   $('#fSt').innerHTML = `<option value="">廃棄済み以外</option><option value="*"${v.s === '*' ? ' selected' : ''}>廃棄済みも含む</option>` + STATUSES.map(s => `<option${s === v.s ? ' selected' : ''}>${s}</option>`).join('');
   $('#fFund').innerHTML = opt(S.masters.fundings, v.f, 'すべての財源');
@@ -466,8 +482,8 @@ function filteredAssets(){
   let list = S.assets.filter(a => {
     const it = itemOf(a);
     if (s === '') { if (!isActive(a)) return false; } else if (s !== '*' && a.status !== s) return false;
-    if (c && it.category !== c) return false;
-    if (l && a.location !== l) return false;
+    if (c === '__none' ? !!it.category : (c && it.category !== c)) return false;
+    if (l === '__none' ? !!a.location : (l && a.location !== l)) return false;
     if (k && a.className !== k) return false;
     if (f && a.funding !== f) return false;
     if (q) { const hay = [it.name, it.category, a.code, a.model, a.maker, a.serial, a.vendor, a.note, a.location, a.className, a.tags, a.funding, a.subsidyName].join(' ').toLowerCase(); if (!q.split(/\s+/).every(w => hay.includes(w))) return false; }
@@ -484,7 +500,8 @@ function filteredAssets(){
   }[so] || (() => 0);
   return list.sort(cmp);
 }
-function thumbHtml(a, lg){ const p = (a.photoIds || [])[0]; return p ? `<img class="thumb${lg ? ' lg' : ''}" data-ph="${esc(p)}" alt="">` : `<span class="thumb${lg ? ' lg' : ''}" aria-hidden="true">📷</span>`; }
+function firstPhoto(a){ const ids = a.photoIds || []; return ids.find(id => (a.photoLabels || {})[id] !== '保証書・領収書') || ids[0]; }
+function thumbHtml(a, lg){ const p = firstPhoto(a); return p ? `<img class="thumb${lg ? ' lg' : ''}" data-ph="${esc(p)}" alt="">` : `<span class="thumb${lg ? ' lg' : ''}" aria-hidden="true">📷</span>`; }
 function renderLedger(){
   fillFilterSelects();
   $$('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === ledgerMode ? 'true' : 'false'));
@@ -511,16 +528,45 @@ function renderLedger(){
     }).join('');
   } else {
     body.innerHTML = `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th><span class="sr">選択</span></th><th>写真</th><th>管理番号</th><th>品名</th><th>型番／メーカー</th><th>購入日</th><th class="num">金額</th><th>保管場所</th><th>クラス</th><th>状態</th></tr></thead><tbody>
-      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td>${esc(a.code)}</td><td>${esc(it.name)}${Number(a.qty) > 1 ? ` ×${a.qty}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td>${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td></tr>`; }).join('')}
+      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td class="nw">${esc(a.code)}</td><td class="nm">${esc(it.name)}${Number(a.qty) > 1 ? ` ×${a.qty}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td class="nw">${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td></tr>`; }).join('')}
       </tbody></table></div>`;
   }
   $$('[data-open]', body).forEach(r => r.addEventListener('click', e => { if (e.target.closest('input.sel')) return; openAsset(r.dataset.open); }));
+  syncBulk();
   $$('input.sel', body).forEach(c => c.addEventListener('change', () => { c.checked ? selected.add(c.dataset.sel) : selected.delete(c.dataset.sel); renderLedgerSumOnly(); }));
   $$('[data-addsame]', body).forEach(b => b.onclick = () => openAssetForm(null, { itemId:b.dataset.addsame }));
   $$('[data-edititem]', body).forEach(b => b.onclick = () => openItemForm(b.dataset.edititem));
   hydrate(body);
 }
-function renderLedgerSumOnly(){ const list = filteredAssets(); $('#ledgerSum').textContent = `${list.length}件・合計 ${yen(list.reduce((s, a) => s + totalPrice(a), 0)) || '¥0'}${selected.size ? `　／　ラベル印刷に選択中 ${selected.size}件` : ''}`; }
+function syncBulk(){ const b = $('#btnBulk'); b.hidden = !selected.size; b.textContent = `選んだ${selected.size}件をまとめて変更`; }
+function openBulkForm(){
+  const ids = [...selected].filter(id => S.assets.some(a => a.id === id)); if (!ids.length) return;
+  openDlg(`<div class="dh"><h2>${ids.length}件をまとめて変更</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db"><p class="muted">変えたい項目だけ選んでください。「変えない」の項目はそのままです。廃棄済み・貸出中の物は対象外です。</p><div class="fgrid">
+      <label class="f"><span>保管場所</span><select id="bLoc">${opt(S.masters.locations, '', '変えない')}</select></label>
+      <label class="f"><span>使用クラス・担当</span><select id="bCls">${opt(S.masters.classes, '', '変えない')}</select></label>
+      <label class="f"><span>状態</span><select id="bSt">${opt(STATUSES.filter(x => x !== '廃棄済' && x !== '貸出中'), '', '変えない')}</select></label>
+    </div></div>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="bSave">まとめて変更する</button></div>`);
+  $('#bSave').onclick = async () => {
+    const loc = $('#bLoc').value, cls = $('#bCls').value, st = $('#bSt').value;
+    if (!loc && !cls && !st) { toast('変える項目を選んでください'); return; }
+    const now = new Date().toISOString(), ops = []; let n = 0;
+    for (const id of ids) {
+      const a = S.assets.find(x => x.id === id); if (!a || !isActive(a) || a.status === '貸出中') continue;
+      const u = { ...a, updatedAt:now }; const ch = [];
+      if (loc && a.location !== loc) { u.location = loc; ops.push(['logs','put',newLog({ assetId:a.id, type:'移動', detail:`${a.location || '未設定'} → ${loc}（一括）` })]); }
+      if (cls && a.className !== cls) { u.className = cls; ch.push('使用クラス'); }
+      if (st && a.status !== st) { u.status = st; ch.push('状態'); }
+      if (ch.length) ops.push(['logs','put',newLog({ assetId:a.id, type:'編集', detail:'一括変更：' + ch.join('、') })]);
+      ops.push(['assets','put',u]); n++;
+    }
+    if (!ops.length) { toast('変更できる物がありませんでした'); return; }
+    try { await writeOps(ops); } catch(e) { alert('変更できませんでした。データは元のままです。\n' + e.message); return; }
+    await loadAll(); selected.clear(); closeDlg(); toast(`${n}件を変更しました`); render();
+  };
+}
+function renderLedgerSumOnly(){ syncBulk(); const list = filteredAssets(); $('#ledgerSum').textContent = `${list.length}件・合計 ${yen(list.reduce((s, a) => s + totalPrice(a), 0)) || '¥0'}${selected.size ? `　／　ラベル印刷に選択中 ${selected.size}件` : ''}`; }
 function assetRow(a){
   const sub = [a.model, a.purchaseDate ? '購入 ' + jdate(a.purchaseDate) : '', yen(totalPrice(a)), a.location, a.className].filter(Boolean).join('・');
   return `<button type="button" class="irow" data-open="${esc(a.id)}">${thumbHtml(a)}<div class="c1"><div class="a">${esc(a.code)}${Number(a.qty) > 1 ? ` <span class="muted">×${a.qty}</span>` : ''}${a.serial ? ` <span class="muted" style="font-weight:400">S/N ${esc(a.serial)}</span>` : ''}</div><div class="b">${esc(sub)}</div></div><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></button>`;
@@ -549,16 +595,16 @@ function openAsset(id){
       <div class="row" style="margin-bottom:10px"><span class="chip st-${esc(a.status)}">${esc(a.status)}</span>${a.condition ? `<span class="chip">状態：${esc(a.condition)}</span>` : ''}${a.restrictUntil && a.restrictUntil >= today() ? `<span class="chip st-修理中">補助金の処分制限 ${jdate(a.restrictUntil)}まで</span>` : ''}${(a.tags || '').split(/[,、\s]+/).filter(Boolean).map(t => `<span class="chip">#${esc(t)}</span>`).join('')}</div>
       <dl class="dl">
         ${dd('品目', esc(it.name))}${dd('分類', esc(it.category))}${dd('管理番号', esc(a.code))}
-        ${dd('型番', esc(a.model))}${dd('メーカー', esc(a.maker))}${dd('製造番号', esc(a.serial))}${dd('数量', Number(a.qty) > 1 ? esc(a.qty) + '点（まとめて管理）' : '')}
+        ${dd('型番', esc(a.model))}${dd('メーカー', esc(a.maker))}${dd('製造番号', esc(a.serial))}${dd('付属品', esc(a.accessories))}${dd('数量', Number(a.qty) > 1 ? esc(a.qty) + '点（まとめて管理）' : '')}
         ${dd('購入日', jdate(a.purchaseDate))}${dd('購入先', esc(a.vendor))}${dd('購入金額', a.price != null && a.price !== '' ? yen(a.price) + (Number(a.qty) > 1 ? `（単価）× ${a.qty} ＝ ${yen(totalPrice(a))}` : '') + '（税込）' : '')}
         ${dd('財源', esc(a.funding))}${dd('補助金名', esc(a.subsidyName))}${dd('処分制限期限', jdate(a.restrictUntil))}
-        ${dd('保証期限', jdate(a.warrantyUntil))}${dd('耐用年数', a.usefulLife ? esc(a.usefulLife) + '年（' + jdate(le) + 'まで）' : '')}${dd('簿価の目安', bv != null ? yen(bv) + ' <span class="muted">（定額法・残存0の概算）</span>' : '')}
+        ${dd('保証期限', jdate(a.warrantyUntil))}${dd('リース・契約期限', jdate(a.leaseUntil))}${dd('耐用年数', a.usefulLife ? esc(a.usefulLife) + '年（' + jdate(le) + 'まで）' : '')}${dd('簿価の目安', bv != null ? yen(bv) + ' <span class="muted">（定額法・残存0の概算）</span>' : '')}
         ${dd('保管場所', esc(a.location))}${dd('使用クラス', esc(a.className))}
         ${dd('点検周期', a.inspectCycle ? esc(a.inspectCycle) + 'か月ごと' : '')}${dd('次回点検日', a.nextInspection ? jdate(a.nextInspection) + (daysUntil(a.nextInspection) < 0 ? ' <b style="color:var(--ng)">（期限切れ）</b>' : '') : '')}
         ${a.status === '貸出中' && a.loan ? dd('貸出', `${esc(a.loan.to)}（${jdate(a.loan.out)}〜 返却予定 ${jdate(a.loan.due) || '未定'}）`) : ''}
         ${dd('廃棄日', jdate(a.disposalDate))}${dd('廃棄理由', esc(a.disposalReason))}${dd('廃棄方法', esc(a.disposalMethod))}${dd('廃棄の承認者', esc(a.disposalApprover))}
         ${dd('メモ', esc(a.note).replace(/\n/g, '<br>'))}
-        ${dd('登録日', jdate((a.createdAt || '').slice(0, 10)))}${dd('最終更新', jdate((a.updatedAt || '').slice(0, 10)))}
+        ${dd('登録日', jdate(isoDay(a.createdAt)))}${dd('最終更新', jdate(isoDay(a.updatedAt)))}
       </dl>
 
       ${siblings.length ? `<h3>同じ品目のほかの${siblings.length}件</h3><div class="card" style="padding:0;overflow:hidden">${siblings.slice(0, 20).map(assetRow).join('')}</div>` : ''}
@@ -581,7 +627,7 @@ function openAsset(id){
   const d = openDlg(html);
   hydrate(d);
   (a.photoLabels && Object.entries(a.photoLabels) || []).forEach(([pid, lb]) => { const c = $(`[data-cap="${CSS.escape(pid)}"]`, d); if (c) c.textContent = lb; });
-  $$('img[data-view]', d).forEach(im => im.onclick = () => viewPhoto(im.dataset.view));
+  hydrate(d).then(() => $$('[data-view]', d).forEach(im => im.onclick = () => viewPhoto(im.dataset.view)));
   $$('[data-open]', d).forEach(r => r.onclick = () => openAsset(r.dataset.open));
   $('#aEdit').onclick = () => openAssetForm(a.id);
   $('#aDup').onclick = () => openAssetForm(null, { copyFrom:a.id });
@@ -594,6 +640,8 @@ function openAsset(id){
   const ud = $('#aUndispose'); if (ud) ud.onclick = () => undispose(a.id);
 }
 async function viewPhoto(pid){
+  const rec = await getOne('photos', pid);
+  if (rec && rec.kind === 'pdf') { const u = await photoUrl(pid, true); const w = window.open(u, '_blank'); if (!w) { const a = document.createElement('a'); a.href = u; a.download = rec.name || 'file.pdf'; a.click(); } return; }
   const u = await photoUrl(pid, true);
   openDlg(`<div class="dh"><h2>写真</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div><div class="db viewer"><img src="${esc(u)}" alt="備品の写真（拡大）"></div>`, 'dlg2');
 }
@@ -619,6 +667,7 @@ async function openAssetForm(id, opts = {}){
       <fieldset><legend>写真</legend>
         <div class="photos" id="fphotos"></div>
         <label class="btn" style="margin-bottom:10px">📷 写真を撮る・選ぶ<input type="file" id="fphoto" accept="image/*" multiple hidden></label>
+        <label class="btn" style="margin-bottom:10px">📄 PDFを添付（保証書・取扱説明書など）<input type="file" id="fpdf" accept="application/pdf" multiple hidden></label>
         <div class="hint">外観のほか、型番の銘板・保証書・領収書も撮っておくと便利です。写真は自動で縮小して保存します。</div>
       </fieldset>
       <fieldset><legend>品目と個体</legend>
@@ -631,6 +680,7 @@ async function openAssetForm(id, opts = {}){
           <label class="f"><span>製造番号（シリアル）</span><input type="text" id="fSerial" value="${v('serial')}" autocomplete="off"></label>
           <label class="f"><span>数量（まとめて1行で管理する時）</span><input type="number" id="fQty" min="1" step="1" value="${v('qty') || 1}" inputmode="numeric"><div class="hint">積み木一式・椅子20脚などをまとめる時に使います。1台ずつ管理する時は1のまま。</div></label>
           ${editing ? '' : `<label class="f"><span>同じ内容で何件登録しますか</span><input type="number" id="fCopies" min="1" max="200" step="1" value="1" inputmode="numeric"><div class="hint">2以上にすると管理番号を連番で振って1件ずつ作ります。</div></label>`}
+          <label class="f"><span>付属品・セット内容</span><input type="text" id="fAcc" value="${v('accessories')}" placeholder="例：充電器、SDカード、ケース" autocomplete="off"></label>
           <label class="f"><span>タグ（カンマ区切り）</span><input type="text" id="fTags" value="${v('tags')}" placeholder="例：運動会, 貸出可" autocomplete="off"></label>
         </div>
       </fieldset>
@@ -643,6 +693,7 @@ async function openAssetForm(id, opts = {}){
           <label class="f"><span>補助金名・交付決定番号</span><input type="text" id="fSubsidy" value="${v('subsidyName')}" autocomplete="off"></label>
           <label class="f"><span>処分制限期限（補助金）</span><input type="date" id="fRestrict" value="${v('restrictUntil')}"><div class="hint">補助金で買った物は、この日までの廃棄・譲渡に承認が要る場合があります。</div></label>
           <label class="f"><span>保証期限</span><input type="date" id="fWarranty" value="${v('warrantyUntil')}"></label>
+          <label class="f"><span>リース・保守契約の期限</span><input type="date" id="fLease" value="${v('leaseUntil')}"><div class="hint">90日前からホームでお知らせします。</div></label>
           <label class="f"><span>耐用年数（年）</span><input type="number" id="fLife" min="0" step="1" value="${v('usefulLife')}" inputmode="numeric"><div class="hint">簿価の目安と寿命の目安に使います（例：パソコン4年、家電6年）。</div></label>
         </div>
       </fieldset>
@@ -664,6 +715,11 @@ async function openAssetForm(id, opts = {}){
   renderFormPhotos();
   $('#fItem').addEventListener('change', () => { const m = S.items.find(i => i.name === $('#fItem').value.trim() && i.kind !== 'consumable'); if (m && m.category) $('#fCatF').value = m.category; });
   $('#fPDate').addEventListener('change', () => { if ($('#fCycle').value && !$('#fNext').value && $('#fPDate').value) $('#fNext').value = addMonths($('#fPDate').value, $('#fCycle').value); });
+  $('#fpdf').addEventListener('change', async e => {
+    const files = [...e.target.files]; e.target.value = '';
+    for (const f of files) { try { const rec = await makePhoto(f); formPhotos.push({ id:rec.id, isNew:true, rec, label:'保証書・領収書' }); } catch(err) { toast(err.message); } }
+    renderFormPhotos();
+  });
   $('#fphoto').addEventListener('change', async e => {
     const files = [...e.target.files]; e.target.value = '';
     for (const f of files) { try { const rec = await makePhoto(f); formPhotos.push({ id:rec.id, isNew:true, rec, label:formPhotos.length ? 'その他' : '外観' }); } catch(err) { toast(err.message); } }
@@ -675,7 +731,7 @@ async function openAssetForm(id, opts = {}){
 function renderFormPhotos(){
   const box = $('#fphotos'); if (!box) return;
   box.innerHTML = formPhotos.map((p, i) => `<div class="ph"><img ${p.isNew ? '' : `data-ph="${esc(p.id)}"`} data-i="${i}" alt="写真${i + 1}"><button type="button" class="del" data-del="${i}" aria-label="写真${i + 1}を外す">✕</button><select data-lb="${i}" aria-label="写真${i + 1}の種類">${opt(PHOTO_LABELS, p.label || '外観')}</select></div>`).join('');
-  formPhotos.forEach((p, i) => { if (p.isNew) { const im = $(`img[data-i="${i}"]`, box); im.src = URL.createObjectURL(p.rec.thumb); } });
+  formPhotos.forEach((p, i) => { if (p.isNew) { const im = $(`img[data-i="${i}"]`, box); if (p.rec.kind === 'pdf') { const sp = Object.assign(document.createElement('span'), { className:'thumb', textContent:'📄', title:p.rec.name }); sp.style.width = sp.style.height = '96px'; sp.style.fontSize = '2.5rem'; im.replaceWith(sp); } else im.src = URL.createObjectURL(p.rec.thumb); } });
   hydrate(box);
   $$('[data-del]', box).forEach(b => b.onclick = () => { formPhotos.splice(Number(b.dataset.del), 1); renderFormPhotos(); });
   $$('[data-lb]', box).forEach(s => s.onchange = () => { formPhotos[Number(s.dataset.lb)].label = s.value; });
@@ -685,9 +741,9 @@ async function saveAssetForm(editing){
   if (!name) { toast('品目名を入れてください'); $('#fItem').focus(); return; }
   const price = numOrNull($('#fPrice').value);
   if ($('#fPrice').value.trim() && price == null) { toast('購入金額は数字で入れてください'); $('#fPrice').focus(); return; }
-  const qty = Math.max(1, parseInt($('#fQty').value, 10) || 1);
+  const qty = Math.max(1, parseInt(half($('#fQty').value), 10) || 1);
   const copies = editing ? 1 : Math.min(200, Math.max(1, parseInt($('#fCopies').value, 10) || 1));
-  let code = $('#fCode').value.trim();
+  let code = half($('#fCode').value);
   if (code && S.assets.some(a => a.code === code && (!editing || a.id !== editing.id))) { toast('その管理番号はすでに使われています'); $('#fCode').focus(); return; }
   if (copies > 1 && code) { if (!confirm(`${copies}件まとめて登録する時は、管理番号を自動の連番で振ります。入力した「${code}」は1件目に使います。よろしいですか？`)) return; }
   const ops = [], now = new Date().toISOString();
@@ -706,7 +762,7 @@ async function saveAssetForm(editing){
   const f = {
     itemId:item.id, model:$('#fModel').value.trim(), maker:$('#fMaker').value.trim(), serial:$('#fSerial').value.trim(), qty,
     tags:$('#fTags').value.trim(), purchaseDate:$('#fPDate').value, price, vendor:$('#fVendor').value.trim(), funding:$('#fFundF').value,
-    subsidyName:$('#fSubsidy').value.trim(), restrictUntil:$('#fRestrict').value, warrantyUntil:$('#fWarranty').value,
+    subsidyName:$('#fSubsidy').value.trim(), restrictUntil:$('#fRestrict').value, warrantyUntil:$('#fWarranty').value, leaseUntil:$('#fLease').value, accessories:$('#fAcc').value.trim(),
     usefulLife:numOrNull($('#fLife').value), location:$('#fLocF').value, className:$('#fClsF').value, status:$('#fStF').value,
     condition:$('#fCond').value, inspectCycle:numOrNull($('#fCycle').value), nextInspection:$('#fNext').value, note:$('#fNote').value,
     photoIds, photoLabels, updatedAt:now
@@ -741,7 +797,7 @@ async function saveAssetForm(editing){
   render();
   if (created.length === 1) openAsset(created[0].id);
 }
-const FIELD_NAMES = { itemId:'品目', code:'管理番号', model:'型番', maker:'メーカー', serial:'製造番号', qty:'数量', tags:'タグ', purchaseDate:'購入日', price:'購入金額', vendor:'購入先', funding:'財源', subsidyName:'補助金名', restrictUntil:'処分制限期限', warrantyUntil:'保証期限', usefulLife:'耐用年数', location:'保管場所', className:'使用クラス', status:'状態', condition:'傷み具合', inspectCycle:'点検周期', nextInspection:'次回点検日', note:'メモ', photoIds:'写真' };
+const FIELD_NAMES = { itemId:'品目', code:'管理番号', model:'型番', maker:'メーカー', serial:'製造番号', qty:'数量', tags:'タグ', purchaseDate:'購入日', price:'購入金額', vendor:'購入先', funding:'財源', subsidyName:'補助金名', restrictUntil:'処分制限期限', warrantyUntil:'保証期限', leaseUntil:'リース・契約期限', accessories:'付属品', usefulLife:'耐用年数', location:'保管場所', className:'使用クラス', status:'状態', condition:'傷み具合', inspectCycle:'点検周期', nextInspection:'次回点検日', note:'メモ', photoIds:'写真' };
 function diffFields(a, b){ return Object.keys(FIELD_NAMES).filter(k => JSON.stringify(a[k] ?? '') !== JSON.stringify(b[k] ?? '')).map(k => FIELD_NAMES[k]); }
 
 /* ---------- item (品目) form ---------- */
@@ -938,7 +994,7 @@ function renderStock(){
       <div class="fgrid"><label class="f"><span>名前</span><input type="text" id="stName" value="${new Date().getFullYear()}年度 棚卸" autocomplete="off"></label>
       <label class="f"><span>対象の場所</span><select id="stLoc">${opt(S.masters.locations, '', 'すべての場所')}</select></label></div>
       <button type="button" class="btn pri" id="stStart">棚卸を始める</button></div>
-      <h3>これまでの棚卸</h3>${past.length ? past.map(s => `<div class="card"><b>${esc(s.name)}</b> <span class="muted">${jdate(s.date)}〜${jdate(s.finishedAt.slice(0, 10))}${s.location ? '・' + esc(s.location) : ''}</span><br>確認 ${s.result?.found ?? 0}件／未確認 ${s.result?.missing ?? 0}件／場所違い ${s.result?.moved ?? 0}件</div>`).join('') : '<div class="muted">まだありません。</div>'}`;
+      <h3>これまでの棚卸</h3>${past.length ? past.map(s => `<div class="card"><b>${esc(s.name)}</b> <span class="muted">${jdate(s.date)}〜${jdate(isoDay(s.finishedAt))}${s.location ? '・' + esc(s.location) : ''}</span><br>確認 ${s.result?.found ?? 0}件／未確認 ${s.result?.missing ?? 0}件／場所違い ${s.result?.moved ?? 0}件</div>`).join('') : '<div class="muted">まだありません。</div>'}`;
     $('#stStart').onclick = async () => {
       const s = { id:uid(), name:$('#stName').value.trim() || '棚卸', date:today(), location:$('#stLoc').value, checks:{}, startedAt:new Date().toISOString(), finishedAt:'' };
       await writeOps([['stocktakes','put',s]]); await loadAll(); render();
@@ -970,9 +1026,9 @@ function renderStock(){
     renderStock();
   };
   $$('[data-chk]', box).forEach(b => b.onclick = () => check(S.assets.find(a => a.id === b.dataset.chk), 'tap'));
-  $('#stCodeBtn').onclick = () => { const c = $('#stCode').value.trim(); check(S.assets.find(a => a.code === c), 'code'); };
+  $('#stCodeBtn').onclick = () => { const c = half($('#stCode').value); check(findByCode(c), 'code'); };
   $('#stCode').onkeydown = e => { if (e.key === 'Enter') $('#stCodeBtn').click(); };
-  $('#stScan').onclick = () => openScanner(code => { const a = S.assets.find(x => x.code === code); check(a, 'qr'); return true; }, true);
+  $('#stScan').onclick = () => openScanner(code => { check(findByCode(code), 'qr'); return true; }, true);
   $$('[data-fix]', box).forEach(b => b.onclick = async () => {
     const a = S.assets.find(x => x.id === b.dataset.fix), to = st.checks[a.id].foundLocation;
     await writeOps([['assets','put',{ ...a, location:to, updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'移動', detail:`棚卸で修正：${a.location || '未設定'} → ${to}` })]]);
@@ -1001,7 +1057,7 @@ async function openScanner(onCode, keepOpen){
     <div class="db"><div class="scanbox"><video id="scanV" playsinline muted aria-label="QR読み取り用のカメラ映像（音声なし）"><track kind="captions" label="音声なし"></video><div class="frame" aria-hidden="true"></div></div>
     <p class="muted" id="scanMsg">備品に貼ったラベルのQRコードを枠に合わせてください。</p>
     <div class="row"><input type="text" id="scanCode" placeholder="読めない時は管理番号を入力" style="flex:1;width:auto" autocomplete="off" aria-label="管理番号"><button type="button" class="btn" id="scanGo">開く</button></div></div>`);
-  const go = c => { c = (c || '').trim(); if (!c) return; const r = onCode(c); if (!keepOpen || r === false) closeDlg(); };
+  const go = c => { c = (c || '').trim(); if (!c) return; const r = onCode(half(c)); if (!keepOpen || r === false) closeDlg(); };
   $('#scanGo').onclick = () => go($('#scanCode').value);
   $('#scanCode').onkeydown = e => { if (e.key === 'Enter') go($('#scanCode').value); };
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('#scanMsg').textContent = 'この端末ではカメラを使えません。管理番号を入力してください。'; return; }
@@ -1058,7 +1114,7 @@ function printLabels(ids){
 }
 function printSheet(id){
   const a = S.assets.find(x => x.id === id), it = itemOf(a), logs = assetLogs(id);
-  const rows = [['管理番号', a.code], ['品目', it.name], ['分類', it.category], ['型番', a.model], ['メーカー', a.maker], ['製造番号', a.serial], ['数量', a.qty || 1], ['購入日', jdate(a.purchaseDate)], ['購入先', a.vendor], ['購入金額(税込)', yen(totalPrice(a))], ['財源', a.funding], ['補助金名', a.subsidyName], ['処分制限期限', jdate(a.restrictUntil)], ['保証期限', jdate(a.warrantyUntil)], ['耐用年数', a.usefulLife ? a.usefulLife + '年' : ''], ['保管場所', a.location], ['使用クラス', a.className], ['状態', a.status], ['廃棄日', jdate(a.disposalDate)], ['廃棄理由', a.disposalReason], ['メモ', a.note]].filter(r => r[1]);
+  const rows = [['管理番号', a.code], ['品目', it.name], ['分類', it.category], ['型番', a.model], ['メーカー', a.maker], ['製造番号', a.serial], ['数量', a.qty || 1], ['購入日', jdate(a.purchaseDate)], ['購入先', a.vendor], ['購入金額(税込)', yen(totalPrice(a))], ['財源', a.funding], ['補助金名', a.subsidyName], ['処分制限期限', jdate(a.restrictUntil)], ['保証期限', jdate(a.warrantyUntil)], ['リース・契約期限', jdate(a.leaseUntil)], ['付属品', a.accessories], ['耐用年数', a.usefulLife ? a.usefulLife + '年' : ''], ['保管場所', a.location], ['使用クラス', a.className], ['状態', a.status], ['廃棄日', jdate(a.disposalDate)], ['廃棄理由', a.disposalReason], ['メモ', a.note]].filter(r => r[1]);
   const tag = confirm('ラベル（QRコード）も一緒に印刷しますか？');
   doPrint(`<div class="sheet">${prHead('備品個票')}<h1>${esc(it.name)}（${esc(a.code)}）</h1><div style="display:flex;gap:6mm;align-items:flex-start"><div class="phs">${(a.photoIds || []).slice(0, 4).map(p => `<img data-ph="${esc(p)}" data-big="1" alt="">`).join('')}</div>${tag ? `<div class="lbl" style="width:60mm">${qrSvg(a.code)}<div class="t"><b>${esc(a.code)}</b>${esc(it.name)}</div></div>` : ''}</div>
     <table>${rows.map(r => `<tr><th style="width:35mm">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>
@@ -1069,7 +1125,7 @@ function printOrder(low){
 }
 
 /* ---------- CSV ---------- */
-const CSV_COLS = [['管理番号','code'],['品目','_item'],['分類','_cat'],['型番','model'],['メーカー','maker'],['製造番号','serial'],['数量','qty'],['購入日','purchaseDate'],['購入先','vendor'],['購入金額(税込・単価)','price'],['財源','funding'],['補助金名','subsidyName'],['処分制限期限','restrictUntil'],['保証期限','warrantyUntil'],['耐用年数','usefulLife'],['保管場所','location'],['使用クラス','className'],['状態','status'],['傷み具合','condition'],['点検周期(月)','inspectCycle'],['次回点検日','nextInspection'],['タグ','tags'],['廃棄日','disposalDate'],['廃棄理由','disposalReason'],['廃棄方法','disposalMethod'],['メモ','note']];
+const CSV_COLS = [['管理番号','code'],['品目','_item'],['分類','_cat'],['型番','model'],['メーカー','maker'],['製造番号','serial'],['数量','qty'],['購入日','purchaseDate'],['購入先','vendor'],['購入金額(税込・単価)','price'],['財源','funding'],['補助金名','subsidyName'],['処分制限期限','restrictUntil'],['保証期限','warrantyUntil'],['リース・契約期限','leaseUntil'],['付属品','accessories'],['耐用年数','usefulLife'],['保管場所','location'],['使用クラス','className'],['状態','status'],['傷み具合','condition'],['点検周期(月)','inspectCycle'],['次回点検日','nextInspection'],['タグ','tags'],['廃棄日','disposalDate'],['廃棄理由','disposalReason'],['廃棄方法','disposalMethod'],['メモ','note']];
 const csvCell = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 function download(name, blob){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
 function exportCsv(list){
@@ -1117,7 +1173,7 @@ async function importCsv(file){
       if (k.startsWith('_') || k === 'code') continue;
       const v = g(k); if (v === undefined) continue;
       if (['price','usefulLife','inspectCycle','qty'].includes(k)) rec[k] = numOrNull(v);
-      else if (['purchaseDate','restrictUntil','warrantyUntil','nextInspection','disposalDate'].includes(k)) rec[k] = normDate(v);
+      else if (['purchaseDate','restrictUntil','warrantyUntil','leaseUntil','nextInspection','disposalDate'].includes(k)) rec[k] = normDate(v);
       else if (k === 'status') rec[k] = STATUSES.includes(v) ? v : (rec.status || '使用中');
       else rec[k] = v;
     }
@@ -1130,8 +1186,8 @@ async function importCsv(file){
   }
   if (!confirm(`新規 ${nNew}件・更新 ${nUpd}件${nSkip ? `・読み飛ばし ${nSkip}件` : ''} を取り込みます。よろしいですか？\n（管理番号が同じ行は上書き更新します）`)) { await loadAll(); return; }
   ops.push(['meta','put',{ key:'settings', ...S.settings }]);
-  try { await writeOps(ops); } catch(e) { alert('取り込めませんでした。データは変更されていません。\n' + e.message); }
-  await loadAll(); toast('取り込みました'); render();
+  try { await writeOps(ops); } catch(e) { await loadAll(); alert('取り込めませんでした。データは変更されていません。\n' + e.message); render(); return; }
+  await loadAll(); toast(`取り込みました（新規 ${nNew}件・更新 ${nUpd}件）`); render();
 }
 
 /* ---------- backup (JSON incl. photos) ---------- */
@@ -1141,7 +1197,7 @@ async function exportBackup(){
   toast('バックアップを作っています…');
   const photos = await getAll('photos');
   const ph = [];
-  for (const p of photos) ph.push({ id:p.id, label:p.label, createdAt:p.createdAt, blob:await blobToDataUrl(p.blob), thumb:p.thumb ? await blobToDataUrl(p.thumb) : '' });
+  for (const p of photos) ph.push({ id:p.id, label:p.label, kind:p.kind || '', name:p.name || '', createdAt:p.createdAt, blob:await blobToDataUrl(p.blob), thumb:p.thumb ? await blobToDataUrl(p.thumb) : '' });
   const meta = await getAll('meta');
   const data = { app:'hoikuen-bihin', version:1, exportedAt:new Date().toISOString(), items:S.items, assets:S.assets, logs:S.logs, stocktakes:S.stocktakes, meta, photos:ph };
   download(`物品台帳バックアップ_${today()}.json`, new Blob([JSON.stringify(data)], { type:'application/json' }));
@@ -1151,9 +1207,10 @@ async function importBackup(file){
   let data;
   try { data = JSON.parse(await file.text()); } catch(e) { alert('バックアップのファイルを読めませんでした'); return; }
   if (data.app !== 'hoikuen-bihin' || !Array.isArray(data.assets) || !Array.isArray(data.items)) { alert('この台帳のバックアップではありません'); return; }
-  if (!confirm(`バックアップ（${jdate((data.exportedAt || '').slice(0, 10))}作成・備品${data.assets.length}件・写真${(data.photos || []).length}枚）で、いまの端末のデータを置き換えます。\nいまのデータ（備品${S.assets.length}件）は消えます。よろしいですか？`)) return;
+  if (data.assets.length === 0 && data.items.length === 0 && (S.assets.length || S.items.length)) { alert('このバックアップは中身が空です。いまのデータを守るため、復元を止めました。\n（データを消したい時は「すべてのデータを消す」を使ってください）'); return; }
+  if (!confirm(`バックアップ（${jdate(isoDay(data.exportedAt))}作成・備品${data.assets.length}件・写真${(data.photos || []).length}枚）で、いまの端末のデータを置き換えます。\nいまのデータ（備品${S.assets.length}件）は消えます。よろしいですか？`)) return;
   let photos;
-  try { photos = await Promise.all((data.photos || []).map(async p => ({ id:p.id, label:p.label, createdAt:p.createdAt, blob:await dataUrlToBlob(p.blob), thumb:p.thumb ? await dataUrlToBlob(p.thumb) : null }))); }
+  try { photos = await Promise.all((data.photos || []).map(async p => ({ id:p.id, label:p.label, kind:p.kind || '', name:p.name || '', createdAt:p.createdAt, blob:await dataUrlToBlob(p.blob), thumb:p.thumb ? await dataUrlToBlob(p.thumb) : null }))); }
   catch(e) { alert('写真の読み込みに失敗しました。データは変更していません。'); return; }
   await new Promise((res, rej) => {
     const stores = ['items','assets','photos','logs','stocktakes','meta'];
@@ -1188,7 +1245,7 @@ async function renderSettings(){
     <div class="row" style="margin-bottom:16px"><button type="button" class="btn pri" id="sSave">設定を保存する</button></div>
     <div class="card"><h3 style="margin-top:0">バックアップと移行</h3>
       <p style="margin-top:0">データ（写真を含む）は<b>この端末のこのブラウザの中だけ</b>に保存されます。機種変更・別の端末で使う時や、もしもの時のために、ときどきバックアップを保存してください。</p>
-      <p class="muted">前回のバックアップ：${s.lastBackup ? jdate(s.lastBackup.slice(0, 10)) : 'まだありません'}　${esc(usage)}　${persisted ? '・消えにくい保存：有効' : ''}</p>
+      <p class="muted">前回のバックアップ：${s.lastBackup ? jdate(isoDay(s.lastBackup)) : 'まだありません'}　${esc(usage)}　${persisted ? '・消えにくい保存：有効' : ''}</p>
       <div class="row"><button type="button" class="btn pri" id="bExp">⬇ バックアップを保存（写真込み）</button><button type="button" class="btn" id="bImp">⬆ バックアップから復元</button></div>
       <h3>表計算ソフトとのやりとり（CSV）</h3>
       <div class="row"><button type="button" class="btn" id="cExpAll">⬇ 全件をCSVで保存</button><button type="button" class="btn" id="cImp">⬆ CSVから取り込む</button></div>
@@ -1240,10 +1297,11 @@ async function loadDemo(){
 /* ---------- wiring ---------- */
 $$('nav.tabs button').forEach(b => b.onclick = () => show(b.dataset.view));
 $('#btnAddTop').onclick = () => curView === 'supplies' ? openSupplyForm() : openAssetForm();
-$('#btnScanTop').onclick = () => openScanner(code => { const a = S.assets.find(x => x.code === code); if (!a) { toast('台帳にない管理番号です：' + code); return false; } setTimeout(() => openAsset(a.id), 0); return true; });
+$('#btnScanTop').onclick = () => openScanner(code => { const a = findByCode(code); if (!a) { toast('台帳にない管理番号です：' + code); return false; } setTimeout(() => openAsset(a.id), 0); return true; });
 ['#q','#fCat','#fLoc','#fCls','#fSt','#fFund','#fSort'].forEach(id => $(id).addEventListener(id === '#q' ? 'input' : 'change', () => renderLedger()));
 $$('.seg button').forEach(b => b.onclick = () => { ledgerMode = b.dataset.mode; try { localStorage.setItem(LS_MODE, ledgerMode); } catch(e) {} renderLedger(); });
 $('#btnPrintLedger').onclick = printLedger;
+$('#btnBulk').onclick = openBulkForm;
 $('#btnLabels').onclick = () => {
   const ids = selected.size ? [...selected] : filteredAssets().map(a => a.id);
   if (!ids.length) { toast('印刷する備品がありません'); return; }
@@ -1258,7 +1316,7 @@ window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; })
 (async function init(){
   try { db = await openDB(); await loadAll(); }
   catch(e) { document.querySelector('main').innerHTML = `<div class="card" style="color:var(--ng)">データの保存場所を開けませんでした。プライベートブラウズを切るか、別のブラウザでお試しください。<br>${esc(e.message)}</div>`; return; }
-  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e) {}
+  try { if (navigator.storage && navigator.storage.persist) persistState = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch(e) {}
   let v = 'home', m = 'group';
   try { v = localStorage.getItem(LS_VIEW) || 'home'; m = localStorage.getItem(LS_MODE) || 'group'; } catch(e) {}
   ledgerMode = ['group','table'].includes(m) ? m : 'group';
