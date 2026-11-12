@@ -265,10 +265,10 @@ const z2 = n => String(n).padStart(2, '0');
 const ymd = (d = new Date()) => d.getFullYear() + '-' + z2(d.getMonth()+1) + '-' + z2(d.getDate());
 const today = () => ymd();
 const isoDay = iso => iso ? ymd(new Date(iso)) : '';
-function addMonths(s, m){ const d = new Date(s + 'T00:00:00'); d.setMonth(d.getMonth() + Number(m)); return ymd(d); }
+function addMonths(s, m){ const d = new Date(s + 'T00:00:00'), day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + Number(m)); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); d.setDate(Math.min(day, last)); return ymd(d); }
 function addYears(s, y){ const d = new Date(s + 'T00:00:00'); d.setFullYear(d.getFullYear() + Number(y)); return ymd(d); }
 function daysUntil(s){ return Math.round((new Date(s + 'T00:00:00') - new Date(today() + 'T00:00:00')) / 864e5); }
-const jdate = s => s ? s.replace(/-/g, '/') : '';
+const jdate = s => s ? esc(String(s).replace(/-/g, '/')) : '';
 const yen = n => (n === '' || n == null || isNaN(n)) ? '' : '¥' + Math.round(Number(n)).toLocaleString('ja-JP');
 const half = v => String(v ?? '').replace(/[０-９Ａ-Ｚａ-ｚ－．，]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[ー−‐]/g, '-').trim();
 const numOrNull = v => { if (v === '' || v == null) return null; const n = Number(half(v).replace(/[¥￥,円\s]/g, '')); return isNaN(n) ? null : n; };
@@ -301,7 +301,8 @@ function writeOps(ops){
   return new Promise((res, rej) => {
     const stores = [...new Set(ops.map(o => o[0]))];
     const t = db.transaction(stores, 'readwrite');
-    for (const [s, kind, v] of ops) { const os = t.objectStore(s); kind === 'delete' ? os.delete(v) : os.put(v); }
+    try { for (const [s, kind, v] of ops) { const os = t.objectStore(s); kind === 'delete' ? os.delete(v) : os.put(v); } }
+    catch(e) { try { t.abort(); } catch(e2) {} rej(e); return; }
     t.oncomplete = () => res();
     t.onerror = () => rej(t.error);
     t.onabort = () => rej(t.error || new Error('保存が中断されました'));
@@ -331,10 +332,11 @@ function bookValue(a){
   return Math.max(0, Math.round(p * (1 - yrs / Number(a.usefulLife))));
 }
 function lifeEnd(a){ return (a.usefulLife && a.purchaseDate) ? addYears(a.purchaseDate, a.usefulLife) : ''; }
-function nextCode(){
-  const used = new Set(S.assets.map(a => a.code));
+function nextCode(reserved){
+  const used = new Set(S.assets.map(a => String(a.code).toUpperCase()));
+  if (reserved) reserved.forEach(c => used.add(String(c).toUpperCase()));
   let n = Number(S.settings.seq) || 1, c;
-  do { c = S.settings.codePrefix + String(n).padStart(4, '0'); n++; } while (used.has(c));
+  do { c = S.settings.codePrefix + String(n).padStart(4, '0'); n++; } while (used.has(c.toUpperCase()));
   S.settings.seq = n;
   return c;
 }
@@ -528,7 +530,7 @@ function renderLedger(){
     }).join('');
   } else {
     body.innerHTML = `<div class="card tbwrap" style="padding:0"><table class="tb"><thead><tr><th><span class="sr">選択</span></th><th>写真</th><th>管理番号</th><th>品名</th><th>型番／メーカー</th><th>購入日</th><th class="num">金額</th><th>保管場所</th><th>クラス</th><th>状態</th></tr></thead><tbody>
-      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td class="nw">${esc(a.code)}</td><td class="nm">${esc(it.name)}${Number(a.qty) > 1 ? ` ×${a.qty}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td class="nw">${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td></tr>`; }).join('')}
+      ${list.map(a => { const it = itemOf(a); return `<tr class="click" data-open="${esc(a.id)}"><td><input type="checkbox" class="sel" data-sel="${esc(a.id)}" ${selected.has(a.id) ? 'checked' : ''} aria-label="${esc(a.code)}をラベル印刷に選ぶ"></td><td>${thumbHtml(a)}</td><td class="nw">${esc(a.code)}</td><td class="nm">${esc(it.name)}${Number(a.qty) > 1 ? ` ×${Number(a.qty)}` : ''}</td><td>${esc(a.model)}${a.maker ? '<br><span class="muted">' + esc(a.maker) + '</span>' : ''}</td><td class="nw">${jdate(a.purchaseDate)}</td><td class="num">${yen(totalPrice(a))}</td><td>${esc(a.location)}</td><td>${esc(a.className)}</td><td><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></td></tr>`; }).join('')}
       </tbody></table></div>`;
   }
   $$('[data-open]', body).forEach(r => r.addEventListener('click', e => { if (e.target.closest('input.sel')) return; openAsset(r.dataset.open); }));
@@ -569,7 +571,7 @@ function openBulkForm(){
 function renderLedgerSumOnly(){ syncBulk(); const list = filteredAssets(); $('#ledgerSum').textContent = `${list.length}件・合計 ${yen(list.reduce((s, a) => s + totalPrice(a), 0)) || '¥0'}${selected.size ? `　／　ラベル印刷に選択中 ${selected.size}件` : ''}`; }
 function assetRow(a){
   const sub = [a.model, a.purchaseDate ? '購入 ' + jdate(a.purchaseDate) : '', yen(totalPrice(a)), a.location, a.className].filter(Boolean).join('・');
-  return `<button type="button" class="irow" data-open="${esc(a.id)}">${thumbHtml(a)}<div class="c1"><div class="a">${esc(a.code)}${Number(a.qty) > 1 ? ` <span class="muted">×${a.qty}</span>` : ''}${a.serial ? ` <span class="muted" style="font-weight:400">S/N ${esc(a.serial)}</span>` : ''}</div><div class="b">${esc(sub)}</div></div><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></button>`;
+  return `<button type="button" class="irow" data-open="${esc(a.id)}">${thumbHtml(a)}<div class="c1"><div class="a">${esc(a.code)}${Number(a.qty) > 1 ? ` <span class="muted">×${Number(a.qty)}</span>` : ''}${a.serial ? ` <span class="muted" style="font-weight:400">S/N ${esc(a.serial)}</span>` : ''}</div><div class="b">${esc(sub)}</div></div><span class="chip st-${esc(a.status)}">${esc(a.status)}</span></button>`;
 }
 
 /* ---------- dialogs ---------- */
@@ -596,7 +598,7 @@ function openAsset(id){
       <dl class="dl">
         ${dd('品目', esc(it.name))}${dd('分類', esc(it.category))}${dd('管理番号', esc(a.code))}
         ${dd('型番', esc(a.model))}${dd('メーカー', esc(a.maker))}${dd('製造番号', esc(a.serial))}${dd('付属品', esc(a.accessories))}${dd('数量', Number(a.qty) > 1 ? esc(a.qty) + '点（まとめて管理）' : '')}
-        ${dd('購入日', jdate(a.purchaseDate))}${dd('購入先', esc(a.vendor))}${dd('購入金額', a.price != null && a.price !== '' ? yen(a.price) + (Number(a.qty) > 1 ? `（単価）× ${a.qty} ＝ ${yen(totalPrice(a))}` : '') + '（税込）' : '')}
+        ${dd('購入日', jdate(a.purchaseDate))}${dd('購入先', esc(a.vendor))}${dd('購入金額', a.price != null && a.price !== '' ? yen(a.price) + (Number(a.qty) > 1 ? `（単価）× ${Number(a.qty)} ＝ ${yen(totalPrice(a))}` : '') + '（税込）' : '')}
         ${dd('財源', esc(a.funding))}${dd('補助金名', esc(a.subsidyName))}${dd('処分制限期限', jdate(a.restrictUntil))}
         ${dd('保証期限', jdate(a.warrantyUntil))}${dd('リース・契約期限', jdate(a.leaseUntil))}${dd('耐用年数', a.usefulLife ? esc(a.usefulLife) + '年（' + jdate(le) + 'まで）' : '')}${dd('簿価の目安', bv != null ? yen(bv) + ' <span class="muted">（定額法・残存0の概算）</span>' : '')}
         ${dd('保管場所', esc(a.location))}${dd('使用クラス', esc(a.className))}
@@ -627,7 +629,7 @@ function openAsset(id){
   const d = openDlg(html);
   hydrate(d);
   (a.photoLabels && Object.entries(a.photoLabels) || []).forEach(([pid, lb]) => { const c = $(`[data-cap="${CSS.escape(pid)}"]`, d); if (c) c.textContent = lb; });
-  hydrate(d).then(() => $$('[data-view]', d).forEach(im => im.onclick = () => viewPhoto(im.dataset.view)));
+  hydrate(d).then(() => $$('[data-view]', d).forEach(im => im.onclick = () => { if (im.tagName === 'SPAN') { try { pendingWin = window.open('', '_blank'); } catch(e) {} } viewPhoto(im.dataset.view); }));
   $$('[data-open]', d).forEach(r => r.onclick = () => openAsset(r.dataset.open));
   $('#aEdit').onclick = () => openAssetForm(a.id);
   $('#aDup').onclick = () => openAssetForm(null, { copyFrom:a.id });
@@ -639,9 +641,10 @@ function openAsset(id){
   const di = $('#aDispose'); if (di) di.onclick = () => openDisposeForm(a.id);
   const ud = $('#aUndispose'); if (ud) ud.onclick = () => undispose(a.id);
 }
+let pendingWin = null;
 async function viewPhoto(pid){
   const rec = await getOne('photos', pid);
-  if (rec && rec.kind === 'pdf') { const u = await photoUrl(pid, true); const w = window.open(u, '_blank'); if (!w) { const a = document.createElement('a'); a.href = u; a.download = rec.name || 'file.pdf'; a.click(); } return; }
+  if (rec && rec.kind === 'pdf') { const u = await photoUrl(pid, true); const w = pendingWin || window.open('', '_blank'); pendingWin = null; if (w) w.location.href = u; else { const a = document.createElement('a'); a.href = u; a.download = rec.name || 'file.pdf'; a.click(); } return; }
   const u = await photoUrl(pid, true);
   openDlg(`<div class="dh"><h2>写真</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div><div class="db viewer"><img src="${esc(u)}" alt="備品の写真（拡大）"></div>`, 'dlg2');
 }
@@ -701,7 +704,7 @@ async function openAssetForm(id, opts = {}){
         <div class="fgrid">
           <label class="f"><span>保管場所</span><select id="fLocF">${opt(withCurrent(S.masters.locations, base.location), base.location || '', '選んでください')}</select></label>
           <label class="f"><span>使用クラス・担当</span><select id="fClsF">${opt(withCurrent(S.masters.classes, base.className), base.className || '', '選んでください')}</select></label>
-          <label class="f"><span>状態</span><select id="fStF">${opt(STATUSES.filter(s => s !== '廃棄済' || base.status === '廃棄済'), base.status || '使用中')}</select></label>
+          <label class="f"><span>状態</span><select id="fStF">${opt(STATUSES.filter(s => (s !== '廃棄済' || base.status === '廃棄済') && (s !== '貸出中' || base.status === '貸出中')), base.status || '使用中')}</select></label>
           <label class="f"><span>傷み具合</span><select id="fCond">${opt(CONDITIONS, base.condition || '', '未記入')}</select></label>
           <label class="f"><span>点検周期（か月）</span><input type="number" id="fCycle" min="0" step="1" value="${v('inspectCycle')}" inputmode="numeric"><div class="hint">遊具・家電など。点検を記録すると次回日が自動で進みます。</div></label>
           <label class="f"><span>次回点検日</span><input type="date" id="fNext" value="${v('nextInspection')}"></label>
@@ -744,7 +747,8 @@ async function saveAssetForm(editing){
   const qty = Math.max(1, parseInt(half($('#fQty').value), 10) || 1);
   const copies = editing ? 1 : Math.min(200, Math.max(1, parseInt($('#fCopies').value, 10) || 1));
   let code = half($('#fCode').value);
-  if (code && S.assets.some(a => a.code === code && (!editing || a.id !== editing.id))) { toast('その管理番号はすでに使われています'); $('#fCode').focus(); return; }
+  const dupA = code ? findByCode(code) : null;
+  if (dupA && (!editing || dupA.id !== editing.id)) { toast('その管理番号はすでに使われています'); $('#fCode').focus(); return; }
   if (copies > 1 && code) { if (!confirm(`${copies}件まとめて登録する時は、管理番号を自動の連番で振ります。入力した「${code}」は1件目に使います。よろしいですか？`)) return; }
   const ops = [], now = new Date().toISOString();
   // item (品目)
@@ -770,6 +774,8 @@ async function saveAssetForm(editing){
   const created = [];
   if (editing) {
     const upd = { ...editing, ...f, code: code || editing.code };
+    if (editing.status === '廃棄済' && upd.status !== '廃棄済') Object.assign(upd, { disposalDate:'', disposalReason:'', disposalMethod:'', disposalApprover:'' });
+    if (editing.status === '貸出中' && upd.status !== '貸出中') upd.loan = null;
     const changed = diffFields(editing, upd);
     ops.push(['assets','put',upd]);
     if (changed.length) ops.push(['logs','put',newLog({ assetId:upd.id, type:'編集', detail:'変更：' + changed.join('、') })]);
@@ -778,7 +784,7 @@ async function saveAssetForm(editing){
   } else {
     const seqBefore = S.settings.seq;
     for (let n = 0; n < copies; n++) {
-      const c = (n === 0 && code) ? code : nextCode();
+      const c = (n === 0 && code) ? code : nextCode(new Set(created.map(x => x.code).concat(code ? [code] : [])));
       const a = { id:uid(), code:c, ...f, createdAt:now, loan:null };
       if (n > 0) a.serial = '';
       ops.push(['assets','put',a]);
@@ -835,7 +841,7 @@ function openLogForm(assetId){
       <label class="f"><span>記録者</span><input type="text" id="lBy" autocomplete="off"></label>
     </div>
     <label class="f"><span>内容</span><textarea id="lDetail" placeholder="例：ボルトの緩みなし、ささくれなし"></textarea></label>
-    ${a.inspectCycle ? `<div class="hint">点検を記録すると、次回点検日を ${a.inspectCycle}か月後に進めます。</div>` : ''}</div>
+    ${a.inspectCycle ? `<div class="hint">点検を記録すると、次回点検日を ${Number(a.inspectCycle)}か月後に進めます。</div>` : ''}</div>
     <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="lSave">記録する</button></div>`, 'dlg2');
   const sync = () => { const t = $('#lType').value; $('#lLocW').hidden = t !== '移動'; $('#lResW').hidden = !(t === '点検' || t === '修理'); };
   $('#lType').onchange = sync; sync();
@@ -902,7 +908,7 @@ function openDisposeForm(assetId){
 async function undispose(assetId){
   const a = S.assets.find(x => x.id === assetId);
   if (!confirm('廃棄を取り消して「保管中」に戻しますか？（廃棄の記録は履歴に残ります）')) return;
-  await writeOps([['assets','put',{ ...a, status:'保管中', disposalDate:'', updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'メモ', detail:'廃棄を取り消し' })]]);
+  await writeOps([['assets','put',{ ...a, status:'保管中', disposalDate:'', disposalReason:'', disposalMethod:'', disposalApprover:'', updatedAt:new Date().toISOString() }], ['logs','put',newLog({ assetId:a.id, type:'メモ', detail:`廃棄を取り消し（取り消し前：${a.disposalDate || ''} ${a.disposalMethod || ''} ${a.disposalReason || ''}）`.trim() })]]);
   await loadAll(); openAsset(a.id); render();
 }
 async function deleteAsset(assetId){
@@ -994,7 +1000,7 @@ function renderStock(){
       <div class="fgrid"><label class="f"><span>名前</span><input type="text" id="stName" value="${new Date().getFullYear()}年度 棚卸" autocomplete="off"></label>
       <label class="f"><span>対象の場所</span><select id="stLoc">${opt(S.masters.locations, '', 'すべての場所')}</select></label></div>
       <button type="button" class="btn pri" id="stStart">棚卸を始める</button></div>
-      <h3>これまでの棚卸</h3>${past.length ? past.map(s => `<div class="card"><b>${esc(s.name)}</b> <span class="muted">${jdate(s.date)}〜${jdate(isoDay(s.finishedAt))}${s.location ? '・' + esc(s.location) : ''}</span><br>確認 ${s.result?.found ?? 0}件／未確認 ${s.result?.missing ?? 0}件／場所違い ${s.result?.moved ?? 0}件</div>`).join('') : '<div class="muted">まだありません。</div>'}`;
+      <h3>これまでの棚卸</h3>${past.length ? past.map(s => `<div class="card"><b>${esc(s.name)}</b> <span class="muted">${jdate(s.date)}〜${jdate(isoDay(s.finishedAt))}${s.location ? '・' + esc(s.location) : ''}</span><br>確認 ${Number(s.result?.found) || 0}件／未確認 ${Number(s.result?.missing) || 0}件／場所違い ${Number(s.result?.moved) || 0}件</div>`).join('') : '<div class="muted">まだありません。</div>'}`;
     $('#stStart').onclick = async () => {
       const s = { id:uid(), name:$('#stName').value.trim() || '棚卸', date:today(), location:$('#stLoc').value, checks:{}, startedAt:new Date().toISOString(), finishedAt:'' };
       await writeOps([['stocktakes','put',s]]); await loadAll(); render();
@@ -1021,7 +1027,9 @@ function renderStock(){
     if (!stTargets(st).includes(a)) { toast(`${a.code} は今回の棚卸の対象外です（${a.location || '場所未設定'}）`); return; }
     if (st.checks[a.id]) { toast(`${itemOf(a).name}（${a.code}）は確認済みです`); return; }
     st.checks[a.id] = { at:new Date().toISOString(), how, foundLocation:st.here || '' };
-    await writeOps([['stocktakes','put',st]]); await loadAll();
+    const ops = [['stocktakes','put',st]];
+    if (a.status === '紛失・所在不明') { ops.push(['assets','put',{ ...a, status:'使用中', updatedAt:new Date().toISOString() }]); ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：所在不明だった物を発見` })]); }
+    await writeOps(ops); await loadAll();
     toast(`✓ ${itemOf(a).name}（${a.code}）`); if (navigator.vibrate) navigator.vibrate(60);
     renderStock();
   };
@@ -1037,10 +1045,10 @@ function renderStock(){
   $('#stCancel').onclick = async () => { if (!confirm('この棚卸を中止します（確認した結果は消えます）。よろしいですか？')) return; await writeOps([['stocktakes','delete',st.id]]); await loadAll(); renderStock(); };
   $('#stFinish').onclick = async () => {
     let markLost = false;
-    if (todo.length) markLost = confirm(`未確認が${todo.length}件あります。\n\n「OK」→ 未確認の物を「紛失・所在不明」にして終える\n「キャンセル」→ 状態は変えずに終える`);
+    if (todo.length) markLost = confirm(`未確認が${todo.length}件あります。\n\n「OK」→ 未確認の物を「紛失・所在不明」にして終える（貸出中の物は除く）\n「キャンセル」→ 状態は変えずに終える`);
     const now = new Date().toISOString(), ops = [];
     done.forEach(a => ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：確認${st.checks[a.id].foundLocation && st.checks[a.id].foundLocation !== a.location ? '（' + st.checks[a.id].foundLocation + 'で発見）' : ''}` })]));
-    todo.forEach(a => { ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：未確認` })]); if (markLost) ops.push(['assets','put',{ ...a, status:'紛失・所在不明', updatedAt:now }]); });
+    todo.forEach(a => { ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：未確認` })]); if (markLost && a.status !== '貸出中') ops.push(['assets','put',{ ...a, status:'紛失・所在不明', updatedAt:now }]); });
     ops.push(['stocktakes','put',{ ...st, finishedAt:now, result:{ found:done.length, missing:todo.length, moved:moved.length, targets:targets.length } }]);
     await writeOps(ops); await loadAll(); toast('棚卸を終えました'); renderStock();
   };
@@ -1147,7 +1155,15 @@ function parseCsv(text){
   if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
   return rows.filter(r => r.some(c => c.trim() !== ''));
 }
-function normDate(s){ s = (s || '').trim(); if (!s) return ''; const m = s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/); return m ? `${m[1]}-${z2(m[2])}-${z2(m[3])}` : ''; }
+function normDate(s){
+  s = half(s || '').replace(/[／]/g, '/').replace(/\s/g, ''); if (!s) return '';
+  let m = s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/);
+  if (m) return `${m[1]}-${z2(m[2])}-${z2(m[3])}`;
+  m = s.match(/^(令和|平成|昭和|R|H|S)(\d{1,2}|元)[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/i);
+  if (m) { const base = { '令和':2018, R:2018, r:2018, '平成':1988, H:1988, h:1988, '昭和':1925, S:1925, s:1925 }[m[1]]; const y = base + (m[2] === '元' ? 1 : Number(m[2])); return `${y}-${z2(m[3])}-${z2(m[4])}`; }
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
 async function importCsv(file){
   let text;
   const buf = await file.arrayBuffer();
@@ -1157,34 +1173,37 @@ async function importCsv(file){
   const idx = {}; CSV_COLS.forEach(([h, k]) => { const i = head.findIndex(x => x === h || x === h.replace(/\(.*\)/, '')); if (i >= 0) idx[k] = i; });
   if (idx._item == null) { alert('「品目」の列が見つかりません。CSV出力した形（1行目が見出し）で用意してください。'); return; }
   const now = new Date().toISOString(), ops = [], items = [...S.items];
-  let nNew = 0, nUpd = 0, nSkip = 0;
-  const codesInFile = new Set();
+  let nNew = 0, nUpd = 0, nSkip = 0; const dupRows = [];
+  const codesInFile = new Set(), badDates = [];
+  const reserved = new Set(rows.slice(1).map(r => idx.code != null ? half(r[idx.code] || '').toUpperCase() : '').filter(Boolean));
+  let rowNo = 1;
   for (const r of rows.slice(1)) {
+    rowNo++;
     const g = k => idx[k] != null ? (r[idx[k]] || '').trim() : undefined;
     const name = g('_item'); if (!name) { nSkip++; continue; }
     let item = items.find(i => i.name === name && i.kind !== 'consumable');
     if (!item) { item = { id:uid(), name, category:g('_cat') || '', kind:'equipment', createdAt:now, updatedAt:now }; items.push(item); ops.push(['items','put',item]); }
-    const code = g('code');
-    if (code && codesInFile.has(code)) { nSkip++; continue; }
-    const ex = code ? S.assets.find(a => a.code === code) : null;
+    const code = half(g('code') || '');
+    if (code && codesInFile.has(code.toUpperCase())) { nSkip++; dupRows.push(rowNo); continue; }
+    const ex = code ? findByCode(code) : null;
     const rec = ex ? { ...ex } : { id:uid(), createdAt:now, photoIds:[], photoLabels:{}, loan:null, status:'使用中' };
     rec.itemId = item.id;
     for (const [, k] of CSV_COLS) {
       if (k.startsWith('_') || k === 'code') continue;
       const v = g(k); if (v === undefined) continue;
       if (['price','usefulLife','inspectCycle','qty'].includes(k)) rec[k] = numOrNull(v);
-      else if (['purchaseDate','restrictUntil','warrantyUntil','leaseUntil','nextInspection','disposalDate'].includes(k)) rec[k] = normDate(v);
+      else if (['purchaseDate','restrictUntil','warrantyUntil','leaseUntil','nextInspection','disposalDate'].includes(k)) { const d = normDate(v); if (d === null) badDates.push(`${rowNo}行目 ${v}`); else rec[k] = d; }
       else if (k === 'status') rec[k] = STATUSES.includes(v) ? v : (rec.status || '使用中');
       else rec[k] = v;
     }
     if (!rec.qty) rec.qty = 1;
-    rec.code = code || nextCode(); codesInFile.add(rec.code);
+    rec.code = code || nextCode(reserved); reserved.add(rec.code.toUpperCase()); codesInFile.add(rec.code.toUpperCase());
     rec.updatedAt = now;
     ops.push(['assets','put',rec]);
     ops.push(['logs','put',newLog({ assetId:rec.id, type:ex ? '編集' : '登録', detail:'CSV取り込み' })]);
     ex ? nUpd++ : nNew++;
   }
-  if (!confirm(`新規 ${nNew}件・更新 ${nUpd}件${nSkip ? `・読み飛ばし ${nSkip}件` : ''} を取り込みます。よろしいですか？\n（管理番号が同じ行は上書き更新します）`)) { await loadAll(); return; }
+  if (!confirm(`新規 ${nNew}件・更新 ${nUpd}件${nSkip ? `・読み飛ばし ${nSkip}件` : ''} を取り込みます。${dupRows.length ? `\n管理番号が重複している行（${dupRows.slice(0, 10).join('・')}行目）は読み飛ばします。` : ''}${badDates.length ? `\n読めない日付（${badDates.slice(0, 5).join('、')}${badDates.length > 5 ? ' ほか' : ''}）はその欄を変えずに取り込みます。` : ''}よろしいですか？\n（管理番号が同じ行は上書き更新します）`)) { await loadAll(); return; }
   ops.push(['meta','put',{ key:'settings', ...S.settings }]);
   try { await writeOps(ops); } catch(e) { await loadAll(); alert('取り込めませんでした。データは変更されていません。\n' + e.message); render(); return; }
   await loadAll(); toast(`取り込みました（新規 ${nNew}件・更新 ${nUpd}件）`); render();
@@ -1207,6 +1226,13 @@ async function importBackup(file){
   let data;
   try { data = JSON.parse(await file.text()); } catch(e) { alert('バックアップのファイルを読めませんでした'); return; }
   if (data.app !== 'hoikuen-bihin' || !Array.isArray(data.assets) || !Array.isArray(data.items)) { alert('この台帳のバックアップではありません'); return; }
+  const arr = k => data[k] == null ? [] : data[k];
+  const badShape = ['items','assets','logs','stocktakes','meta','photos'].some(k => !Array.isArray(arr(k)))
+    || ['items','assets','logs','stocktakes','photos'].some(k => arr(k).some(v => !v || typeof v !== 'object' || typeof v.id !== 'string' || !v.id))
+    || arr('meta').some(v => !v || typeof v !== 'object' || typeof v.key !== 'string');
+  if (badShape) { alert('バックアップの中身が壊れているため、復元を止めました。いまのデータはそのままです。'); return; }
+  const D = /^\d{4}-\d{2}-\d{2}$/;
+  data.assets = data.assets.map(a => { const o = { ...a }; ['qty','price','usefulLife','inspectCycle'].forEach(k => { if (o[k] != null && o[k] !== '') { const n = Number(o[k]); o[k] = isNaN(n) ? null : n; } }); ['purchaseDate','restrictUntil','warrantyUntil','leaseUntil','nextInspection','disposalDate'].forEach(k => { if (o[k] && !D.test(o[k])) o[k] = ''; }); if (!STATUSES.includes(o.status)) o.status = '使用中'; if (!Array.isArray(o.photoIds)) o.photoIds = []; o.code = String(o.code ?? ''); return o; });
   if (data.assets.length === 0 && data.items.length === 0 && (S.assets.length || S.items.length)) { alert('このバックアップは中身が空です。いまのデータを守るため、復元を止めました。\n（データを消したい時は「すべてのデータを消す」を使ってください）'); return; }
   if (!confirm(`バックアップ（${jdate(isoDay(data.exportedAt))}作成・備品${data.assets.length}件・写真${(data.photos || []).length}枚）で、いまの端末のデータを置き換えます。\nいまのデータ（備品${S.assets.length}件）は消えます。よろしいですか？`)) return;
   let photos;
@@ -1215,14 +1241,16 @@ async function importBackup(file){
   await new Promise((res, rej) => {
     const stores = ['items','assets','photos','logs','stocktakes','meta'];
     const t = db.transaction(stores, 'readwrite');
-    stores.forEach(s => t.objectStore(s).clear());
-    data.items.forEach(v => t.objectStore('items').put(v));
-    data.assets.forEach(v => t.objectStore('assets').put(v));
-    (data.logs || []).forEach(v => t.objectStore('logs').put(v));
-    (data.stocktakes || []).forEach(v => t.objectStore('stocktakes').put(v));
-    (data.meta || []).forEach(v => t.objectStore('meta').put(v));
-    photos.forEach(v => t.objectStore('photos').put(v));
-    t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('中断しました'));
+    try {
+      stores.forEach(s => t.objectStore(s).clear());
+      data.items.forEach(v => t.objectStore('items').put(v));
+      data.assets.forEach(v => t.objectStore('assets').put(v));
+      arr('logs').forEach(v => t.objectStore('logs').put(v));
+      arr('stocktakes').forEach(v => t.objectStore('stocktakes').put(v));
+      arr('meta').forEach(v => t.objectStore('meta').put(v));
+      photos.forEach(v => t.objectStore('photos').put(v));
+    } catch(e) { try { t.abort(); } catch(e2) {} rej(e); }
   }).then(async () => { urlCache.clear(); await loadAll(); toast('復元しました'); render(); })
     .catch(e => alert('復元できませんでした。データは元のままです。\n' + (e && e.message)));
 }
@@ -1312,6 +1340,10 @@ $('#btnCsv').onclick = () => exportCsv(filteredAssets());
 $('#fileImport').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importBackup(f); };
 $('#fileCsv').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importCsv(f); };
 window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
+window.addEventListener('unhandledrejection', e => {
+  const m = (e.reason && (e.reason.message || e.reason.name)) || String(e.reason || '');
+  alert('保存または読み込みができませんでした。いまの操作は反映されていない可能性があります。\n画面を再読み込みして、内容を確かめてください。\n（空き容量が少ない時に起きやすいです）\n' + m);
+});
 
 (async function init(){
   try { db = await openDB(); await loadAll(); }
