@@ -7,7 +7,6 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
 <meta name="description" content="保育園の備品・遊具・消耗品を写真つきで管理する台帳（複数の端末で共有）">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js" integrity="sha384-2zrRDgDHSYB/GN3nFW3fsZXoxEhKIr3N2h63Tc6DEOB9JJdFIu8xMJT2Cph/gBil" crossorigin="anonymous"></script>
 <style>
 :root{
   --bg:#f7f6f2; --card:#ffffff; --ink:#24302e; --sub:#5d6b68; --line:#dde3e0;
@@ -275,11 +274,10 @@ body.auth-on{padding-bottom:24px}
 'use strict';
 /* =========================================================
    保育園 物品管理台帳 — shared between devices
-   The server (Supabase) is the source of truth. IndexedDB holds a per-org cache + an outbox (queue).
+   The server (Google Apps Script web app + a spreadsheet per 園) is the source of truth. IndexedDB holds a per-org cache + an outbox (queue).
    stores: items(品目) / assets(個体) / photos / logs / stocktakes / meta + queue / local
    ========================================================= */
-const SB_URL = 'https://__SB_REF__.supabase.co', SB_KEY = '__SB_PUBLISHABLE_KEY__';
-const BUCKET = 'hb-photos';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxBJj3WompHkbEN0dGbtPAHUub6Vxn1QVbjUSLjQpRfyCNwEvh9ddOFgqntyzi9U1FVlA/exec';   // the GAS web app (/exec). Every request carries this app's own login token.
 const DB_NAME = 'hoikuen-bihin', DB_VER = 1;   // the previous (device-only) version's database — read only, never deleted
 const VIEWS = ['home','ledger','supplies','stock','settings'];
 const LS_VIEW = 'hbk_view', LS_MODE = 'hbk_ledgerMode';
@@ -373,7 +371,8 @@ function mergeJS(cur, set, inc, arr){
     if (!isObj(v)) continue;
     const rem = Array.isArray(v.rem) ? v.rem : [], res = (Array.isArray(nd[k]) ? nd[k] : []).filter(e => !rem.includes(e));
     for (const e of (Array.isArray(v.add) ? v.add : [])) if (!res.includes(e)) res.push(e);
-    nd[k] = res;
+    if (Array.isArray(v.order)) { const pos = e => { const i = v.order.indexOf(e); return i < 0 ? v.order.length : i; }; nd[k] = res.map((e, i) => [e, pos(e), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]); }
+    else nd[k] = res;
   }
   return nd;
 }
@@ -388,7 +387,7 @@ function diffRec(s, base, next, inc){
     if (stable(a) === stable(b)) continue;
     if (ARRAY_FIELDS.has(k) && Array.isArray(a) && Array.isArray(b)) {
       const add = b.filter(x => !a.includes(x)), rem = a.filter(x => !b.includes(x));
-      if (add.length || rem.length) arr[k] = { add, rem }; else set[k] = b;   // only the order changed
+      arr[k] = { add, rem, order:b };   // items added on another device meanwhile are kept; this screen's order wins
       continue;
     }
     if (DEEP_FIELDS.has(k) && isObj(a) && isObj(b)) { const sub = {}; for (const kk of Object.keys(b)) if (stable(a[kk]) !== stable(b[kk])) sub[kk] = b[kk]; if (Object.keys(sub).length) set[k] = sub; continue; }
@@ -413,11 +412,13 @@ async function writeOpsInner(ops){
     if (kind === 'delete') { sops.push({ t:TABLE_OF[s], id:key, k:'delete' }); local.push([s, 'delete', key]); seen.set(mk, null); continue; }
     if (!isObj(v)) throw new Error('保存するデータの形が正しくありません');
     const inc = x && isObj(x.inc) ? x.inc : null;
+    if (x && x.create && prev) continue;   // already here: a migration / restore never changes existing records
     const rec0 = { ...v };
     if (s === 'photos' && !prev) { rec0.path = `${ORG.id}/${key}`; if (v.thumb) rec0.thumbPath = `${ORG.id}/${key}_t`; }
     const { set, arr } = diffRec(s, prev ? ((x && x.base) || prev) : null, rec0, inc);
     if (prev && !Object.keys(set).length && !Object.keys(arr).length && !inc) continue;   // nothing changed
     const op = { t:TABLE_OF[s], id:key };
+    if (x && x.create) op.k = 'create';   // the server adds it only if the id never existed (a deleted record stays deleted)
     if (Object.keys(set).length || !prev) op.set = set;
     if (Object.keys(arr).length) op.arr = arr;
     if (inc) op.inc = inc;
@@ -456,30 +457,35 @@ async function loadAll(){
 }
 
 /* ---------- server sync ---------- */
-let sb = null, ME = null, ORG = null, ORGS = [];
-const LS_ORG = 'hbk_org', LS_LEGACY = 'hbk_legacy';
+let ME = null, ORG = null, ORGS = [], AUTH = null;
+const LS_ORG = 'hbk_org', LS_LEGACY = 'hbk_legacy', LS_AUTH = 'hbk-auth';
+// one POST per call; text/plain keeps it a "simple" request (the GAS web app cannot answer CORS preflights)
+async function api(action, body = {}){
+  const r = await fetchT(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body:JSON.stringify({ ...body, action, token:AUTH ? AUTH.token : undefined }) }, /^photo/.test(action) ? 180000 : 45000);
+  if (!r.ok) { const e = new Error('サーバーが応答しませんでした（' + r.status + '）'); e.code = 'http'; throw e; }
+  let j; try { j = await r.json(); } catch(err) { const e = new Error('サーバーの応答を読めませんでした（準備中の可能性があります）'); e.code = 'bad_response'; throw e; }
+  if (!isObj(j)) { const e = new Error('サーバーの応答の形が正しくありません'); e.code = 'bad_response'; throw e; }
+  if (!j.ok) { const e = new Error(typeof j.message === 'string' ? j.message : '失敗しました'); e.code = String(j.error || 'server'); throw e; }
+  return j;
+}
+const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
+function b64ToBlob(b64, type){ const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type:type || '' }); }
 const SYNC = { pending:0, oldest:'', busy:false, online:true, lastOk:'', err:'', ready:false, proto:0 };
 const isNetErr = e => !navigator.onLine || /fetch|network|load failed|timeout|abort/i.test(String((e && (e.message || e.name)) || e));
-function fetchT(url, opts = {}){ const c = new AbortController(), t = setTimeout(() => c.abort(), 45000); if (opts.signal) opts.signal.addEventListener('abort', () => c.abort()); return fetch(url, { ...opts, signal:c.signal }).finally(() => clearTimeout(t)); }
+function fetchT(url, opts = {}, ms = 45000){ const c = new AbortController(), t = setTimeout(() => c.abort(), ms); if (opts.signal) opts.signal.addEventListener('abort', () => c.abort()); return fetch(url, { ...opts, signal:c.signal }).finally(() => clearTimeout(t)); }
 function syncError(e){
   if (isNetErr(e)) { SYNC.online = false; return; }
-  const m = String((e && (e.message || e.code)) || e);
-  if (/JWT|jwt|401|refresh/i.test(m)) SYNC.err = 'ログインの期限が切れました。ログインし直してください（送れていない変更は端末に残っています）';
-  else if (e && e.code === '42501') SYNC.err = 'この園に書き込む権限がありません。園の管理者に確かめてください';
+  const m = String((e && (e.message || e.code)) || e), c = e && e.code;
+  if (c === 'auth') SYNC.err = 'ログインの期限が切れました。ログインし直してください（送れていない変更は端末に残っています）';
+  else if (c === 'forbidden') SYNC.err = 'この園に書き込む権限がありません。園の管理者に確かめてください';
   else SYNC.err = '送信できませんでした：' + m;
-}
-async function rpcRetry(fn){
-  let r = await fn();
-  if (r.error && /JWT|jwt|401/.test(String(r.error.message || r.error.code))) { const x = await sb.auth.refreshSession(); if (!x.error) r = await fn(); }
-  return r;
 }
 async function uploadPhoto(pid){
   const rec = await getOne('photos', pid);
   if (!rec || rec.uploaded || !rec.blob) return;
   const type = rec.blob.type || (rec.kind === 'pdf' ? 'application/pdf' : 'image/jpeg');
-  let r = await sb.storage.from(BUCKET).upload(rec.path || `${ORG.id}/${pid}`, rec.blob, { upsert:true, contentType:type });
-  if (r.error) throw r.error;
-  if (rec.thumb) { r = await sb.storage.from(BUCKET).upload(rec.thumbPath || `${ORG.id}/${pid}_t`, rec.thumb, { upsert:true, contentType:rec.thumb.type || 'image/jpeg' }); if (r.error) throw r.error; }
+  await api('photoPut', { org:ORG.id, id:pid, which:'main', mime:type, b64:await blobToB64(rec.blob) });
+  if (rec.thumb) await api('photoPut', { org:ORG.id, id:pid, which:'thumb', mime:rec.thumb.type || 'image/jpeg', b64:await blobToB64(rec.thumb) });
   await locked(async () => { const cur = await getOne('photos', pid); if (cur) await idbPut('photos', { ...cur, uploaded:true }); });
 }
 async function flush(){
@@ -492,8 +498,7 @@ async function flush(){
       const n = Math.ceil(e.ops.length / 400) || 1;
       for (let i = e.done || 0; i < n; i++) {
         const part = e.ops.slice(i * 400, (i + 1) * 400);
-        const r = await rpcRetry(() => sb.rpc('hb_apply', { p_org:ORG.id, p_batch:n > 1 ? e.batch + ':' + i : e.batch, p_ops:part }));
-        if (r.error) throw r.error;
+        await api('apply', { org:ORG.id, batch:n > 1 ? e.batch + ':' + i : e.batch, ops:part });
         if (n > 1) { e.done = i + 1; await idbPut('queue', e); }
       }
       await idbTx(['queue'], t => t.objectStore('queue').delete(e.seq));
@@ -502,38 +507,30 @@ async function flush(){
   }
 }
 async function pull(full){
-  const cur = { ...((await getLocal('cursor')) || {}) }, got = {};
-  try {
-    for (const t of Object.values(TABLE_OF)) {
-      const since = !full && cur[t] ? new Date(Date.parse(cur[t]) - 60000).toISOString() : null;
-      const rows = [];
-      for (let from = 0; ; from += 1000) {
-        const r = await rpcRetry(() => { let q = sb.from(t).select('id,data,deleted,updated_at').eq('org_id', ORG.id).order('updated_at').order('id').range(from, from + 999); if (since) q = q.gt('updated_at', since); return q; });
-        if (r.error) throw r.error;
-        if (!Array.isArray(r.data)) throw new Error('サーバーの応答の形が正しくありません');
-        rows.push(...r.data); if (r.data.length < 1000) break;
-      }
-      got[t] = rows;
-    }
-  } catch(err) { syncError(err); return false; }
-  const changed = await locked(() => applyPulled(got, full, cur));
+  // the server numbers every change (rev) and only shows rows of fully written batches, so "since" is exact
+  const since = full ? 0 : (Number(await getLocal('cursor')) || 0);
+  let j;
+  try { j = await api('pull', { org:ORG.id, since }); } catch(err) { syncError(err); return false; }
+  const rev = Number(j.rev);
+  if (!isFinite(rev) || rev < 0) { syncError(new Error('サーバーの応答の形が正しくありません')); return false; }
+  const changed = await locked(() => applyPulled(isObj(j.rows) ? j.rows : {}, full && since === 0, rev));
   SYNC.lastOk = new Date().toISOString(); SYNC.online = true; SYNC.ready = true;
   if (changed) { await loadAll(); softRender(); }
   return true;
 }
 /* apply downloaded rows to the cache; changes still waiting in the outbox are laid on top (受信データは検査する) */
-async function applyPulled(got, full, cur){
+async function applyPulled(got, full, rev){
   const pend = new Map();
   for (const e of await getAll('queue')) for (const op of e.ops) { const k = op.t + '|' + op.id; if (!pend.has(k)) pend.set(k, []); pend.get(k).push(op); }
   const left = {};
   if (full) for (const s of DATA_STORES) left[s] = new Set(await rq(db.transaction(s).objectStore(s).getAllKeys()));
   let changed = false;
   await idbTx([...DATA_STORES, 'local'], t => {
-    for (const [tb, rows] of Object.entries(got)) {
+    for (const tb of Object.values(TABLE_OF)) {
+      const rows = Array.isArray(got[tb]) ? got[tb] : [];
       const s = STORE_OF[tb], os = t.objectStore(s);
       for (const row of rows) {
-        if (!row || typeof row.id !== 'string' || !row.id || typeof row.updated_at !== 'string') continue;
-        if (!cur[tb] || row.updated_at > cur[tb]) cur[tb] = row.updated_at;
+        if (!row || typeof row.id !== 'string' || !row.id || row.id.length > 64 || typeof row.rev !== 'number') continue;
         if (full) left[s].delete(row.id);
         const data = isObj(row.data) ? row.data : null;
         if (!data && !row.deleted) continue;
@@ -555,7 +552,7 @@ async function applyPulled(got, full, cur){
       }
     }
     if (full) for (const s of DATA_STORES) for (const k of left[s]) if (!pend.has(TABLE_OF[s] + '|' + k)) { t.objectStore(s).delete(k); changed = true; }
-    t.objectStore('local').put({ k:'cursor', v:cur });
+    t.objectStore('local').put({ k:'cursor', v:rev });
   });
   return changed;
 }
@@ -641,15 +638,13 @@ async function photoUrl(id, big){
   if (!b) return '';
   const u = URL.createObjectURL(b); urlCache.set(k, u); return u;
 }
-/* download a photo the cache does not have yet (signed URL from the private bucket), keep it for offline use */
+/* download a photo the cache does not have yet (from the 園's private Drive folder, after the login check), keep it for offline use */
 async function fetchPhoto(p, main){
-  if (!sb || !ORG || !navigator.onLine) return null;
-  const path = main ? (p.path || `${ORG.id}/${p.id}`) : p.thumbPath;
+  if (!AUTH || !ORG || !navigator.onLine) return null;
   try {
-    const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 600);
-    if (error || !data) return null;
-    const r = await fetchT(data.signedUrl); if (!r.ok) return null;
-    const blob = await r.blob();
+    const j = await api('photoGet', { org:ORG.id, id:p.id, which:main ? 'main' : 'thumb' });
+    if (typeof j.b64 !== 'string' || !j.b64) return null;
+    const blob = b64ToBlob(j.b64, typeof j.mime === 'string' ? j.mime : '');
     await locked(async () => { const cur = await getOne('photos', p.id); if (cur) await idbPut('photos', { ...cur, [main ? 'blob' : 'thumb']:blob, uploaded:true }); });
     return blob;
   } catch(e) { return null; }
@@ -1316,6 +1311,7 @@ function renderStock(){
     };
     return;
   }
+  const st0 = JSON.parse(JSON.stringify(st));   // what this screen shows: only fields changed from here are sent
   const targets = stTargets(st);
   const done = targets.filter(a => st.checks[a.id]), todo = targets.filter(a => !st.checks[a.id]);
   const moved = done.filter(a => st.checks[a.id].foundLocation && st.checks[a.id].foundLocation !== a.location);
@@ -1330,13 +1326,13 @@ function renderStock(){
     ${todo.length ? [...byLoc.entries()].map(([loc, arr]) => `<details class="grp" open><summary><div><div class="nm">${esc(loc)}</div><div class="meta">${arr.length}件</div></div><span class="caret" aria-hidden="true">›</span></summary>${arr.map(a => `<div class="irow" style="cursor:default">${thumbHtml(a)}<div class="c1"><div class="a">${esc(itemOf(a).name)}　<span class="muted">${esc(a.code)}</span></div><div class="b">${esc([a.model, a.className].filter(Boolean).join('・'))}</div></div><button type="button" class="btn sm pri" data-chk="${esc(a.id)}">あった</button></div>`).join('')}</details>`).join('') : '<div class="card">すべて確認できました。</div>'}
     <div class="row" style="margin-top:16px"><button type="button" class="btn pri" id="stFinish">棚卸を終える</button><button type="button" class="btn" id="stCancel">中止する</button></div>`;
   hydrate(box);
-  $('#stHere').onchange = async () => { st.here = $('#stHere').value; await writeOps([['stocktakes','put',st]]); };
+  $('#stHere').onchange = async () => { st.here = $('#stHere').value; await writeOps([['stocktakes','put',st,{ base:st0 }]]); };
   const check = async (a, how) => {
     if (!a) { toast('台帳にない管理番号です'); return; }
     if (!stTargets(st).includes(a)) { toast(`${a.code} は今回の棚卸の対象外です（${a.location || '場所未設定'}）`); return; }
     if (st.checks[a.id]) { toast(`${itemOf(a).name}（${a.code}）は確認済みです`); return; }
     st.checks[a.id] = { at:new Date().toISOString(), how, foundLocation:st.here || '' };
-    const ops = [['stocktakes','put',st]];
+    const ops = [['stocktakes','put',st,{ base:st0 }]];
     if (a.status === '紛失・所在不明') { ops.push(['assets','put',{ ...a, status:'使用中', updatedAt:new Date().toISOString() },{ base:a }]); ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：所在不明だった物を発見` })]); }
     await writeOps(ops); await loadAll();
     toast(`✓ ${itemOf(a).name}（${a.code}）`); if (navigator.vibrate) navigator.vibrate(60);
@@ -1349,7 +1345,7 @@ function renderStock(){
   $$('[data-fix]', box).forEach(b => b.onclick = async () => {
     const a = S.assets.find(x => x.id === b.dataset.fix), to = st.checks[a.id].foundLocation;
     await writeOps([['assets','put',{ ...a, location:to, updatedAt:new Date().toISOString() },{ base:a }], ['logs','put',newLog({ assetId:a.id, type:'移動', detail:`棚卸で修正：${a.location || '未設定'} → ${to}` })]]);
-    st.checks[a.id].foundLocation = to; await writeOps([['stocktakes','put',st]]); await loadAll(); renderStock();
+    st.checks[a.id].foundLocation = to; await writeOps([['stocktakes','put',st,{ base:st0 }]]); await loadAll(); renderStock();
   });
   $('#stCancel').onclick = async () => { if (!confirm('この棚卸を中止します（確認した結果は消えます）。よろしいですか？')) return; await writeOps([['stocktakes','delete',st.id]]); await loadAll(); renderStock(); };
   $('#stFinish').onclick = async () => {
@@ -1358,7 +1354,7 @@ function renderStock(){
     const now = new Date().toISOString(), ops = [];
     done.forEach(a => ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：確認${st.checks[a.id].foundLocation && st.checks[a.id].foundLocation !== a.location ? '（' + st.checks[a.id].foundLocation + 'で発見）' : ''}` })]));
     todo.forEach(a => { ops.push(['logs','put',newLog({ assetId:a.id, type:'棚卸', detail:`${st.name}：未確認` })]); if (markLost && a.status !== '貸出中') ops.push(['assets','put',{ ...a, status:'紛失・所在不明', updatedAt:now },{ base:a }]); });
-    ops.push(['stocktakes','put',{ ...st, finishedAt:now, result:{ found:done.length, missing:todo.length, moved:moved.length, targets:targets.length } }]);
+    ops.push(['stocktakes','put',{ ...st, finishedAt:now, result:{ found:done.length, missing:todo.length, moved:moved.length, targets:targets.length } },{ base:st0 }]);
     await writeOps(ops); await loadAll(); toast('棚卸を終えました'); renderStock();
   };
 }
@@ -1444,7 +1440,7 @@ function printOrder(low){
 /* ---------- CSV ---------- */
 const CSV_COLS = [['管理番号','code'],['品目','_item'],['分類','_cat'],['型番','model'],['メーカー','maker'],['製造番号','serial'],['数量','qty'],['購入日','purchaseDate'],['購入先','vendor'],['購入金額(税込・単価)','price'],['財源','funding'],['補助金名','subsidyName'],['処分制限期限','restrictUntil'],['保証期限','warrantyUntil'],['リース・契約期限','leaseUntil'],['付属品','accessories'],['耐用年数','usefulLife'],['保管場所','location'],['使用クラス','className'],['状態','status'],['傷み具合','condition'],['点検周期(月)','inspectCycle'],['次回点検日','nextInspection'],['タグ','tags'],['廃棄日','disposalDate'],['廃棄理由','disposalReason'],['廃棄方法','disposalMethod'],['メモ','note']];
 const csvCell = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-function download(name, blob){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+function download(name, blob){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000); }
 function exportCsv(list){
   const lines = [CSV_COLS.map(c => c[0]).join(',')];
   for (const a of list) { const it = itemOf(a); lines.push(CSV_COLS.map(([, k]) => csvCell(k === '_item' ? it.name : k === '_cat' ? it.category : a[k])).join(',')); }
@@ -1546,11 +1542,14 @@ async function planMerge(src){
   const dup = add.assets.filter(a => a.code && codes.has(String(a.code).toUpperCase())).length;
   return { add, dup, same:src.assets.length - add.assets.length };
 }
-async function applyMerge(src, add){
+async function applyMerge(src, add, insertOnly){
   const ops = [];
-  add.items.forEach(v => ops.push(['items','put',v])); add.assets.forEach(v => ops.push(['assets','put',v]));
-  add.logs.forEach(v => ops.push(['logs','put',v])); add.stocktakes.forEach(v => ops.push(['stocktakes','put',v]));
-  add.photos.forEach(v => ops.push(['photos','put',v]));
+  // migration of the previous version: a record deleted on purpose on the server stays deleted.
+  // backup restore: bringing deleted records back is the point of a backup, so it may revive them.
+  const C = insertOnly ? { create:true } : undefined;
+  add.items.forEach(v => ops.push(['items','put',v,C])); add.assets.forEach(v => ops.push(['assets','put',v,C]));
+  add.logs.forEach(v => ops.push(['logs','put',v,C])); add.stocktakes.forEach(v => ops.push(['stocktakes','put',v,C]));
+  add.photos.forEach(v => ops.push(['photos','put',v,C]));
   const m = (src.meta || []).find(x => x && x.key === 'masters'), st = (src.meta || []).find(x => x && x.key === 'settings');
   if (m) {
     const nm = {}; let ch = false;
@@ -1564,6 +1563,7 @@ async function applyMerge(src, add){
     ops.push(['meta','put',{ key:'settings', ...ns }, { base:{ key:'settings', ...S.settings } }]);
   }
   await writeOps(ops);
+  await sync(true);   // full refresh: anything the server declined (deleted there) leaves this device's copy again
   await loadAll();
 }
 async function importBackup(file){
@@ -1582,7 +1582,7 @@ async function importBackup(file){
   const plan = await planMerge({ ...data, logs:arr('logs'), stocktakes:arr('stocktakes'), photos:arr('photos') });
   const n = plan.add.items.length + plan.add.assets.length + plan.add.logs.length + plan.add.stocktakes.length + plan.add.photos.length;
   if (!n) { alert('このバックアップの中身は、すべて台帳にあります。追加する物はありません。'); return; }
-  if (!confirm(`バックアップ（${jdate(isoDay(data.exportedAt))}作成）から、台帳にまだ無い物を追加します。\n・備品 ${plan.add.assets.length}件／品目 ${plan.add.items.length}件／記録 ${plan.add.logs.length}件／写真 ${plan.add.photos.length}枚\n${plan.same ? `・すでにある備品${plan.same}件は変えません\n` : ''}${plan.dup ? `・管理番号がほかの備品と重なる物が${plan.dup}件あります（そのまま追加し、ホームに「重複」として出します）\n` : ''}いまのデータは消えません。この園のすべての端末に反映されます。よろしいですか？`)) return;
+  if (!confirm(`バックアップ（${jdate(isoDay(data.exportedAt))}作成）から、台帳にまだ無い物を追加します。\n・備品 ${plan.add.assets.length}件／品目 ${plan.add.items.length}件／記録 ${plan.add.logs.length}件／写真 ${plan.add.photos.length}枚\n${plan.same ? `・すでにある備品${plan.same}件は変えません\n` : ''}${plan.dup ? `・管理番号がほかの備品と重なる物が${plan.dup}件あります（そのまま追加し、ホームに「重複」として出します）\n` : ''}台帳から削除した物も、バックアップにあれば元に戻ります。いまのデータは消えません。この園のすべての端末に反映されます。よろしいですか？`)) return;
   let photos;
   try { photos = await Promise.all(plan.add.photos.map(async p => ({ id:p.id, label:p.label, kind:p.kind || '', name:p.name || '', createdAt:p.createdAt, blob:await dataUrlToBlob(p.blob), thumb:p.thumb ? await dataUrlToBlob(p.thumb) : null }))); }
   catch(e) { alert('写真の読み込みに失敗しました。データは変更していません。'); return; }
@@ -1663,20 +1663,22 @@ async function renderSettings(){
 /* ---------- members / invite codes (admin) ---------- */
 async function renderMembers(){
   const box = $('#memList'); if (!box) return;
-  const { data, error } = await sb.rpc('hb_list_members', { p_org:ORG.id });
+  let data;
+  try { data = (await api('members', { org:ORG.id })).members; } catch(e) { data = null; }
   if (!$('#memList')) return;
-  if (error) { box.textContent = '読み込めませんでした（通信を確かめてください）'; return; }
+  if (!Array.isArray(data)) { box.textContent = '読み込めませんでした（通信を確かめてください）'; return; }
   box.classList.remove('muted');
   box.innerHTML = data.map(m => `<div class="mrow"><span class="e">${esc(m.email)}${m.user_id === ME.uid ? '（自分）' : ''}<br><span class="chip">${m.role === 'admin' ? '管理者' : '職員'}</span></span>
     <span class="row"><button type="button" class="btn sm" data-reset="${esc(m.email)}">パスワード再設定コード</button>${m.user_id === ME.uid ? '' : `<button type="button" class="btn sm" data-role="${esc(m.user_id)}|${m.role === 'admin' ? 'member' : 'admin'}">${m.role === 'admin' ? '職員にする' : '管理者にする'}</button><button type="button" class="btn sm ng" data-rm="${esc(m.user_id)}|${esc(m.email)}">外す</button>`}</span></div>`).join('') || 'まだいません';
   $$('[data-reset]', box).forEach(b => b.onclick = () => issueCode(b.dataset.reset, 'member', 'reset'));
-  $$('[data-role]', box).forEach(b => b.onclick = async () => { const [u, r] = b.dataset.role.split('|'); const x = await sb.rpc('hb_set_member', { p_org:ORG.id, p_user:u, p_role:r }); if (x.error) alert(x.error.message); else { toast('変更しました'); renderMembers(); } });
-  $$('[data-rm]', box).forEach(b => b.onclick = async () => { const [u, em] = b.dataset.rm.split('|'); if (!confirm(`${em} をこの園から外します。この人はこの園の台帳を見られなくなります。よろしいですか？`)) return; const x = await sb.rpc('hb_set_member', { p_org:ORG.id, p_user:u, p_role:null }); if (x.error) alert(x.error.message); else { toast('外しました'); renderMembers(); } });
+  $$('[data-role]', box).forEach(b => b.onclick = async () => { const [u, r] = b.dataset.role.split('|'); try { await api('setMember', { org:ORG.id, user:u, role:r }); toast('変更しました'); renderMembers(); } catch(e) { alert(e.message); } });
+  $$('[data-rm]', box).forEach(b => b.onclick = async () => { const [u, em] = b.dataset.rm.split('|'); if (!confirm(`${em} をこの園から外します。この人はこの園の台帳を見られなくなります。よろしいですか？`)) return; try { await api('setMember', { org:ORG.id, user:u, role:null }); toast('外しました'); renderMembers(); } catch(e) { alert(e.message); } });
 }
 async function issueCode(email, role, kind){
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('メールアドレスを入れてください'); const e = $('#invEmail'); if (e) e.focus(); return; }
-  const { data, error } = await sb.rpc('hb_issue_invite', { p_org:ORG.id, p_email:email, p_role:role, p_kind:kind });
-  if (error) { alert('コードを出せませんでした。\n' + (isNetErr(error) ? '通信を確かめてください。' : error.message)); return; }
+  let data;
+  try { data = await api('invite', { org:ORG.id, email, role, kind }); }
+  catch(error) { alert('コードを出せませんでした。\n' + (isNetErr(error) ? '通信を確かめてください。' : error.message)); return; }
   const url = location.origin + location.pathname;
   openDlg(`<div class="dh"><h2>${kind === 'reset' ? 'パスワード再設定コード' : '招待コード'}</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
     <div class="db"><p style="margin-top:0">${esc(data.email)} さんに、次のコードとページの場所を伝えてください。<b>この画面を閉じると、コードはもう表示できません</b>（なくした時は出し直せます）。</p>
@@ -1691,8 +1693,8 @@ async function issueCode(email, role, kind){
 async function joinOrg(){
   const c = prompt('別の園の管理者から受け取った招待コード（12文字）を入れてください。\n（いまログインしているメールアドレス宛てのコードだけ使えます）');
   if (!c) return;
-  const { data, error } = await sb.rpc('hb_join', { p_code:c });
-  if (error) { alert(isNetErr(error) ? '通信できませんでした。' : error.message); return; }
+  let data;
+  try { data = await api('join', { code:c }); } catch(error) { alert(isNetErr(error) ? '通信できませんでした。' : error.message); return; }
   try { localStorage.setItem(LS_ORG, JSON.stringify({ uid:ME.uid, id:data.org_id, role:'' })); } catch(e) {}
   location.reload();
 }
@@ -1740,7 +1742,7 @@ async function migrateLegacy(){
   const n = plan.add.items.length + plan.add.assets.length + plan.add.logs.length + plan.add.photos.length + plan.add.stocktakes.length;
   if (n) {
     if (!confirm(`この端末に前の版で保存した台帳（備品${L.assets.length}件・写真${L.photos.length}枚）を、「${S.settings.orgName || ORG.name}」のサーバーへ移します。\n・サーバーにまだ無い物だけを足します（備品${plan.add.assets.length}件・写真${plan.add.photos.length}枚・記録${plan.add.logs.length}件）\n${plan.same ? `・すでにある備品${plan.same}件は変えません\n` : ''}${plan.dup ? `・管理番号がほかの備品と重なる物が${plan.dup}件あります（そのまま移し、ホームに「重複」として出します）\n` : ''}・端末の元のデータは消しません\nよろしいですか？`)) return;
-    await applyMerge(L, plan.add);
+    await applyMerge(L, plan.add, true);
   }
   toast('サーバーへ送っています…');
   await sync(true);
@@ -1749,11 +1751,10 @@ async function migrateLegacy(){
   try {
     for (const [t, list] of [['items', L.items], ['assets', L.assets], ['logs', L.logs], ['photos', L.photos], ['stocktakes', L.stocktakes]]) {
       const ids = list.map(x => x.id);
-      for (let i = 0; i < ids.length; i += 100) {
-        const part = ids.slice(i, i + 100);
-        const { data, error } = await sb.from(t).select('id').eq('org_id', ORG.id).in('id', part);
-        if (error) throw error;
-        missing += part.length - data.length;
+      for (let i = 0; i < ids.length; i += 300) {
+        const part = ids.slice(i, i + 300);
+        const j = await api('has', { org:ORG.id, ids:{ [t]:part } });
+        missing += part.length - ((j.has && Array.isArray(j.has[t])) ? j.has[t].length : 0);
       }
     }
   } catch(e) { missing = -1; }
@@ -1843,8 +1844,9 @@ function showAuth(mode, msg){
 function hideAuth(){ document.body.classList.remove('auth-on'); $('#auth').hidden = true; }
 $('#toCode').onclick = () => showAuth('code');
 $('#toLogin').onclick = () => showAuth('login');
-// sign out on this device even without a connection (supabase-js keeps the session when the server cannot be reached)
-async function signOutLocal(){ try { await Promise.race([sb.auth.signOut({ scope:'local' }), new Promise(r => setTimeout(r, 5000))]); } catch(e) {} try { localStorage.removeItem('hbk-auth'); localStorage.removeItem('hbk-auth-code-verifier'); } catch(e) {} }
+// sign out on this device even without a connection (the server-side session is ended when it can be reached)
+async function signOutLocal(){ try { await Promise.race([api('logout'), new Promise(r => setTimeout(r, 5000))]); } catch(e) {} AUTH = null; try { localStorage.removeItem(LS_AUTH); } catch(e) {} }
+function saveAuth(j){ AUTH = { token:j.token, uid:j.user.uid, email:j.user.email }; try { localStorage.setItem(LS_AUTH, JSON.stringify(AUTH)); } catch(e) {} }
 $('#authOut').onclick = async () => { await signOutLocal(); location.reload(); };
 $('#authLogin').onsubmit = async e => {
   e.preventDefault();
@@ -1852,10 +1854,12 @@ $('#authLogin').onsubmit = async e => {
   if (!email || !pw) { authMsg('メールアドレスとパスワードを入れてください'); return; }
   $('#lgBtn').disabled = true; authMsg('');
   try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password:pw });
-    if (error) { authMsg(isNetErr(error) ? '通信できませんでした。電波・Wi-Fiを確かめてください。' : 'メールアドレスかパスワードが違います。忘れた時は、園の管理者に再設定コードを出してもらってください。'); return; }
+    let j;
+    try { j = await api('login', { email, password:pw }); }
+    catch(error) { authMsg(isNetErr(error) ? '通信できませんでした。電波・Wi-Fiを確かめてください。' : error.code === 'login' ? 'メールアドレスかパスワードが違います。忘れた時は、園の管理者に再設定コードを出してもらってください。' : error.message); return; }
     $('#lgPw').value = '';
-    await startSession(data.user);
+    saveAuth(j);
+    await startSession(j.user, j.orgs);
   } finally { $('#lgBtn').disabled = false; }
 };
 $('#authCode').onsubmit = async e => {
@@ -1866,23 +1870,25 @@ $('#authCode').onsubmit = async e => {
   if (pw !== $('#cdPw2').value) { authMsg('確認のパスワードが一致しません'); $('#cdPw2').focus(); return; }
   $('#cdBtn').disabled = true; authMsg('');
   try {
-    let r;
-    try { r = await fetchT(SB_URL + '/functions/v1/hb-invite', { method:'POST', headers:{ 'Content-Type':'application/json', apikey:SB_KEY }, body:JSON.stringify({ email, code, password:pw }) }); }
-    catch(err) { authMsg('通信できませんでした。電波・Wi-Fiを確かめてください。'); return; }
-    let body = {}; try { body = await r.json(); } catch(err) {}
-    if (!body.ok) { authMsg(body.message || 'コードを確かめられませんでした。'); return; }
-    const { data, error } = await sb.auth.signInWithPassword({ email, password:pw });
-    if (error) { showAuth('login', 'パスワードを設定しました。ログインしてください。'); $('#authMsg').classList.add('ok'); return; }
+    try { await api('redeem', { email, code, password:pw }); }
+    catch(err) { authMsg(isNetErr(err) ? '通信できませんでした。電波・Wi-Fiを確かめてください。' : err.message); return; }
+    let j;
+    try { j = await api('login', { email, password:pw }); }
+    catch(err) { showAuth('login', 'パスワードを設定しました。ログインしてください。'); $('#authMsg').classList.add('ok'); return; }
     ['#cdPw','#cdPw2','#cdCode'].forEach(id => $(id).value = '');
-    await startSession(data.user);
+    saveAuth(j);
+    await startSession(j.user, j.orgs);
   } finally { $('#cdBtn').disabled = false; }
 };
-async function startSession(user){
-  ME = { uid:user.id, email:user.email };
+async function startSession(user, knownOrgs){
+  ME = { uid:user.uid, email:user.email };
   let saved = null; try { saved = JSON.parse(localStorage.getItem(LS_ORG) || 'null'); } catch(e) {}
   if (saved && saved.uid !== ME.uid) saved = null;
-  let orgs = null;
-  if (navigator.onLine) { const r = await rpcRetry(() => sb.rpc('hb_my_orgs')); if (!r.error && Array.isArray(r.data)) orgs = r.data; else if (r.error && !isNetErr(r.error)) { showAuth('login', 'ログインの期限が切れました。もう一度ログインしてください。'); return; } }
+  let orgs = Array.isArray(knownOrgs) ? knownOrgs : null;
+  if (!orgs && navigator.onLine) {
+    try { const j = await api('me'); if (Array.isArray(j.orgs)) orgs = j.orgs; }
+    catch(e) { if (e.code === 'auth') { await signOutLocal(); showAuth('login', 'ログインの期限が切れました。もう一度ログインしてください。'); return; } }
+  }
   if (orgs) {
     ORGS = orgs.filter(o => o && typeof o.org_id === 'string');
     if (!ORGS.length) { showAuth('noorg'); return; }
@@ -1890,7 +1896,7 @@ async function startSession(user){
     if (!o) {
       showAuth('pick', 'この台帳を使う園を選んでください。');
       $('#orgPick').innerHTML = ORGS.map((x, i) => `<button type="button" class="btn" style="width:100%;margin-bottom:8px" data-pick="${i}">${esc(x.name)}（${x.role === 'admin' ? '管理者' : '職員'}）</button>`).join('');
-      $$('[data-pick]').forEach(b => b.onclick = () => { const x = ORGS[Number(b.dataset.pick)]; try { localStorage.setItem(LS_ORG, JSON.stringify({ uid:ME.uid, id:x.org_id, role:x.role })); } catch(e) {} startSession(user); });
+      $$('[data-pick]').forEach(b => b.onclick = () => { const x = ORGS[Number(b.dataset.pick)]; try { localStorage.setItem(LS_ORG, JSON.stringify({ uid:ME.uid, id:x.org_id, role:x.role })); } catch(e) {} startSession(user, ORGS); });
       return;
     }
     ORG = { id:o.org_id, name:o.name, role:o.role };
@@ -1908,9 +1914,12 @@ async function openApp(){
   catch(e) { hideAuth(); document.querySelector('main').innerHTML = `<div class="card" style="color:var(--ng)">データの保存場所を開けませんでした。プライベートブラウズを切るか、別のブラウザでお試しください。<br>${esc(e.message)}</div>`; return; }
   hideAuth();
   try { if (navigator.storage && navigator.storage.persist) persistState = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch(e) {}
-  if (navigator.onLine) { const v = await sb.rpc('hb_version'); SYNC.proto = (!v.error && v.data && v.data.app === 'hoikuen-bihin') ? Number(v.data.proto) || 0 : 0; if (!v.error && SYNC.proto < 1) SYNC.err = 'サーバーの版が合いません。運営者に連絡してください（送れていない変更は端末に残っています）'; }
-  else SYNC.proto = 1;
-  const first = !(await getLocal('cursor'));
+  SYNC.proto = 1;
+  if (navigator.onLine) {
+    // capability check (原則7): the sync protocol is used only once the server declares it
+    try { const v = await api('version'); if (v.app !== 'hoikuen-bihin' || !(Number(v.proto) >= 1)) { SYNC.proto = 0; SYNC.err = 'サーバーの版が合いません。運営者に連絡してください（送れていない変更は端末に残っています）'; } } catch(e) {}
+  }
+  const first = (await getLocal('cursor')) === undefined;
   await loadAll();
   if (first) {
     $('#v-home').innerHTML = '<div class="card" role="status">サーバーから台帳を読み込んでいます…</div>';
@@ -1936,14 +1945,12 @@ window.addEventListener('offline', () => { SYNC.online = false; updateSyncUI(); 
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ORG && db) sync(); });
 
 (async function init(){
-  if (!window.supabase || !window.supabase.createClient || /__SB_/.test(SB_URL + SB_KEY)) {
-    document.querySelector('main').innerHTML = '<div class="card" role="alert">サーバーにつなぐ部品を読み込めませんでした。通信を確かめて、もう一度開いてください。</div>'; return;
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(API_URL) && !/^http:\/\/127\.0\.0\.1:\d+\/exec$/.test(API_URL)) {
+    document.querySelector('main').innerHTML = '<div class="card" role="alert">サーバーの設定がありません。運営者に連絡してください。</div>'; return;
   }
-  sb = window.supabase.createClient(SB_URL, SB_KEY, { auth:{ persistSession:true, autoRefreshToken:true, storageKey:'hbk-auth' }, global:{ fetch:fetchT } });
-  let session = null;
-  try { session = (await sb.auth.getSession()).data.session; } catch(e) {}
-  if (!session) { showAuth('login'); return; }
-  await startSession(session.user);
+  try { const a = JSON.parse(localStorage.getItem(LS_AUTH) || 'null'); if (a && typeof a.token === 'string' && typeof a.uid === 'string' && typeof a.email === 'string') AUTH = a; } catch(e) {}
+  if (!AUTH) { showAuth('login'); return; }
+  await startSession({ uid:AUTH.uid, email:AUTH.email });
 })();
 </script>
 </body>
