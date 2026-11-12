@@ -367,7 +367,7 @@ function loadTable_(ss, t) {
   const list = [];
   for (let i = 1; i < v.length; i++) {
     let data; try { data = JSON.parse(v[i][1]); } catch (e) { data = {}; }
-    const rec = { id: String(v[i][0]), data: isObj_(data) ? data : {}, deleted: v[i][2] === true || v[i][2] === 'TRUE', rev: Number(v[i][3]) || 0, updated_at: v[i][4], updated_by: v[i][5], batch: String(v[i][6] || ''), _i: list.length };
+    const rec = { id: String(v[i][0]), data: isObj_(data) ? data : {}, deleted: String(v[i][2]).toUpperCase() === 'TRUE', rev: Number(v[i][3]) || 0, updated_at: v[i][4], updated_by: v[i][5], batch: String(v[i][6] || ''), _i: list.length };
     rec.b0 = rec.batch;
     list.push(rec); map[rec.id] = rec;
   }
