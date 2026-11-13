@@ -167,6 +167,7 @@ body.auth-on{padding-bottom:24px}
 .mrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:8px 0}
 .mrow .e{overflow-wrap:anywhere;min-width:0;flex:1 1 200px}
 .mlist{list-style:none;margin:8px 0 0;padding:0}
+.mlist .btn.sm{min-width:44px}
 .cprev{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);margin:12px 0 8px}
 .cprev.ng{background:var(--ng-l);border-color:var(--ng)}
 @media print{
@@ -459,7 +460,7 @@ async function loadAll(){
   const m = meta.find(x => x.key === 'masters'), st = meta.find(x => x.key === 'settings');
   const list = (v, d) => Array.isArray(v) ? v.filter(x => typeof x === 'string') : [...d];
   S.masters = m ? { categories:list(m.categories, DEFAULT_MASTERS.categories), locations:list(m.locations, DEFAULT_MASTERS.locations), classes:list(m.classes, DEFAULT_MASTERS.classes), fundings:list(m.fundings, DEFAULT_MASTERS.fundings) } : JSON.parse(JSON.stringify(DEFAULT_MASTERS));
-  S.settings = { ...DEFAULT_SETTINGS, ...(st || {}) }; delete S.settings.key;
+  S.settings = { ...DEFAULT_SETTINGS, ...(st || {}) }; delete S.settings.key; delete S.settings.seqReset;
   S.settings.lastBackup = (await getLocal('lastBackup')) || '';
 }
 
@@ -1240,7 +1241,7 @@ async function saveAssetForm(editing){
       ops.push(['logs','put',newLog({ assetId:a.id, type:'登録', detail:`${name}を登録${a.price != null ? '（' + yen(a.price) + '）' : ''}` })]);
       created.push(a);
     }
-    ops.push(['meta','put',{ key:'settings', ...S.settings }]);
+    ops.push(['meta','put',{ key:'settings', seq:S.settings.seq }]);
     if (seqBefore === S.settings.seq && !code) { /* no-op */ }
   }
   try {
@@ -1656,7 +1657,7 @@ async function importCsv(file){
     ex ? nUpd++ : nNew++;
   }
   if (!confirm(`新規 ${nNew}件・更新 ${nUpd}件${nSkip ? `・読み飛ばし ${nSkip}件` : ''} を取り込みます。${dupRows.length ? `\n管理番号が重複している行（${dupRows.slice(0, 10).join('・')}行目）は読み飛ばします。` : ''}${badDates.length ? `\n読めない日付（${badDates.slice(0, 5).join('、')}${badDates.length > 5 ? ' ほか' : ''}）はその欄を変えずに取り込みます。` : ''}よろしいですか？\n（管理番号が同じ行は上書き更新します）`)) { await loadAll(); return; }
-  ops.push(['meta','put',{ key:'settings', ...S.settings }]);
+  ops.push(['meta','put',{ key:'settings', seq:S.settings.seq }]);
   try { await writeOps(ops); } catch(e) { await loadAll(); alert('取り込めませんでした。データは変更されていません。\n' + e.message); render(); return; }
   await loadAll(); toast(`取り込みました（新規 ${nNew}件・更新 ${nUpd}件）`); render();
 }
@@ -1774,7 +1775,7 @@ async function renderSettings(){
       <div class="row"><button type="button" class="btn" id="cExpAll">⬇ 全件をCSVで保存</button><button type="button" class="btn" id="cImp">⬆ CSVから取り込む</button></div>
       <div class="hint">Excel等で作った台帳を取り込めます。1行目の見出しは「CSVで保存」した形に合わせてください（品目の列は必須、管理番号が同じ行は更新）。写真はCSVに入りません。</div></div>
     ${admin ? `<div class="card"><h3 style="margin-top:0">データの消去</h3><p class="muted" style="margin-top:0">この園の台帳データ（備品・写真・記録・棚卸）を、<b>すべての端末から</b>消します。先にバックアップを保存してください。サーバーには「消した印」を付けて残るため、運営者に頼めば戻せます。</p><button type="button" class="btn ng" id="sWipe">すべてのデータを消す</button></div>` : ''}`;
-  renderBasicCard(); renderCodeCard(); renderMastersCard();
+  renderBasicCard(); renderCodeCard(); renderMastersCard(); checkProto();
   $('#aSync').onclick = async () => { await sync(true); toast(SYNC.err ? '同期できませんでした' : (SYNC.online ? '同期しました' : '通信できません')); };
   $('#aOut').onclick = logout;
   $('#aJoin').onclick = joinOrg;
@@ -1798,8 +1799,14 @@ async function renderSettings(){
 
 /* ---------- settings editors (基本・管理番号のルール・選択肢の一覧) ---------- */
 // 管理者と運営サポートだけが変えられる（職員は見るだけ）。サーバーも職員からの設定の書き込みは番号の続きだけを通す
-const canEditSettings = () => !!ORG && (ORG.role === 'admin' || ORG.role === 'support');
-const RO_NOTE = '<div class="hint">ℹ️ 設定を変えられるのは園の管理者（と運営サポート）です。変えたい時は管理者に頼んでください。</div>';
+const isSettingsEditor = () => !!ORG && (ORG.role === 'admin' || ORG.role === 'support');
+// the server must have declared protocol 2 (分類ごとの頭文字の足し合わせ・職員の書き込みの制限) before anything is edited (原則7)
+const canEditSettings = () => isSettingsEditor() && SYNC.proto >= 2;
+async function checkProto(){
+  if (SYNC.proto >= 2 || !navigator.onLine) return;
+  try { const v = await api('version'); if (v.app === 'hoikuen-bihin' && Number(v.proto) >= 2) { SYNC.proto = 2; if (curView === 'settings') { renderBasicCard(); renderCodeCard(); renderMastersCard(); } } } catch(e) {}
+}
+const roNote = () => isSettingsEditor() ? '<div class="hint">ℹ️ サーバーの版を確かめられるまで、設定は見るだけです。通信できる所で開き直してください。</div>' : '<div class="hint">ℹ️ 設定を変えられるのは園の管理者（と運営サポート）です。変えたい時は管理者に頼んでください。</div>';
 async function saveSettings(next, base, extra = []){
   await writeOps([['meta','put',{ ...next, key:'settings' },{ base:{ ...base, key:'settings' } }], ...extra]);
   await loadAll();
@@ -1809,14 +1816,14 @@ function renderBasicCard(){
   const s = S.settings, ed = canEditSettings(), ro = ed ? '' : ' readonly';
   box.innerHTML = `<h3 style="margin-top:0">基本</h3><div class="fgrid">
       <label class="f"><span>園の名前（画面・印刷に表示）</span><input type="text" id="sOrg" value="${esc(s.orgName)}" maxlength="60" autocomplete="off"${ro}></label>
-      <label class="f"><span>高額備品とみなす単価（円）</span><input type="number" id="sThr" value="${esc(s.assetThreshold)}" min="0" step="1" inputmode="numeric"${ro}><div class="hint">ホームの件数表示に使います（例：10万円）。</div></label>
-    </div>${ed ? '<div class="row"><button type="button" class="btn pri" id="sSaveBasic">基本を保存する</button></div>' : RO_NOTE}`;
+      <label class="f"><span>高額備品とみなす単価（円）</span><input type="number" id="sThr" value="${esc(s.assetThreshold)}" min="1" step="1" inputmode="numeric"${ro}><div class="hint">ホームの件数表示に使います（例：10万円）。</div></label>
+    </div>${ed ? '<div class="row"><button type="button" class="btn pri" id="sSaveBasic">基本を保存する</button></div>' : roNote()}`;
   if (!ed) return;
   const base = JSON.parse(JSON.stringify(S.settings));
   $('#sSaveBasic').onclick = async () => {
     const thr = Number($('#sThr').value);
-    if (!(thr >= 0)) { toast('単価は0以上の数字で入れてください'); $('#sThr').focus(); return; }
-    await saveSettings({ ...base, orgName:$('#sOrg').value.trim(), assetThreshold:thr || 100000 }, base);
+    if (!(thr >= 1)) { toast('単価は1円以上の数字で入れてください'); $('#sThr').focus(); return; }
+    await saveSettings({ ...base, orgName:$('#sOrg').value.trim(), assetThreshold:Math.round(thr) }, base);
     $('#orgName').textContent = S.settings.orgName || (ORG && ORG.name) || '';
     toast('基本を保存しました'); renderBasicCard();
   };
@@ -1846,14 +1853,14 @@ function renderCodeCard(){
       <div class="fgrid">${cats.map((c, i) => `<label class="f"><span>${esc(c)}${S.masters.categories.includes(c) ? '' : '（一覧にない分類）'}</span><input type="text" data-cp="${i}" value="${esc(cp[c] || '')}" maxlength="10" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="共通" aria-describedby="cpn${i}"${ro}><div class="hint" id="cpn${i}" data-cpn="${i}"></div></label>`).join('')}</div>
     </details>
     <div class="cprev" id="codePrev" role="status" aria-live="polite"></div>
-    ${ed ? '<div class="row"><button type="button" class="btn pri" id="sSaveCode">番号のルールを保存する</button></div>' : RO_NOTE}`;
+    ${ed ? '<div class="row"><button type="button" class="btn pri" id="sSaveCode">番号のルールを保存する</button></div>' : roNote()}`;
   const base = JSON.parse(JSON.stringify(S.settings));
   // the rule as the form shows it now (nothing is saved until the button is pressed)
   const form = () => {
     const st = { ...base, codePrefix:$('#sPrefix').value.trim(), codeDigits:Number($('#sDigits').value), catPrefix:{ ...cp } };
     $$('[data-cp]', box).forEach(inp => { const c = cats[Number(inp.dataset.cp)], v = inp.value.trim(); if (v || cp[c]) st.catPrefix[c] = v; });
     const seqIn = $('#sSeq').value.trim(), seqChanged = seqIn !== String(n0);
-    if (seqChanged) st.seq = Number(seqIn);
+    if (seqChanged) { st.seq = Number(seqIn); st.seqReset = st.seq; }   // the server moves seq only forward unless it is reset on purpose
     return { st, seqChanged, seqIn };
   };
   const problems = ({ st, seqChanged, seqIn }) => {
@@ -1939,7 +1946,7 @@ function renderMastersCard(){
     <ol class="mlist" aria-label="${esc(label)}の一覧">${list.map((v, i) => { const u = masterUse(mKind, v); return `<li class="mrow"><span class="e"><b>${esc(v)}</b><br><span class="muted">${esc(u.text)}</span></span>${ed ? `<span class="row">
       <button type="button" class="btn sm" data-mv="${i}|-1" aria-label="「${esc(v)}」を上へ"${i === 0 ? ' disabled' : ''}>↑</button><button type="button" class="btn sm" data-mv="${i}|1" aria-label="「${esc(v)}」を下へ"${i === list.length - 1 ? ' disabled' : ''}>↓</button>
       <button type="button" class="btn sm" data-rn="${i}" aria-label="「${esc(v)}」の名前を変える">名前変更</button><button type="button" class="btn sm ng" data-mrm="${i}" aria-label="「${esc(v)}」を一覧から外す">外す</button></span>` : ''}</li>`; }).join('') || '<li class="mrow muted">まだありません</li>'}</ol>
-    ${ed ? `<div class="row" style="align-items:flex-end;margin-top:8px"><label class="f" style="flex:1 1 220px;margin:0"><span>新しい${esc(label)}</span><input type="text" id="mNew" maxlength="40" autocomplete="off"></label><button type="button" class="btn pri" id="mAdd">＋ 追加する</button></div>` : RO_NOTE}
+    ${ed ? `<div class="row" style="align-items:flex-end;margin-top:8px"><label class="f" style="flex:1 1 220px;margin:0"><span>新しい${esc(label)}</span><input type="text" id="mNew" maxlength="40" autocomplete="off"></label><button type="button" class="btn pri" id="mAdd">＋ 追加する</button></div>` : roNote()}
     ${orph.length ? `<h3>一覧にない${esc(label)}（登録済みの備品に入っている値）</h3>${orph.map((v, i) => `<div class="mrow"><span class="e">${esc(v)}<br><span class="muted">${esc(masterUse(mKind, v).text)}</span></span>${ed ? `<span class="row"><button type="button" class="btn sm" data-ad="${i}">一覧に入れる</button><button type="button" class="btn sm" data-orn="${i}">ほかの名前に直す</button></span>` : ''}</div>`).join('')}` : ''}
     <div class="hint">名前を変える時は、登録済みの備品の値も一緒に変えるかを選べます（変えないと、登録済みの備品は前の名前のまま残ります）。</div>`;
   $$('[data-mk]', box).forEach(b => b.onclick = () => { mKind = b.dataset.mk; try { localStorage.setItem(LS_MKIND, mKind); } catch(e) {} renderMastersCard(); const nb = $(`[data-mk="${mKind}"]`); if (nb) nb.focus(); });
@@ -1992,9 +1999,15 @@ function renameMaster(kind, v, inList){
     if (exists && inList && !all) return msg(`「${nv}」はすでに一覧にあります。まとめる時は「登録済みの値も変える」に印を付けてください`);
     if (exists && !confirm(`「${v}」を、すでにある「${nv}」にまとめます。${all ? `\n登録済みの値（${u.text}）も「${nv}」に変えます。` : ''}\nよろしいですか？`)) return;
     const now = new Date().toISOString(), extra = [];
-    if (all) {   // one patch per record; only the changed field travels (other devices' edits of the same record stay)
+    if (all) {   // one patch per record, built from the data as it is now; only the changed field travels (other devices' edits stay)
       const by = new Map();
-      for (const [st, rec, f] of refs) { const k = st + '|' + rec.id; if (!by.has(k)) by.set(k, [st, rec, {}]); by.get(k)[2][f] = nv; }
+      for (const [st, rec, f] of masterRefs(kind, v)) { const k = st + '|' + rec.id; if (!by.has(k)) by.set(k, [st, rec, {}]); by.get(k)[2][f] = nv; }
+      if (kind === 'locations') for (const t of S.stocktakes.filter(t => !t.finishedAt && isObj(t.checks))) {
+        const ch = Object.entries(t.checks).filter(([, c]) => isObj(c) && c.foundLocation === v);
+        if (!ch.length) continue;
+        const k = 'stocktakes|' + t.id; if (!by.has(k)) by.set(k, ['stocktakes', t, {}]);
+        by.get(k)[2].checks = { ...t.checks, ...Object.fromEntries(ch.map(([id, c]) => [id, { ...c, foundLocation:nv }])) };
+      }
       for (const [st, rec, ch] of by.values()) extra.push([st, 'put', { ...rec, ...ch, ...(st === 'stocktakes' ? {} : { updatedAt:now }) }, { base:rec }]);
     }
     if (kind === 'categories') {   // the category's own number prefix follows the new name
@@ -2004,7 +2017,7 @@ function renameMaster(kind, v, inList){
     try {
       await saveMasters(kind, l => { const j = l.indexOf(v); if (exists) { if (j >= 0) l.splice(j, 1); } else if (j >= 0) l[j] = nv; else l.push(nv); }, extra);
     } catch(e) { await loadAll(); alert('保存できませんでした。データは変更されていません。\n' + e.message); return; }
-    closeDlg('dlg2'); toast(all && u.n ? `「${nv}」に変えました（登録済みの ${u.text} も変更）` : `「${nv}」に変えました`);
+    closeDlg('dlg2'); toast(all && u.n ? `「${nv}」に変えました（登録済みの値も変更）` : `「${nv}」に変えました`);
     renderCodeCard();
   };
 }
@@ -2150,7 +2163,7 @@ async function loadDemo(){
     }
   }
   [['紙おむつ Mサイズ','衛生・保健用品','袋',3,5,1480,'倉庫'],['おしりふき','衛生・保健用品','個',20,10,198,'倉庫'],['画用紙 八つ切り','玩具・教材','束',2,3,650,'倉庫']].forEach(([name, cat, unit, stock, rp, price, loc]) => ops.push(['items','put',{ id:uid(), name, category:cat, kind:'consumable', unit, stock, reorderPoint:rp, unitPrice:price, location:loc, createdAt:now, updatedAt:now }]));
-  ops.push(['meta','put',{ key:'settings', ...S.settings }]);
+  ops.push(['meta','put',{ key:'settings', seq:S.settings.seq }]);
   await writeOps(ops); await loadAll(); toast('見本データを入れました（設定から消去できます）'); render();
 }
 
@@ -2265,8 +2278,9 @@ async function openApp(){
   try { if (navigator.storage && navigator.storage.persist) persistState = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch(e) {}
   SYNC.proto = 1;
   if (navigator.onLine) {
+    try { const v = await api('version'); if (v.app === 'hoikuen-bihin' && Number(v.proto) >= 2) SYNC.proto = 2; } catch(e) {}
     // capability check (原則7): the sync protocol is used only once the server declares it
-    try { const v = await api('version'); if (v.app !== 'hoikuen-bihin' || !(Number(v.proto) >= 1)) { SYNC.proto = 0; SYNC.err = 'サーバーの版が合いません。運営者に連絡してください（送れていない変更は端末に残っています）'; } } catch(e) {}
+    if (SYNC.proto < 2) try { const v = await api('version'); if (v.app !== 'hoikuen-bihin' || !(Number(v.proto) >= 1)) { SYNC.proto = 0; SYNC.err = 'サーバーの版が合いません。運営者に連絡してください（送れていない変更は端末に残っています）'; } } catch(e) {}
   }
   const first = (await getLocal('cursor')) === undefined;
   await loadAll();
