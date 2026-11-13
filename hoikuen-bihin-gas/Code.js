@@ -14,12 +14,15 @@
    同期の規則（multi-device-sync）: 変えた項目だけを書く／在庫は増減／棚卸の確認と写真の並びは足し合わせ／
      削除は消した印（データは残す）／同じまとまり（batch）は一度だけ／番号（rev）はサーバーが振る
    ========================================================= */
-const APP = 'hoikuen-bihin', PROTO = 1;
+// PROTO 2 (2026-11-13): catPrefix merges one level deep; a member's writes to the settings table keep only seq
+const APP = 'hoikuen-bihin', PROTO = 2;
 const ROOT_NAME = '保育園物品管理台帳_サーバーデータ（別法人用）';
 const TABLES = ['items', 'assets', 'logs', 'stocktakes', 'settings', 'photos'];
 // batch = the last write batch that touched the row (lets a retry after a half-finished write skip what is already there)
 const COLS = ['id', 'data', 'deleted', 'rev', 'updated_at', 'updated_by', 'batch'];
-const DEEP_FIELDS = ['checks', 'photoLabels', 'manuals'];   // manuals: one entry per model, registered from any device
+const DEEP_FIELDS = ['checks', 'photoLabels', 'manuals', 'catPrefix'];   // manuals: one entry per model, registered from any device / catPrefix: 分類ごとの管理番号の頭文字
+// 設定（選択肢の一覧・番号のルール・園の名前）を変えられるのは管理者と運営サポート。職員の書き込みは番号の続き（seq）だけ通す
+const SETTINGS_EDITORS = ['admin', 'support'], MEMBER_SETTINGS_FIELDS = ['seq'];
 // sha256 of the operator key (the key itself is kept outside the repository)
 const OP_KEY_HASH = '7b712982a122e88ad57902e3d916ee1e96bd4b80d694db7bfb784a1fa760f35e';
 const SESSION_DAYS = 30, PW_ITER = 500, MAX_CELL = 45000;
@@ -446,13 +449,31 @@ function apply_(uid, orgId, batch, ops, role) {
       if (cur && cur.b0 === batch) return;
       if (op.k === 'delete') {
         if (!cur || cur.deleted) return;
+        if (op.t === 'settings' && SETTINGS_EDITORS.indexOf(role) < 0) return;
         // an item that another device has just given a live unit stays (its name would otherwise vanish)
         if (op.t === 'items' && tab('assets').list.some(a => !a.deleted && a.data.itemId === op.id)) return;
         cur.deleted = true; touch(op.t, cur); return;
       }
       // 'create' (migration / backup): only when the id never existed — a record deleted on purpose stays deleted
       if (op.k === 'create' && cur) return;
-      const nd = merge_(cur ? cur.data : {}, op.set, op.inc, op.arr);
+      let set = op.set, inc = op.inc, arr = op.arr;
+      if (op.t === 'settings' && SETTINGS_EDITORS.indexOf(role) < 0) {
+        // 職員: drop what only an editor may change (not an error — the rest of the batch, e.g. the asset just registered, still lands).
+        // The row is still touched below, so the next pull hands every device the server's copy back.
+        set = {}; inc = null; arr = null;
+        if (isObj_(op.set)) MEMBER_SETTINGS_FIELDS.forEach(k => { if (k in op.set) set[k] = op.set[k]; });
+        if (!cur && !Object.keys(set).length) return;   // never create an empty masters/settings row (it would hide the defaults)
+      }
+      if (op.t === 'settings' && op.id === 'settings' && isObj_(set)) {
+        // 管理番号の続き: a registration only moves it forward (a device that has not seen the latest rule cannot pull it back);
+        // an editor sets it exactly with seqReset (「次の番号」on the settings screen)
+        set = Object.assign({}, set);
+        const curSeq = cur && Number(cur.data.seq) > 0 ? Math.floor(Number(cur.data.seq)) : 1;
+        if ('seq' in set) set.seq = Math.max(curSeq, Math.floor(Number(set.seq)) || 1);
+        if ('seqReset' in set) { const n = Math.floor(Number(set.seqReset)); if (n >= 1) set.seq = n; delete set.seqReset; }
+      }
+      const nd = merge_(cur ? cur.data : {}, set, inc, arr);
+      if (op.t === 'settings') delete nd.seqReset;
       if (op.t === 'logs' && role === 'support') nd.support = true;   // written during 運営サポート
       if (JSON.stringify(nd).length > MAX_CELL) fail_('too_large', '1件のデータが大きすぎます');
       if (cur) { cur.data = nd; cur.deleted = false; touch(op.t, cur); }   // a patch revives a tombstone
