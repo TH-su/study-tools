@@ -167,6 +167,8 @@ body.auth-on{padding-bottom:24px}
 .mrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:8px 0}
 .mrow .e{overflow-wrap:anywhere;min-width:0;flex:1 1 200px}
 .mlist{list-style:none;margin:8px 0 0;padding:0}
+.cprev{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);margin:12px 0 8px}
+.cprev.ng{background:var(--ng-l);border-color:var(--ng)}
 @media print{
   @page{size:A4 landscape;margin:10mm}
   body{background:#fff;color:#000;padding:0}
@@ -1843,7 +1845,7 @@ function renderCodeCard(){
     <details class="grp" id="cpBox" style="margin-top:8px"${Object.values(cp).some(Boolean) ? ' open' : ''}><summary><div><div class="nm">分類ごとの頭文字（任意）</div><div class="meta">分類ごとに番号を分けたい時だけ。空欄なら共通の頭文字を使います。</div></div><span class="caret" aria-hidden="true">›</span></summary>
       <div class="fgrid">${cats.map((c, i) => `<label class="f"><span>${esc(c)}${S.masters.categories.includes(c) ? '' : '（一覧にない分類）'}</span><input type="text" data-cp="${i}" value="${esc(cp[c] || '')}" maxlength="10" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="共通" aria-describedby="cpn${i}"${ro}><div class="hint" id="cpn${i}" data-cpn="${i}"></div></label>`).join('')}</div>
     </details>
-    <div class="alert" id="codePrev" role="status" aria-live="polite" style="margin-top:12px"></div>
+    <div class="cprev" id="codePrev" role="status" aria-live="polite"></div>
     ${ed ? '<div class="row"><button type="button" class="btn pri" id="sSaveCode">番号のルールを保存する</button></div>' : RO_NOTE}`;
   const base = JSON.parse(JSON.stringify(S.settings));
   // the rule as the form shows it now (nothing is saved until the button is pressed)
@@ -1863,7 +1865,7 @@ function renderCodeCard(){
   };
   const show = () => {
     const f = form(), bad = problems(f), st = f.st, r = codeRule('', st), lines = [];
-    if (bad.length) { $('#codePrev').className = 'alert ng'; $('#codePrev').innerHTML = bad.map(x => '⚠️ ' + esc(x)).join('<br>'); return f; }
+    if (bad.length) { $('#codePrev').className = 'cprev ng'; $('#codePrev').innerHTML = bad.map(x => '⚠️ ' + esc(x)).join('<br>'); return f; }
     const next = peekCode('', st), stat = codeStats(r.prefix), want = f.seqChanged ? Number(f.seqIn) : null;
     const wantCode = want != null ? r.prefix + String(want).padStart(r.digits, '0') : '';
     lines.push(`見本：<b>${esc(r.prefix + '1'.padStart(r.digits, '0'))}</b>　次に振る番号：<b>${esc(next)}</b>`);
@@ -1881,7 +1883,7 @@ function renderCodeCard(){
       const shared = cats.filter(x => x !== c && (st.catPrefix[x] || '').toUpperCase() === own.toUpperCase());
       h.textContent = `次に振る番号：${peekCode(c, st)}` + (own.toUpperCase() === r.prefix.toUpperCase() ? '（共通の頭文字と同じなので、共通の番号の続きを使います）' : shared.length ? `（「${shared.join('」「')}」と同じ頭文字なので、番号を分け合います）` : '');
     });
-    $('#codePrev').className = 'alert'; $('#codePrev').innerHTML = lines.join('<br>');
+    $('#codePrev').className = 'cprev'; $('#codePrev').innerHTML = lines.join('<br>');
     return f;
   };
   show();
@@ -1936,7 +1938,7 @@ function renderMastersCard(){
     <p class="muted" style="margin:4px 0 0">${esc(label)}：${list.length}件。${ed ? '追加・名前の変更・一覧から外す・並べ替えは、押したときに保存され、園のすべての端末に反映されます。' : ''}</p>
     <ol class="mlist" aria-label="${esc(label)}の一覧">${list.map((v, i) => { const u = masterUse(mKind, v); return `<li class="mrow"><span class="e"><b>${esc(v)}</b><br><span class="muted">${esc(u.text)}</span></span>${ed ? `<span class="row">
       <button type="button" class="btn sm" data-mv="${i}|-1" aria-label="「${esc(v)}」を上へ"${i === 0 ? ' disabled' : ''}>↑</button><button type="button" class="btn sm" data-mv="${i}|1" aria-label="「${esc(v)}」を下へ"${i === list.length - 1 ? ' disabled' : ''}>↓</button>
-      <button type="button" class="btn sm" data-rn="${i}">名前を変える</button><button type="button" class="btn sm ng" data-mrm="${i}">一覧から外す</button></span>` : ''}</li>`; }).join('') || '<li class="mrow muted">まだありません</li>'}</ol>
+      <button type="button" class="btn sm" data-rn="${i}" aria-label="「${esc(v)}」の名前を変える">名前変更</button><button type="button" class="btn sm ng" data-mrm="${i}" aria-label="「${esc(v)}」を一覧から外す">外す</button></span>` : ''}</li>`; }).join('') || '<li class="mrow muted">まだありません</li>'}</ol>
     ${ed ? `<div class="row" style="align-items:flex-end;margin-top:8px"><label class="f" style="flex:1 1 220px;margin:0"><span>新しい${esc(label)}</span><input type="text" id="mNew" maxlength="40" autocomplete="off"></label><button type="button" class="btn pri" id="mAdd">＋ 追加する</button></div>` : RO_NOTE}
     ${orph.length ? `<h3>一覧にない${esc(label)}（登録済みの備品に入っている値）</h3>${orph.map((v, i) => `<div class="mrow"><span class="e">${esc(v)}<br><span class="muted">${esc(masterUse(mKind, v).text)}</span></span>${ed ? `<span class="row"><button type="button" class="btn sm" data-ad="${i}">一覧に入れる</button><button type="button" class="btn sm" data-orn="${i}">ほかの名前に直す</button></span>` : ''}</div>`).join('')}` : ''}
     <div class="hint">名前を変える時は、登録済みの備品の値も一緒に変えるかを選べます（変えないと、登録済みの備品は前の名前のまま残ります）。</div>`;
@@ -1974,7 +1976,7 @@ function renameMaster(kind, v, inList){
     <div class="db">
       <label class="f"><span>いまの名前</span><input type="text" value="${esc(v)}" readonly></label>
       <label class="f"><span>新しい名前</span><input type="text" id="rnName" value="${esc(v)}" maxlength="40" autocomplete="off" list="rnList"><datalist id="rnList">${S.masters[kind].filter(x => x !== v).map(x => `<option value="${esc(x)}">`).join('')}</datalist></label>
-      ${refs.length ? `<label class="row" style="min-height:44px;cursor:pointer"><input type="checkbox" id="rnAll" style="width:24px;height:24px"${inList ? '' : ' checked'}><span>登録済みの値（${esc(u.text)}${stk ? '・途中の棚卸' : ''}）も新しい名前に変える</span></label>
+      ${refs.length ? `<label class="row" style="min-height:44px;cursor:pointer;flex-wrap:nowrap"><input type="checkbox" id="rnAll" style="width:24px;height:24px;flex:none"${inList ? '' : ' checked'}><span>登録済みの値（${esc(u.text)}${stk ? '・途中の棚卸' : ''}）も新しい名前に変える</span></label>
       <div class="hint">${inList ? `印を付けない時は、登録済みの備品は「${esc(v)}」のまま残ります。` : '登録済みの値を新しい名前に直します。'}</div>` : '<div class="hint">この名前を使っている備品はありません。</div>'}
       <div id="rnMsg" class="hint" role="alert" style="color:var(--ng)"></div>
     </div>
