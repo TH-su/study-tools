@@ -166,6 +166,7 @@ body.auth-on{padding-bottom:24px}
 .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1.6rem;letter-spacing:.08em;font-weight:700;padding:12px;border:2px dashed var(--pri);border-radius:12px;text-align:center;background:var(--pri-l);user-select:all;overflow-wrap:anywhere}
 .mrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:8px 0}
 .mrow .e{overflow-wrap:anywhere;min-width:0;flex:1 1 200px}
+.mlist{list-style:none;margin:8px 0 0;padding:0}
 @media print{
   @page{size:A4 landscape;margin:10mm}
   body{background:#fff;color:#000;padding:0}
@@ -297,7 +298,7 @@ const DEFAULT_MASTERS = {
   classes: ['全体（共用）','0歳児','1歳児','2歳児','3歳児','4歳児','5歳児','事務','給食'],
   fundings: ['運営費（委託費）','施設整備補助金','ICT化推進補助金','その他の補助金','寄付・寄贈','その他']
 };
-const DEFAULT_SETTINGS = { orgName:'', codePrefix:'B-', seq:1, assetThreshold:100000, lastBackup:'' };
+const DEFAULT_SETTINGS = { orgName:'', codePrefix:'B-', codeDigits:4, seq:1, catPrefix:{}, assetThreshold:100000, lastBackup:'' };
 
 let db, persistState = null;
 const S = { items:[], assets:[], logs:[], stocktakes:[], masters:null, settings:null };
@@ -363,7 +364,7 @@ function locked(fn){ const p = lockP.then(fn, fn); lockP = p.catch(() => {}); re
 /* ---------- merge rules (same as the server's hb_private.merge) ---------- */
 const TABLE_OF = { items:'items', assets:'assets', logs:'logs', stocktakes:'stocktakes', meta:'settings', photos:'photos' };
 const STORE_OF = Object.fromEntries(Object.entries(TABLE_OF).map(([s, t]) => [t, s]));
-const DEEP_FIELDS = new Set(['checks', 'photoLabels', 'manuals']);
+const DEEP_FIELDS = new Set(['checks', 'photoLabels', 'manuals', 'catPrefix']);
 const ARRAY_FIELDS = new Set(['photoIds', 'categories', 'locations', 'classes', 'fundings']);
 const LOCAL_FIELDS = { photos:new Set(['blob', 'thumb', 'uploaded']), meta:new Set(['key', 'lastBackup']) };
 const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v);
@@ -447,12 +448,6 @@ async function writeOpsInner(ops){
     for (const [s, k, v] of local) k === 'delete' ? t.objectStore(s).delete(v) : t.objectStore(s).put(v);
     t.objectStore('queue').add(entry);
   });
-}
-async function saveMeta(base){
-  await writeOps([
-    ['meta', 'put', { key:'masters', ...S.masters }, base ? { base:{ key:'masters', ...base.masters } } : undefined],
-    ['meta', 'put', { key:'settings', ...S.settings }, base ? { base:{ key:'settings', ...base.settings } } : undefined]
-  ]);
 }
 
 /* reading never writes (multi-device-sync 原則9) */
@@ -595,7 +590,12 @@ let renderDeferred = false;
 function softRender(){
   const ae = document.activeElement;
   const typing = ae && ae.closest && ae.closest('main') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && !ae.closest('.toolbar');
-  if (typing || curView === 'settings') { renderDeferred = true; updateSyncUI(); return; }
+  if (typing || curView === 'settings') {
+    renderDeferred = true; updateSyncUI();
+    // the lists on the settings screen follow other devices' changes (not while this screen is being used)
+    const mc = $('#mastersCard'); if (curView === 'settings' && mc && !mc.contains(ae) && !$('#dlg2').open) renderMastersCard();
+    return;
+  }
   render();
 }
 document.addEventListener('focusout', () => setTimeout(() => {
@@ -631,16 +631,31 @@ function bookValue(a){
   return Math.max(0, Math.round(p * (1 - yrs / Number(a.usefulLife))));
 }
 function lifeEnd(a){ return (a.usefulLife && a.purchaseDate) ? addYears(a.purchaseDate, a.usefulLife) : ''; }
-function nextCode(reserved){
-  const used = new Set(S.assets.map(a => String(a.code).toUpperCase()));
-  if (reserved) reserved.forEach(c => used.add(String(c).toUpperCase()));
-  let n = Number(S.settings.seq) || 1, c;
-  do { c = S.settings.codePrefix + String(n).padStart(4, '0'); n++; } while (used.has(c.toUpperCase()));
-  S.settings.seq = n;
-  return c;
+/* 管理番号のルール: 頭文字（分類ごとに別の頭文字も可）＋桁数そろえの連番。
+   使われている番号は数字で比べて飛ばす（桁数を変えても B-0001 と B-00001 が重ならない）。既存の番号は変えない。 */
+const CODE_DIGITS = [3, 4, 5, 6];
+function codeRule(cat, st = S.settings){
+  const base = String(st.codePrefix ?? ''), cp = isObj(st.catPrefix) ? st.catPrefix : {};
+  const own = (cat && typeof cp[cat] === 'string') ? cp[cat] : '';
+  const d = Number(st.codeDigits);
+  return { prefix: own || base, own: !!own && own.toUpperCase() !== base.toUpperCase(), digits: CODE_DIGITS.includes(d) ? d : 4 };
+}
+function usedNums(prefix, reserved){
+  const P = String(prefix).toUpperCase(), set = new Set();
+  const add = c => { c = String(c ?? '').toUpperCase(); if (!c.startsWith(P)) return; const t = c.slice(P.length); if (/^\d{1,9}$/.test(t)) set.add(Number(t)); };
+  S.assets.forEach(a => add(a.code)); if (reserved) reserved.forEach(add);
+  return set;
+}
+function nextCode(reserved, cat, st = S.settings){
+  const r = codeRule(cat, st), used = usedNums(r.prefix, reserved);
+  // the shared prefix continues from 「次の番号」(seq); a category's own prefix starts at 1. Numbers already used are skipped.
+  let n = r.own ? 1 : Math.max(1, Math.floor(Number(st.seq)) || 1);
+  while (used.has(n)) n++;
+  if (!r.own) st.seq = n + 1;
+  return r.prefix + String(n).padStart(r.digits, '0');
 }
 const findByCode = c => { c = half(c).toUpperCase(); return S.assets.find(a => String(a.code).toUpperCase() === c); };
-function peekCode(){ const keep = S.settings.seq; const c = nextCode(); S.settings.seq = keep; return c; }
+function peekCode(cat, st = S.settings){ return nextCode(null, cat, { ...st }); }
 
 /* ---------- photos ---------- */
 const urlCache = new Map();
@@ -1104,7 +1119,7 @@ async function openAssetForm(id, opts = {}){
         <div class="fgrid">
           <label class="f"><span>品目名 <b class="req">必須</b></span><input type="text" id="fItem" list="itemList" value="${esc(it ? it.name : '')}" placeholder="例：デジタルカメラ" required autocomplete="off"><datalist id="itemList">${eqItems.map(i => `<option value="${esc(i.name)}">`).join('')}</datalist><div class="hint">同じ品目名で何台でも登録でき、1台ずつ型番・金額・購入日を分けて管理できます。</div></label>
           <label class="f"><span>分類</span><select id="fCatF">${opt(withCurrent(S.masters.categories, it?.category), it?.category || '', '選んでください')}</select></label>
-          <label class="f"><span>管理番号</span><input type="text" id="fCode" value="${editing ? v('code') : ''}" placeholder="空欄なら自動：${esc(peekCode())}" autocomplete="off"></label>
+          <label class="f"><span>管理番号</span><input type="text" id="fCode" value="${editing ? v('code') : ''}" placeholder="空欄なら自動：${esc(peekCode(it?.category))}" autocomplete="off"></label>
           <label class="f"><span>型番</span><input type="text" id="fModel" value="${v('model')}" autocomplete="off"></label>
           <label class="f"><span>メーカー</span><input type="text" id="fMaker" value="${v('maker')}" autocomplete="off"></label>
           <label class="f"><span>製造番号（シリアル）</span><input type="text" id="fSerial" value="${v('serial')}" autocomplete="off"></label>
@@ -1143,7 +1158,10 @@ async function openAssetForm(id, opts = {}){
   const d = openDlg(html);
   if (opts.copyFrom && base.photoIds === undefined) { const src = S.assets.find(x => x.id === opts.copyFrom); if (src && (src.photoIds || []).length) { /* keep photos empty for a new unit; offer hint */ } }
   renderFormPhotos();
-  $('#fItem').addEventListener('change', () => { const m = S.items.find(i => i.name === $('#fItem').value.trim() && i.kind !== 'consumable'); if (m && m.category) $('#fCatF').value = m.category; });
+  $('#fItem').addEventListener('change', () => { const m = S.items.find(i => i.name === $('#fItem').value.trim() && i.kind !== 'consumable'); if (m && m.category) $('#fCatF').value = m.category; codeHint(); });
+  // the automatic number depends on the category when a category has its own prefix
+  const codeHint = () => { $('#fCode').placeholder = '空欄なら自動：' + peekCode($('#fCatF').value); };
+  $('#fCatF').addEventListener('change', codeHint);
   $('#fPDate').addEventListener('change', () => { if ($('#fCycle').value && !$('#fNext').value && $('#fPDate').value) $('#fNext').value = addMonths($('#fPDate').value, $('#fCycle').value); });
   $('#fpdf').addEventListener('change', async e => {
     const files = [...e.target.files]; e.target.value = '';
@@ -1213,7 +1231,7 @@ async function saveAssetForm(editing){
   } else {
     const seqBefore = S.settings.seq;
     for (let n = 0; n < copies; n++) {
-      const c = (n === 0 && code) ? code : nextCode(new Set(created.map(x => x.code).concat(code ? [code] : [])));
+      const c = (n === 0 && code) ? code : nextCode(new Set(created.map(x => x.code).concat(code ? [code] : [])), item.category);
       const a = { id:uid(), code:c, ...f, createdAt:now, loan:null };
       if (n > 0) a.serial = '';
       ops.push(['assets','put',a]);
@@ -1629,7 +1647,7 @@ async function importCsv(file){
       else rec[k] = v;
     }
     if (!rec.qty) rec.qty = 1;
-    rec.code = code || nextCode(reserved); reserved.add(rec.code.toUpperCase()); codesInFile.add(rec.code.toUpperCase());
+    rec.code = code || nextCode(reserved, item.category); reserved.add(rec.code.toUpperCase()); codesInFile.add(rec.code.toUpperCase());
     rec.updatedAt = now;
     ops.push(['assets','put',rec, ex ? { base:ex } : undefined]);
     ops.push(['logs','put',newLog({ assetId:rec.id, type:ex ? '編集' : '登録', detail:'CSV取り込み' })]);
@@ -1678,14 +1696,14 @@ async function applyMerge(src, add, insertOnly){
   add.logs.forEach(v => ops.push(['logs','put',v,C])); add.stocktakes.forEach(v => ops.push(['stocktakes','put',v,C]));
   add.photos.forEach(v => ops.push(['photos','put',v,C]));
   const m = (src.meta || []).find(x => x && x.key === 'masters'), st = (src.meta || []).find(x => x && x.key === 'settings');
-  if (m) {
+  if (m && canEditSettings()) {
     const nm = {}; let ch = false;
     for (const k of ['categories','locations','classes','fundings']) { const cur = S.masters[k] || []; const extra = (Array.isArray(m[k]) ? m[k] : []).filter(v => typeof v === 'string' && v && !cur.includes(v)); nm[k] = [...cur, ...extra]; if (extra.length) ch = true; }
     if (ch) ops.push(['meta','put',{ key:'masters', ...nm }, { base:{ key:'masters', ...S.masters } }]);
   }
   if (st) {
     const ns = { ...S.settings };
-    if (!ns.orgName && typeof st.orgName === 'string') ns.orgName = st.orgName;
+    if (!ns.orgName && typeof st.orgName === 'string' && canEditSettings()) ns.orgName = st.orgName;
     ns.seq = Math.max(Number(ns.seq) || 1, Number(st.seq) || 1);
     ops.push(['meta','put',{ key:'settings', ...ns }, { base:{ key:'settings', ...S.settings } }]);
   }
@@ -1721,12 +1739,10 @@ async function importBackup(file){
 
 /* ---------- SETTINGS ---------- */
 async function renderSettings(){
-  const m = S.masters, s = S.settings;
+  const s = S.settings;
   let usage = '';
   try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); usage = `使用量 約${(e.usage / 1048576).toFixed(1)}MB／使える目安 約${(e.quota / 1073741824).toFixed(1)}GB`; } } catch(e) {}
   let persisted = false; try { persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false; } catch(e) {}
-  const ta = (id, label, list) => `<label class="f"><span>${label}（1行に1つ）</span><textarea id="${id}" rows="6">${esc(list.join('\n'))}</textarea></label>`;
-  const base0 = JSON.parse(JSON.stringify({ masters:S.masters, settings:S.settings }));
   const admin = ORG && ORG.role === 'admin';
   const lg = legacyState;
   $('#v-settings').innerHTML = `<h2>設定</h2>
@@ -1738,21 +1754,16 @@ async function renderSettings(){
     ${admin ? `<div class="card" id="memCard"><h3 style="margin-top:0">メンバー（この園の職員）</h3><div id="memList" class="muted">読み込み中…</div>
       <h3>職員を招待する</h3><div class="fgrid">
         <label class="f"><span>招待する人のメールアドレス</span><input type="email" id="invEmail" autocomplete="off" inputmode="email" autocapitalize="off" spellcheck="false"></label>
-        <label class="f"><span>役割</span><select id="invRole"><option value="member">職員（台帳の閲覧・入力）</option><option value="admin">管理者（職員の招待もできる）</option></select></label></div>
+        <label class="f"><span>役割</span><select id="invRole"><option value="member">職員（台帳の閲覧・入力）</option><option value="admin">管理者（職員の招待・設定の変更もできる）</option></select></label></div>
       <button type="button" class="btn pri" id="invBtn">招待コードを出す</button>
       <div class="hint">コードは7日間・1回だけ使えます。本人がこのページの「招待コード・再設定コードをお持ちの方」から、自分でパスワードを決めて始めます（管理者にもパスワードは見えません）。</div></div>` : ''}
     ${lg && lg.n ? `<div class="card"><h3 style="margin-top:0">前の版のデータ（この端末の中）</h3>
       <p style="margin-top:0">前の版でこの端末に保存した台帳があります（備品${lg.n}件・写真${lg.photos}枚）。${lg.done ? `<br><b>移行済み</b>（${jdate(isoDay(lg.done.at))}・確認済み）。端末の元のデータはそのまま残しています。` : ''}</p>
       <button type="button" class="btn ${lg.done ? '' : 'pri'}" id="lgMove">${lg.done ? 'もう一度確かめて足りない分を移す' : 'この園のサーバーへ移す'}</button>
       <div class="hint">サーバーにまだ無い物だけを足します。何度押しても二重にはなりません。端末の元のデータは消しません。</div></div>` : ''}
-    <div class="card"><h3 style="margin-top:0">基本</h3><div class="fgrid">
-      <label class="f"><span>園の名前（画面・印刷に表示）</span><input type="text" id="sOrg" value="${esc(s.orgName)}" autocomplete="off"></label>
-      <label class="f"><span>管理番号の頭文字</span><input type="text" id="sPrefix" value="${esc(s.codePrefix)}" autocomplete="off"><div class="hint">次の番号：${esc(peekCode())}</div></label>
-      <label class="f"><span>高額備品とみなす単価（円）</span><input type="number" id="sThr" value="${esc(s.assetThreshold)}" inputmode="numeric"><div class="hint">ホームの件数表示に使います（例：10万円）。</div></label>
-    </div></div>
-    <div class="card"><h3 style="margin-top:0">選択肢の一覧</h3><div class="fgrid">${ta('mCat', '分類', m.categories)}${ta('mLoc', '保管場所', m.locations)}${ta('mCls', '使用クラス・担当', m.classes)}${ta('mFund', '財源', m.fundings)}</div>
-      <div class="hint">名前を変えても、登録済みの備品の値はそのまま残ります。</div></div>
-    <div class="row" style="margin-bottom:16px"><button type="button" class="btn pri" id="sSave">設定を保存する</button></div>
+    <div class="card" id="basicCard"></div>
+    <div class="card" id="codeCard"></div>
+    <div class="card" id="mastersCard"></div>
     <div class="card"><h3 style="margin-top:0">バックアップと移行</h3>
       <p style="margin-top:0">データ（写真を含む）はサーバーに保存されています。もしもの時のために、ときどき写真込みのバックアップを保存しておくと安心です。前の版（端末だけに保存していた頃）のバックアップも、ここから取り込めます。</p>
       <p class="muted">この端末での前回のバックアップ：${s.lastBackup ? jdate(isoDay(s.lastBackup)) : 'まだありません'}　${esc(usage)}　${persisted ? '・消えにくい保存：有効' : ''}</p>
@@ -1761,12 +1772,7 @@ async function renderSettings(){
       <div class="row"><button type="button" class="btn" id="cExpAll">⬇ 全件をCSVで保存</button><button type="button" class="btn" id="cImp">⬆ CSVから取り込む</button></div>
       <div class="hint">Excel等で作った台帳を取り込めます。1行目の見出しは「CSVで保存」した形に合わせてください（品目の列は必須、管理番号が同じ行は更新）。写真はCSVに入りません。</div></div>
     ${admin ? `<div class="card"><h3 style="margin-top:0">データの消去</h3><p class="muted" style="margin-top:0">この園の台帳データ（備品・写真・記録・棚卸）を、<b>すべての端末から</b>消します。先にバックアップを保存してください。サーバーには「消した印」を付けて残るため、運営者に頼めば戻せます。</p><button type="button" class="btn ng" id="sWipe">すべてのデータを消す</button></div>` : ''}`;
-  $('#sSave').onclick = async () => {
-    const lines = id => [...new Set($(id).value.split('\n').map(x => x.trim()).filter(Boolean))];
-    S.masters = { categories:lines('#mCat'), locations:lines('#mLoc'), classes:lines('#mCls'), fundings:lines('#mFund') };
-    S.settings.orgName = $('#sOrg').value.trim(); S.settings.codePrefix = $('#sPrefix').value.trim(); S.settings.assetThreshold = Number($('#sThr').value) || 100000;
-    await saveMeta(base0); await loadAll(); toast('保存しました'); renderDeferred = false; render();
-  };
+  renderBasicCard(); renderCodeCard(); renderMastersCard();
   $('#aSync').onclick = async () => { await sync(true); toast(SYNC.err ? '同期できませんでした' : (SYNC.online ? '同期しました' : '通信できません')); };
   $('#aOut').onclick = logout;
   $('#aJoin').onclick = joinOrg;
@@ -1785,6 +1791,219 @@ async function renderSettings(){
     const ops = [...S.logs.map(x => ['logs','delete',x.id]), ...S.stocktakes.map(x => ['stocktakes','delete',x.id]), ...S.assets.map(x => ['assets','delete',x.id]), ...S.items.map(x => ['items','delete',x.id]), ...photos.map(x => ['photos','delete',x.id])];
     if (ops.length) await writeOps(ops);
     urlCache.clear(); selected.clear(); await loadAll(); toast('消去しました'); render();
+  };
+}
+
+/* ---------- settings editors (基本・管理番号のルール・選択肢の一覧) ---------- */
+// 管理者と運営サポートだけが変えられる（職員は見るだけ）。サーバーも職員からの設定の書き込みは番号の続きだけを通す
+const canEditSettings = () => !!ORG && (ORG.role === 'admin' || ORG.role === 'support');
+const RO_NOTE = '<div class="hint">ℹ️ 設定を変えられるのは園の管理者（と運営サポート）です。変えたい時は管理者に頼んでください。</div>';
+async function saveSettings(next, base, extra = []){
+  await writeOps([['meta','put',{ ...next, key:'settings' },{ base:{ ...base, key:'settings' } }], ...extra]);
+  await loadAll();
+}
+function renderBasicCard(){
+  const box = $('#basicCard'); if (!box) return;
+  const s = S.settings, ed = canEditSettings(), ro = ed ? '' : ' readonly';
+  box.innerHTML = `<h3 style="margin-top:0">基本</h3><div class="fgrid">
+      <label class="f"><span>園の名前（画面・印刷に表示）</span><input type="text" id="sOrg" value="${esc(s.orgName)}" maxlength="60" autocomplete="off"${ro}></label>
+      <label class="f"><span>高額備品とみなす単価（円）</span><input type="number" id="sThr" value="${esc(s.assetThreshold)}" min="0" step="1" inputmode="numeric"${ro}><div class="hint">ホームの件数表示に使います（例：10万円）。</div></label>
+    </div>${ed ? '<div class="row"><button type="button" class="btn pri" id="sSaveBasic">基本を保存する</button></div>' : RO_NOTE}`;
+  if (!ed) return;
+  const base = JSON.parse(JSON.stringify(S.settings));
+  $('#sSaveBasic').onclick = async () => {
+    const thr = Number($('#sThr').value);
+    if (!(thr >= 0)) { toast('単価は0以上の数字で入れてください'); $('#sThr').focus(); return; }
+    await saveSettings({ ...base, orgName:$('#sOrg').value.trim(), assetThreshold:thr || 100000 }, base);
+    $('#orgName').textContent = S.settings.orgName || (ORG && ORG.name) || '';
+    toast('基本を保存しました'); renderBasicCard();
+  };
+}
+
+/* 管理番号のルール: 変える前に見本・次に振る番号・既存の番号との重なりを見せる。既存の番号は変えない */
+const PREFIX_OK = v => /^[^\s,"']{0,10}$/.test(v);
+function codeStats(prefix){
+  const P = String(prefix).toUpperCase(), lens = {}; let n = 0, max = 0;
+  for (const a of S.assets) { const c = String(a.code ?? '').toUpperCase(); if (!c.startsWith(P)) continue; const t = c.slice(P.length); if (!/^\d{1,9}$/.test(t)) continue; n++; max = Math.max(max, Number(t)); lens[t.length] = (lens[t.length] || 0) + 1; }
+  return { n, max, lens };
+}
+function renderCodeCard(){
+  const box = $('#codeCard'); if (!box) return;
+  const s = S.settings, ed = canEditSettings(), ro = ed ? '' : ' readonly', dis = ed ? '' : ' disabled';
+  const cp = isObj(s.catPrefix) ? s.catPrefix : {}, r0 = codeRule('', s);
+  const n0 = Number(peekCode('', s).slice(r0.prefix.length));
+  const cats = [...S.masters.categories, ...Object.keys(cp).filter(k => cp[k] && !S.masters.categories.includes(k))];
+  box.innerHTML = `<h3 style="margin-top:0">管理番号のルール</h3>
+    <p class="muted" style="margin-top:0">新しく登録する備品に自動で振る番号の決まりです。<b>すでに付いている番号は変わりません。</b></p>
+    <div class="fgrid">
+      <label class="f"><span>頭文字（共通）</span><input type="text" id="sPrefix" value="${esc(s.codePrefix)}" maxlength="10" autocomplete="off" autocapitalize="characters" spellcheck="false"${ro}><div class="hint">例：B-　空欄にすると数字だけになります。</div></label>
+      <label class="f"><span>数字の桁数</span><select id="sDigits"${dis}>${CODE_DIGITS.map(d => `<option value="${d}"${d === r0.digits ? ' selected' : ''}>${d}桁（${'1'.padStart(d, '0')}）</option>`).join('')}</select></label>
+      <label class="f"><span>次の番号（共通の頭文字）</span><input type="number" id="sSeq" value="${n0}" min="1" max="999999999" step="1" inputmode="numeric"${ro}><div class="hint">使われている番号は自動で飛ばします。</div></label>
+    </div>
+    <details class="grp" id="cpBox" style="margin-top:8px"${Object.values(cp).some(Boolean) ? ' open' : ''}><summary><div><div class="nm">分類ごとの頭文字（任意）</div><div class="meta">分類ごとに番号を分けたい時だけ。空欄なら共通の頭文字を使います。</div></div><span class="caret" aria-hidden="true">›</span></summary>
+      <div class="fgrid">${cats.map((c, i) => `<label class="f"><span>${esc(c)}${S.masters.categories.includes(c) ? '' : '（一覧にない分類）'}</span><input type="text" data-cp="${i}" value="${esc(cp[c] || '')}" maxlength="10" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="共通" aria-describedby="cpn${i}"${ro}><div class="hint" id="cpn${i}" data-cpn="${i}"></div></label>`).join('')}</div>
+    </details>
+    <div class="alert" id="codePrev" role="status" aria-live="polite" style="margin-top:12px"></div>
+    ${ed ? '<div class="row"><button type="button" class="btn pri" id="sSaveCode">番号のルールを保存する</button></div>' : RO_NOTE}`;
+  const base = JSON.parse(JSON.stringify(S.settings));
+  // the rule as the form shows it now (nothing is saved until the button is pressed)
+  const form = () => {
+    const st = { ...base, codePrefix:$('#sPrefix').value.trim(), codeDigits:Number($('#sDigits').value), catPrefix:{ ...cp } };
+    $$('[data-cp]', box).forEach(inp => { const c = cats[Number(inp.dataset.cp)], v = inp.value.trim(); if (v || cp[c]) st.catPrefix[c] = v; });
+    const seqIn = $('#sSeq').value.trim(), seqChanged = seqIn !== String(n0);
+    if (seqChanged) st.seq = Number(seqIn);
+    return { st, seqChanged, seqIn };
+  };
+  const problems = ({ st, seqChanged, seqIn }) => {
+    const p = [];
+    if (!PREFIX_OK(st.codePrefix)) p.push('頭文字に空白・カンマ・引用符は使えません（10文字まで）');
+    if (Object.values(st.catPrefix).some(v => !PREFIX_OK(v))) p.push('分類ごとの頭文字に空白・カンマ・引用符は使えません（10文字まで）');
+    if (seqChanged && !(/^\d{1,9}$/.test(seqIn) && Number(seqIn) >= 1)) p.push('次の番号は1以上の整数で入れてください');
+    return p;
+  };
+  const show = () => {
+    const f = form(), bad = problems(f), st = f.st, r = codeRule('', st), lines = [];
+    if (bad.length) { $('#codePrev').className = 'alert ng'; $('#codePrev').innerHTML = bad.map(x => '⚠️ ' + esc(x)).join('<br>'); return f; }
+    const next = peekCode('', st), stat = codeStats(r.prefix), want = f.seqChanged ? Number(f.seqIn) : null;
+    const wantCode = want != null ? r.prefix + String(want).padStart(r.digits, '0') : '';
+    lines.push(`見本：<b>${esc(r.prefix + '1'.padStart(r.digits, '0'))}</b>　次に振る番号：<b>${esc(next)}</b>`);
+    if (want != null && wantCode !== next) lines.push(`⚠️ ${esc(wantCode)} はすでに使われているため、空いている ${esc(next)} から振ります。`);
+    if (stat.n) {
+      lines.push(`この頭文字の既存の番号：${stat.n}件（いちばん大きい数字 ${stat.max}）。使われている番号とは重ならないように飛ばします。`);
+      const odd = Object.entries(stat.lens).filter(([l]) => Number(l) !== r.digits);
+      if (odd.length) lines.push(`ℹ️ 桁数の違う既存の番号（${odd.map(([l, c]) => `${l}桁 ${c}件`).join('・')}）はそのまま残ります。数字が同じ番号は重ならないように飛ばします。`);
+      if (want != null && want < stat.max) lines.push(`ℹ️ ${stat.max} より小さい数字を入れたため、途中の空いている番号から振ります。`);
+    } else lines.push('この頭文字の既存の番号はまだありません。');
+    if (next.length - r.prefix.length > r.digits) lines.push(`⚠️ 番号が${r.digits}桁を超えています。桁数を増やすことをおすすめします。`);
+    $$('[data-cpn]', box).forEach(h => {
+      const c = cats[Number(h.dataset.cpn)], own = st.catPrefix[c] || '';
+      if (!own) { h.textContent = ''; return; }
+      const shared = cats.filter(x => x !== c && (st.catPrefix[x] || '').toUpperCase() === own.toUpperCase());
+      h.textContent = `次に振る番号：${peekCode(c, st)}` + (own.toUpperCase() === r.prefix.toUpperCase() ? '（共通の頭文字と同じなので、共通の番号の続きを使います）' : shared.length ? `（「${shared.join('」「')}」と同じ頭文字なので、番号を分け合います）` : '');
+    });
+    $('#codePrev').className = 'alert'; $('#codePrev').innerHTML = lines.join('<br>');
+    return f;
+  };
+  show();
+  if (!ed) return;
+  box.addEventListener('input', show); box.addEventListener('change', show);
+  $('#sSaveCode').onclick = async () => {
+    const f = show(); if (problems(f).length) { toast('入力を確かめてください'); return; }
+    if (f.st.codePrefix !== base.codePrefix || f.st.codeDigits !== codeRule('', base).digits) {
+      if (!confirm(`これから登録する備品の番号は「${peekCode('', f.st)}」のような形になります。\nすでに付いている番号は変わりません。保存しますか？`)) return;
+    }
+    await saveSettings(f.st, base); toast('番号のルールを保存しました（既存の番号は変えていません）'); renderCodeCard();
+  };
+}
+
+/* 選択肢の一覧: 1件ずつ 追加・名前の変更・外す・並べ替え。変えるたびに保存する（足した物・外した物・並び順だけを送る） */
+const MASTER_DEFS = [['categories','分類'],['locations','保管場所'],['classes','使用クラス・担当'],['fundings','財源']];
+const LS_MKIND = 'hbk_mkind';
+let mKind = (() => { try { const v = localStorage.getItem(LS_MKIND); return MASTER_DEFS.some(d => d[0] === v) ? v : 'categories'; } catch(e) { return 'categories'; } })();
+// every record whose field holds the value (the same list is used for "change them too")
+function masterRefs(kind, v){
+  const out = [], add = (st, rec, f) => { if (rec[f] === v) out.push([st, rec, f]); };
+  if (kind === 'categories') S.items.forEach(i => add('items', i, 'category'));
+  if (kind === 'locations') { S.assets.forEach(a => add('assets', a, 'location')); S.items.forEach(i => add('items', i, 'location')); S.stocktakes.filter(t => !t.finishedAt).forEach(t => { add('stocktakes', t, 'location'); add('stocktakes', t, 'here'); }); }
+  if (kind === 'classes') S.assets.forEach(a => add('assets', a, 'className'));
+  if (kind === 'fundings') S.assets.forEach(a => add('assets', a, 'funding'));
+  return out;
+}
+function masterUse(kind, v){
+  let a = 0, c = 0;
+  if (kind === 'categories') { const ids = new Set(S.items.filter(i => i.category === v && i.kind !== 'consumable').map(i => i.id)); a = S.assets.filter(x => ids.has(x.itemId)).length; c = S.items.filter(i => i.category === v && i.kind === 'consumable').length; }
+  else if (kind === 'locations') { a = S.assets.filter(x => x.location === v).length; c = S.items.filter(i => i.kind === 'consumable' && i.location === v).length; }
+  else a = S.assets.filter(x => x[kind === 'classes' ? 'className' : 'funding'] === v).length;
+  return { a, c, n:a + c, text:(a || c) ? [a ? `備品 ${a}件` : '', c ? `消耗品 ${c}件` : ''].filter(Boolean).join('・') : '使われていません' };
+}
+function masterOrphans(kind){
+  const vals = new Set();
+  const fields = { categories:[['items','category']], locations:[['assets','location'],['items','location']], classes:[['assets','className']], fundings:[['assets','funding']] }[kind];
+  for (const [st, f] of fields) for (const r of S[st]) { const v = r[f]; if (typeof v === 'string' && v && !S.masters[kind].includes(v)) vals.add(v); }
+  return [...vals];
+}
+async function saveMasters(kind, mut, extra = []){
+  const base = JSON.parse(JSON.stringify(S.masters)), next = JSON.parse(JSON.stringify(S.masters));
+  mut(next[kind]);
+  await writeOps([['meta','put',{ key:'masters', ...next },{ base:{ key:'masters', ...base } }], ...extra]);
+  await loadAll(); renderMastersCard();
+}
+function renderMastersCard(){
+  const box = $('#mastersCard'); if (!box) return;
+  const ed = canEditSettings(), label = MASTER_DEFS.find(d => d[0] === mKind)[1], list = S.masters[mKind], orph = masterOrphans(mKind);
+  box.innerHTML = `<h3 style="margin-top:0">選択肢の一覧</h3>
+    <div class="seg" role="group" aria-label="編集する一覧" style="flex-wrap:wrap;margin-bottom:8px">${MASTER_DEFS.map(([k, l]) => `<button type="button" data-mk="${k}" aria-pressed="${k === mKind}">${esc(l)}</button>`).join('')}</div>
+    <p class="muted" style="margin:4px 0 0">${esc(label)}：${list.length}件。${ed ? '追加・名前の変更・一覧から外す・並べ替えは、押したときに保存され、園のすべての端末に反映されます。' : ''}</p>
+    <ol class="mlist" aria-label="${esc(label)}の一覧">${list.map((v, i) => { const u = masterUse(mKind, v); return `<li class="mrow"><span class="e"><b>${esc(v)}</b><br><span class="muted">${esc(u.text)}</span></span>${ed ? `<span class="row">
+      <button type="button" class="btn sm" data-mv="${i}|-1" aria-label="「${esc(v)}」を上へ"${i === 0 ? ' disabled' : ''}>↑</button><button type="button" class="btn sm" data-mv="${i}|1" aria-label="「${esc(v)}」を下へ"${i === list.length - 1 ? ' disabled' : ''}>↓</button>
+      <button type="button" class="btn sm" data-rn="${i}">名前を変える</button><button type="button" class="btn sm ng" data-mrm="${i}">一覧から外す</button></span>` : ''}</li>`; }).join('') || '<li class="mrow muted">まだありません</li>'}</ol>
+    ${ed ? `<div class="row" style="align-items:flex-end;margin-top:8px"><label class="f" style="flex:1 1 220px;margin:0"><span>新しい${esc(label)}</span><input type="text" id="mNew" maxlength="40" autocomplete="off"></label><button type="button" class="btn pri" id="mAdd">＋ 追加する</button></div>` : RO_NOTE}
+    ${orph.length ? `<h3>一覧にない${esc(label)}（登録済みの備品に入っている値）</h3>${orph.map((v, i) => `<div class="mrow"><span class="e">${esc(v)}<br><span class="muted">${esc(masterUse(mKind, v).text)}</span></span>${ed ? `<span class="row"><button type="button" class="btn sm" data-ad="${i}">一覧に入れる</button><button type="button" class="btn sm" data-orn="${i}">ほかの名前に直す</button></span>` : ''}</div>`).join('')}` : ''}
+    <div class="hint">名前を変える時は、登録済みの備品の値も一緒に変えるかを選べます（変えないと、登録済みの備品は前の名前のまま残ります）。</div>`;
+  $$('[data-mk]', box).forEach(b => b.onclick = () => { mKind = b.dataset.mk; try { localStorage.setItem(LS_MKIND, mKind); } catch(e) {} renderMastersCard(); const nb = $(`[data-mk="${mKind}"]`); if (nb) nb.focus(); });
+  if (!ed) return;
+  const kind = mKind;
+  const add = async v => {
+    v = String(v || '').trim();
+    if (!v) { toast('名前を入れてください'); return false; }
+    if (v.length > 40) { toast('名前は40文字までです'); return false; }
+    if (S.masters[kind].includes(v)) { toast(`「${v}」はすでにあります`); return false; }
+    await saveMasters(kind, l => { l.push(v); }); toast(`「${v}」を追加しました`); return true;
+  };
+  $('#mAdd').onclick = async () => { if (await add($('#mNew').value)) { const n = $('#mNew'); if (n) n.focus(); } };
+  $('#mNew').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#mAdd').click(); } };
+  $$('[data-mv]', box).forEach(b => b.onclick = async () => {
+    const [i, d] = b.dataset.mv.split('|').map(Number), v = list[i];
+    await saveMasters(kind, l => { const j = l.indexOf(v), k = j + d; if (j < 0 || k < 0 || k >= l.length) return; [l[j], l[k]] = [l[k], l[j]]; });
+    const nb = $$('[data-mv]', $('#mastersCard')).find(x => x.getAttribute('aria-label') === `「${v}」を${d < 0 ? '上' : '下'}へ` && !x.disabled); if (nb) nb.focus();
+  });
+  $$('[data-rn]', box).forEach(b => b.onclick = () => renameMaster(kind, list[Number(b.dataset.rn)], true));
+  $$('[data-orn]', box).forEach(b => b.onclick = () => renameMaster(kind, orph[Number(b.dataset.orn)], false));
+  $$('[data-ad]', box).forEach(b => b.onclick = () => add(orph[Number(b.dataset.ad)]));
+  $$('[data-mrm]', box).forEach(b => b.onclick = async () => {
+    const v = list[Number(b.dataset.mrm)], u = masterUse(kind, v);
+    if (!confirm(`「${v}」を${label}の一覧から外します。\n${u.n ? `使っている備品（${u.text}）の値は「${v}」のまま残ります。` : 'この名前を使っている備品はありません。'}\nよろしいですか？`)) return;
+    await saveMasters(kind, l => { const j = l.indexOf(v); if (j >= 0) l.splice(j, 1); }); toast(`「${v}」を一覧から外しました`);
+  });
+}
+// rename one entry (inList) or put a value that is only on records to another name; optionally change the records too
+function renameMaster(kind, v, inList){
+  const label = MASTER_DEFS.find(d => d[0] === kind)[1], u = masterUse(kind, v), refs = masterRefs(kind, v);
+  const stk = kind === 'locations' && refs.some(r => r[0] === 'stocktakes');
+  openDlg(`<div class="dh"><h2>${esc(label)}の名前を変える</h2><button type="button" class="xbtn" data-close aria-label="閉じる">✕</button></div>
+    <div class="db">
+      <label class="f"><span>いまの名前</span><input type="text" value="${esc(v)}" readonly></label>
+      <label class="f"><span>新しい名前</span><input type="text" id="rnName" value="${esc(v)}" maxlength="40" autocomplete="off" list="rnList"><datalist id="rnList">${S.masters[kind].filter(x => x !== v).map(x => `<option value="${esc(x)}">`).join('')}</datalist></label>
+      ${refs.length ? `<label class="row" style="min-height:44px;cursor:pointer"><input type="checkbox" id="rnAll" style="width:24px;height:24px"${inList ? '' : ' checked'}><span>登録済みの値（${esc(u.text)}${stk ? '・途中の棚卸' : ''}）も新しい名前に変える</span></label>
+      <div class="hint">${inList ? `印を付けない時は、登録済みの備品は「${esc(v)}」のまま残ります。` : '登録済みの値を新しい名前に直します。'}</div>` : '<div class="hint">この名前を使っている備品はありません。</div>'}
+      <div id="rnMsg" class="hint" role="alert" style="color:var(--ng)"></div>
+    </div>
+    <div class="df"><button type="button" class="btn" data-close>やめる</button><button type="button" class="btn pri" id="rnSave">名前を変える</button></div>`, 'dlg2');
+  $('#rnName').select();
+  $('#rnSave').onclick = async () => {
+    const nv = $('#rnName').value.trim(), all = !!($('#rnAll') && $('#rnAll').checked);
+    const msg = t => { $('#rnMsg').textContent = '⚠️ ' + t; $('#rnName').focus(); };
+    if (!nv) return msg('新しい名前を入れてください');
+    if (nv === v) return msg('いまの名前と同じです');
+    if (!inList && !all) return msg('「登録済みの値も新しい名前に変える」に印を付けてください');
+    const exists = S.masters[kind].includes(nv);
+    if (exists && inList && !all) return msg(`「${nv}」はすでに一覧にあります。まとめる時は「登録済みの値も変える」に印を付けてください`);
+    if (exists && !confirm(`「${v}」を、すでにある「${nv}」にまとめます。${all ? `\n登録済みの値（${u.text}）も「${nv}」に変えます。` : ''}\nよろしいですか？`)) return;
+    const now = new Date().toISOString(), extra = [];
+    if (all) {   // one patch per record; only the changed field travels (other devices' edits of the same record stay)
+      const by = new Map();
+      for (const [st, rec, f] of refs) { const k = st + '|' + rec.id; if (!by.has(k)) by.set(k, [st, rec, {}]); by.get(k)[2][f] = nv; }
+      for (const [st, rec, ch] of by.values()) extra.push([st, 'put', { ...rec, ...ch, ...(st === 'stocktakes' ? {} : { updatedAt:now }) }, { base:rec }]);
+    }
+    if (kind === 'categories') {   // the category's own number prefix follows the new name
+      const s0 = S.settings, cp = isObj(s0.catPrefix) ? s0.catPrefix : {};
+      if (cp[v] && !cp[nv]) extra.push(['meta','put',{ ...s0, key:'settings', catPrefix:{ ...cp, [nv]:cp[v], ...(all ? { [v]:'' } : {}) } },{ base:{ ...s0, key:'settings' } }]);
+    }
+    try {
+      await saveMasters(kind, l => { const j = l.indexOf(v); if (exists) { if (j >= 0) l.splice(j, 1); } else if (j >= 0) l[j] = nv; else l.push(nv); }, extra);
+    } catch(e) { await loadAll(); alert('保存できませんでした。データは変更されていません。\n' + e.message); return; }
+    closeDlg('dlg2'); toast(all && u.n ? `「${nv}」に変えました（登録済みの ${u.text} も変更）` : `「${nv}」に変えました`);
+    renderCodeCard();
   };
 }
 
@@ -1924,7 +2143,7 @@ async function loadDemo(){
     for (const u of units) {
       const big = await mk(800, 600, color, emoji), th = await mk(320, 240, color, emoji);
       const p = { id:uid(), blob:big, thumb:th, label:'外観', createdAt:now }; ops.push(['photos','put',p]);
-      const a = { id:uid(), code:nextCode(), itemId:item.id, qty:1, status:'使用中', serial:'', photoIds:[p.id], photoLabels:{ [p.id]:'外観' }, loan:null, createdAt:now, updatedAt:now, note:'見本データ', ...u };
+      const a = { id:uid(), code:nextCode(null, item.category), itemId:item.id, qty:1, status:'使用中', serial:'', photoIds:[p.id], photoLabels:{ [p.id]:'外観' }, loan:null, createdAt:now, updatedAt:now, note:'見本データ', ...u };
       ops.push(['assets','put',a]); ops.push(['logs','put',newLog({ assetId:a.id, type:'登録', detail:`${name}を登録（見本）` })]);
     }
   }
