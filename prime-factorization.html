@@ -605,6 +605,7 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
   padding:18px 14px; text-align:center; min-height:150px;
   display:flex; flex-direction:column; align-items:center; gap:12px;
 }
+.quick-stage:focus { outline:none; }
 .q-empty { color:var(--g7); font-size:1rem; line-height:1.7; margin:auto 0; }
 .q-num { font-size:clamp(2.4rem,11vw,3.4rem); font-weight:800; color:var(--g9);
          font-variant-numeric:tabular-nums; letter-spacing:.02em; line-height:1.1; }
@@ -742,7 +743,7 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
         手で解ける数だけ出す（素因数が31以下）
       </label>
     </div>
-    <div class="quick-stage" id="quickStage" aria-live="polite"></div>
+    <div class="quick-stage" id="quickStage" aria-live="polite" tabindex="-1"></div>
     <div class="quick-session-cap">今回の成績（「続けた日数」は毎日の記録から）</div>
     <div class="quick-session" aria-label="今回の成績">
       <div class="qs-cell"><span class="qs-val" id="qsN">0</span><span class="qs-lbl">解いた数</span></div>
@@ -2597,7 +2598,7 @@ function quickRender(focusMain) {
       (q.prime ? '<span class="q-badge">素数（これ以上割れません）</span>' : ladderHTML(ld.rows, ld.last, false)) +
       `<div class="q-hint">自分の答えと見くらべて押してください</div>` +
       `<div class="q-row">` +
-        `<button class="q-btn q-ok" data-main onclick="quickJudge('correct')"${lock}>✓ 正解</button>` +
+        `<button class="q-btn q-ok" onclick="quickJudge('correct')"${lock}>✓ 正解</button>` +
         `<button class="q-btn q-ng" onclick="quickJudge('incorrect')"${lock}>✗ 不正解</button>` +
       `</div>`;
   } else if (q.state === 'question' && q.style === 'tap') {
@@ -2633,8 +2634,9 @@ function quickRender(focusMain) {
   }
   stage.innerHTML = html;
   if (focusMain) {
-    const m = stage.querySelector('[data-main]');
-    if (m) { try { m.focus({ preventScroll: true }); } catch(e) { m.focus(); } }
+    // 答えを開いた直後は採点ボタンにフォーカスを置かない（Enter の押し続けで「正解」が記録されるのを防ぐ）
+    const m = stage.querySelector('[data-main]') || stage;
+    try { m.focus({ preventScroll: true }); } catch(e) { m.focus(); }
   }
 }
 
