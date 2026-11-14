@@ -2034,9 +2034,9 @@ function mulExplain(a, b) {
   const cross = a1 * b0 + a0 * b1; // たすき掛け（十の位）
   const left  = a1 * b1;          // 十の位どうし（百の位）
   const vedic =
-    `<span class="vedic-step">① 一の位どうし：${a0}×${b0} = <b>${right}</b></span>` +
-    `<span class="vedic-step">② たすき掛け：${a1}×${b0} + ${a0}×${b1} = <b>${cross}</b></span>` +
-    `<span class="vedic-step">③ 十の位どうし：${a1}×${b1} = <b>${left}</b></span>` +
+    `<span class="vedic-step">(1) 一の位どうし：${a0}×${b0} = <b>${right}</b></span>` +
+    `<span class="vedic-step">(2) たすき掛け：${a1}×${b0} + ${a0}×${b1} = <b>${cross}</b></span>` +
+    `<span class="vedic-step">(3) 十の位どうし：${a1}×${b1} = <b>${left}</b></span>` +
     `<span class="vedic-step vedic-assemble">${left}×100 + ${cross}×10 + ${right} = <b>${product.toLocaleString()}</b></span>`;
 
   return { normal, vedic, product };
@@ -2525,10 +2525,9 @@ function quickSubmitMul() {
   quickJudge(Number(v) === q.ex.product ? 'correct' : 'incorrect');
 }
 function _quickMulExplainHTML(q) {
-  const vedic = String(q.ex.vedic).replace(/①/g, '(1)').replace(/②/g, '(2)').replace(/③/g, '(3)');
   return `<div class="mul-explain q-explain">` +
     `<div class="explain-block"><span class="explain-title">📝 通常の計算</span><div class="explain-body">${q.ex.normal}</div></div>` +
-    (q.b >= 10 ? `<div class="explain-block"><span class="explain-title">✨ インド式（たすき掛け）</span><div class="explain-body">${vedic}</div></div>` : '') +
+    (q.b >= 10 ? `<div class="explain-block"><span class="explain-title">✨ インド式（たすき掛け）</span><div class="explain-body">${q.ex.vedic}</div></div>` : '') +
     `</div>`;
 }
 function _quickMulHTML(q, lock) {
