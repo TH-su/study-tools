@@ -660,6 +660,17 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
 .quick-foot { font-size:.85rem; color:var(--g7); text-align:center; line-height:1.6; }
 .quick-session-cap { font-size:.85rem; font-weight:700; color:var(--g7); text-align:center; margin-bottom:-6px; }
 @media (hover:none) { .kbd-hint { display:none; } }
+.quick-kinds { grid-template-columns:repeat(3,1fr); }
+.q-explain { width:100%; max-width:480px; text-align:left; margin-top:0; }
+.q-explain .explain-title { font-size:.9rem; }
+.q-explain .explain-body  { font-size:1.05rem; }
+.q-ans-row { align-items:stretch; }
+.q-ans {
+  flex:1; min-width:120px; max-width:220px; min-height:54px; padding:0 12px;
+  font-size:1.6rem; font-weight:800; text-align:center; font-variant-numeric:tabular-nums;
+  border:2px solid var(--g3); border-radius:12px; background:#fff; color:var(--g9);
+}
+.q-ans:focus { border-color:var(--pri); outline:2px solid var(--pri-l); }
 .ctrl-caption { width:100%; text-align:center; font-size:.9rem; font-weight:800; color:var(--g7); }
 
 /* 動きを減らす設定への対応（2026-08-10 追加・通常表示に影響なし） */
@@ -724,21 +735,30 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
 </div>
 
 <!-- 1問ずつ練習（素因数分解モード専用・2026-11-14 追加） -->
-<section class="quick pf-only" id="quickPanel" aria-labelledby="quickTitle">
+<section class="quick" id="quickPanel" aria-labelledby="quickTitle">
   <div class="quick-inner">
-    <h2 class="quick-title" id="quickTitle">⚡ 1問ずつ練習（桁を押すと自動で1問出ます）</h2>
-    <div class="quick-digits" role="group" aria-label="桁数を選んで1問出題">
+    <h2 class="quick-title" id="quickTitle">⚡ 1問ずつ練習（ボタンを押すと自動で1問出ます）</h2>
+    <div class="quick-digits pf-only" role="group" aria-label="桁数を選んで1問出題">
       <button class="qd-btn" data-d="2" onclick="quickStart(2)" aria-pressed="false">2桁<small>自動</small></button>
       <button class="qd-btn" data-d="3" onclick="quickStart(3)" aria-pressed="false">3桁<small>自動</small></button>
       <button class="qd-btn" data-d="4" onclick="quickStart(4)" aria-pressed="false">4桁<small>自動</small></button>
       <button class="qd-btn" data-d="5" onclick="quickStart(5)" aria-pressed="false">5桁<small>自動</small></button>
     </div>
+    <div class="quick-digits quick-kinds mul-only" role="group" aria-label="問題の種類を選んで1問出題">
+      <button class="qd-btn" data-k="2x1"   onclick="quickStartMul('2x1')"   aria-pressed="false">2桁×1桁<small>自動</small></button>
+      <button class="qd-btn" data-k="2x2"   onclick="quickStartMul('2x2')"   aria-pressed="false">2桁×2桁<small>自動</small></button>
+      <button class="qd-btn" data-k="teens" onclick="quickStartMul('teens')" aria-pressed="false" aria-label="11〜19どうしを自動で1問">11〜19<small>どうし・自動</small></button>
+    </div>
     <div class="quick-opts">
-      <div class="seg" role="radiogroup" aria-label="答え方">
+      <div class="seg pf-only" role="radiogroup" aria-label="答え方">
         <button class="seg-btn" role="radio" data-style="self" onclick="quickSetStyle('self')" aria-checked="true">自分で採点</button>
         <button class="seg-btn" role="radio" data-style="tap"  onclick="quickSetStyle('tap')"  aria-checked="false">タップで割って解く</button>
       </div>
-      <label class="q-check" id="qSmoothLabel">
+      <div class="seg mul-only" role="radiogroup" aria-label="答え方">
+        <button class="seg-btn" role="radio" data-mstyle="self"  onclick="quickSetMulStyle('self')"  aria-checked="true">自分で採点</button>
+        <button class="seg-btn" role="radio" data-mstyle="input" onclick="quickSetMulStyle('input')" aria-checked="false">答えを入力</button>
+      </div>
+      <label class="q-check pf-only" id="qSmoothLabel">
         <input type="checkbox" id="qSmooth" onchange="quickSetSmooth(this.checked)" checked>
         手で解ける数だけ出す（素因数が31以下）
       </label>
@@ -751,7 +771,7 @@ body[data-mode="pf"]  .mul-only { display:none !important; }
       <div class="qs-cell"><span class="qs-val" id="qsStreak">0</span><span class="qs-lbl">連続正解</span></div>
       <div class="qs-cell"><span class="qs-val" id="qsDays">0日</span><span class="qs-lbl">続けた日数</span></div>
     </div>
-    <div class="quick-foot">結果は上の「本日」「全期間」と不正解リストにも記録されます。<span class="kbd-hint"><br>キーボードでは Enter＝答えを見る・次の問題、1＝正解、2＝不正解</span></div>
+    <div class="quick-foot">結果は上の「本日」「全期間」と不正解リストにも記録されます。<span class="kbd-hint"><br>キーボードでは Enter＝答えを見る・答え合わせ・次の問題、1＝正解、2＝不正解</span></div>
   </div>
 </section>
 
@@ -1990,7 +2010,15 @@ function mulExplain(a, b) {
   /* --- 通常の計算（分配法則で b を分解） --- */
   const bTens = Math.floor(b / 10) * 10, bUnits = b % 10;
   let normal;
-  if (bUnits === 0) {
+  if (b < 10 && a >= 10 && a % 10 !== 0) {
+    // 2桁×1桁（1問ずつ練習で追加）: a を十の位と一の位に分ける
+    const aTens = Math.floor(a / 10) * 10, aUnits = a % 10;
+    normal =
+      `${a} × ${b}<br>` +
+      `= ${aTens}×${b} + ${aUnits}×${b}<br>` +
+      `= ${(aTens*b).toLocaleString()} + ${aUnits*b}<br>` +
+      `= <b>${product.toLocaleString()}</b>`;
+  } else if (bUnits === 0) {
     normal = `${a} × ${b} = <b>${product.toLocaleString()}</b>`;
   } else {
     normal =
@@ -2344,10 +2372,11 @@ function applyModeUI() {
   // 統計・不正解ボタンをアクティブモードで更新
   updateStats();
   updateWrongBtn();
+  if (typeof quickOnModeChange === 'function') quickOnModeChange(); // 1問ずつ練習もモードに合わせる
 }
 
 /* ================================================================
-   QUICK PRACTICE — 1問ずつ練習（素因数分解モード・2026-11-14 追加）
+   QUICK PRACTICE — 1問ずつ練習（素因数分解・掛け算の両モード。2026-11-14 追加）
      記録は既存の本日／全期間／不正解リストと同じ経路（クラウド同期の形は変えない）
      端末に残すのは UI の設定（桁・答え方・数の絞り込み）だけ: pfcfg_quick
 ================================================================ */
@@ -2355,11 +2384,13 @@ const QUICK_KEY    = 'pfcfg_quick';
 const QUICK_DIGITS = [2, 3, 4, 5];
 const SMOOTH_MAX   = 31n;                                  // 「手で解ける数」の素因数の上限
 const TAP_PRIMES   = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31];
-let quickCfg    = { d: 3, style: 'self', smooth: true };
+let quickCfg    = { d: 3, style: 'self', smooth: true, mk: '2x2', ms: 'self' };
+const MUL_KINDS  = { '2x1': '2桁×1桁', '2x2': '2桁×2桁', 'teens': '11〜19どうし' };
 let quickQ      = null;   // 出題中の1問
 let _quickLocked = false; // 起動時のクラウド読込中は true
 let _quickTimer = null;
-const qs = { n: 0, c: 0, streak: 0, best: 0 };            // 今回の成績（メモリのみ）
+const qsBy = { pf: { n: 0, c: 0, streak: 0, best: 0 }, mul: { n: 0, c: 0, streak: 0, best: 0 } }; // 今回の成績（モード別・メモリのみ）
+function QS() { return qsBy[appMode] || qsBy.pf; }
 
 function loadQuickCfg() {
   try {
@@ -2368,6 +2399,8 @@ function loadQuickCfg() {
       if (QUICK_DIGITS.includes(o.d)) quickCfg.d = o.d;
       if (o.style === 'self' || o.style === 'tap') quickCfg.style = o.style;
       if (typeof o.smooth === 'boolean') quickCfg.smooth = o.smooth;
+      if (typeof o.mk === 'string' && Object.prototype.hasOwnProperty.call(MUL_KINDS, o.mk)) quickCfg.mk = o.mk;
+      if (o.ms === 'self' || o.ms === 'input') quickCfg.ms = o.ms;
     }
   } catch(e) {}
 }
@@ -2423,23 +2456,127 @@ function _quickTick() {
 
 /** 桁ボタン：その桁で1問出す */
 function quickStart(d) {
-  if (_quickLocked) return;
+  if (_quickLocked || appMode !== 'pf') return;
   if (!QUICK_DIGITS.includes(d)) d = 3;
   quickCfg.d = d; saveQuickCfg();
   const smooth = quickCfg.style === 'tap' ? true : quickCfg.smooth;  // タップで解く時は常に手で解ける数
   const n = quickPickNumber(d, smooth);
   const f = primeFactorize(n);
   quickQ = {
-    numStr: n.toString(), n, f, formula: formatFormula(f), prime: isPrime(f),
+    mode: 'pf', numStr: n.toString(), n, f, formula: formatFormula(f), prime: isPrime(f),
     style: quickCfg.style, state: 'question', start: Date.now(), secs: 0,
     rem: n, rows: [], mistakes: 0, gaveUp: false, msg: '', msgKind: '',
     verdict: '', prevStreak: 0, prevBest: 0
   };
   _quickStopTimer();
   _quickTimer = setInterval(_quickTick, 1000);
+  quickQ.wrong = { num: quickQ.numStr, formula: quickQ.formula, prime: quickQ.prime };
   quickRender(true);
 }
-function quickNext() { quickStart(quickCfg.d); }
+function quickNext() { if (appMode === 'mul') quickStartMul(quickCfg.mk); else quickStart(quickCfg.d); }
+
+/* ---- 掛け算の1問ずつ練習 ---- */
+function _mulPick(k) {
+  const r = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+  if (k === '2x1')   return [r(12, 99), r(2, 9)];
+  if (k === 'teens') return [r(11, 19), r(11, 19)];
+  return [r(11, 99), r(11, 99)];
+}
+/** 種類ボタン：その種類の掛け算を1問出す */
+function quickStartMul(k) {
+  if (_quickLocked || appMode !== 'mul') return;
+  if (!Object.prototype.hasOwnProperty.call(MUL_KINDS, k)) k = '2x2';
+  quickCfg.mk = k; saveQuickCfg();
+  const prev = quickQ ? quickQ.numStr : '';
+  let a = 0, b = 0;
+  for (let i = 0; i < 50; i++) {                         // 十の倍数（30×7 など）と直前と同じ問題は避ける
+    [a, b] = _mulPick(k);
+    if (a % 10 !== 0 && (b < 10 || b % 10 !== 0) && `${a}x${b}` !== prev) break;
+  }
+  const ex = mulExplain(a, b);
+  quickQ = {
+    mode: 'mul', a, b, numStr: `${a}x${b}`, ex, wrong: { num: `${a}x${b}`, a, b },
+    style: quickCfg.ms === 'input' ? 'input' : 'self', state: 'question', start: Date.now(), secs: 0,
+    answer: '', msg: '', msgKind: '', verdict: '', prevStreak: 0, prevBest: 0
+  };
+  _quickStopTimer();
+  _quickTimer = setInterval(_quickTick, 1000);
+  quickRender(true);
+}
+function quickSetMulStyle(s) {
+  if (s !== 'self' && s !== 'input') return;
+  quickCfg.ms = s; saveQuickCfg();
+  if (quickQ && quickQ.mode === 'mul' && !quickQ.verdict) quickStartMul(quickCfg.mk); else quickRender();
+}
+/** 答えを入力：答え合わせ（自動で正誤を付ける） */
+function quickSubmitMul() {
+  const q = quickQ;
+  if (_quickLocked || !q || q.mode !== 'mul' || q.state !== 'question' || q.style !== 'input') return;
+  const el = document.getElementById('qAnswer');
+  const v = String(el ? el.value : '')
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+  if (!v) {
+    q.msg = '答えの数字を入れてから「答え合わせ」を押してください'; q.msgKind = 'ng';
+    quickRender(true);
+    return;
+  }
+  q.answer = v;
+  quickJudge(Number(v) === q.ex.product ? 'correct' : 'incorrect');
+}
+function _quickMulExplainHTML(q) {
+  const vedic = String(q.ex.vedic).replace(/①/g, '(1)').replace(/②/g, '(2)').replace(/③/g, '(3)');
+  return `<div class="mul-explain q-explain">` +
+    `<div class="explain-block"><span class="explain-title">📝 通常の計算</span><div class="explain-body">${q.ex.normal}</div></div>` +
+    (q.b >= 10 ? `<div class="explain-block"><span class="explain-title">✨ インド式（たすき掛け）</span><div class="explain-body">${vedic}</div></div>` : '') +
+    `</div>`;
+}
+function _quickMulHTML(q, lock) {
+  const prob = `<div class="q-num">${q.a} × ${q.b}</div>`;
+  const prod = q.ex.product.toLocaleString();
+  if (q.state === 'question' && q.style === 'self') {
+    return prob +
+      `<div class="q-meta" id="qTimer">⏱ ${_quickElapsed()}秒</div>` +
+      `<div class="q-hint">暗算で解いてから押してください</div>` +
+      `<div class="q-row"><button class="q-btn q-main" data-main onclick="quickReveal()"${lock}>答えを見る</button></div>`;
+  }
+  if (q.state === 'question' && q.style === 'input') {
+    return prob +
+      `<div class="q-meta" id="qTimer">⏱ ${_quickElapsed()}秒</div>` +
+      `<div class="q-row q-ans-row">` +
+        `<input id="qAnswer" class="q-ans" type="text" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="答えを入力" data-main` +
+        ` onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229&&!event.repeat){event.preventDefault();quickSubmitMul();}"${lock}>` +
+        `<button class="q-btn q-main" onclick="quickSubmitMul()"${lock}>答え合わせ</button>` +
+      `</div>` +
+      `<div class="q-msg ${q.msgKind}" role="status">${q.msg}</div>`;
+  }
+  if (q.state === 'revealed') {
+    return prob +
+      `<div class="q-formula">= ${prod}</div>` + _quickMulExplainHTML(q) +
+      `<div class="q-hint">自分の答えと見くらべて押してください</div>` +
+      `<div class="q-row">` +
+        `<button class="q-btn q-ok" onclick="quickJudge('correct')"${lock}>✓ 正解</button>` +
+        `<button class="q-btn q-ng" onclick="quickJudge('incorrect')"${lock}>✗ 不正解</button>` +
+      `</div>`;
+  }
+  const ok = q.verdict === 'correct';
+  return `<div class="q-result ${ok ? 'ok' : 'ng'}">${ok ? '✓ 正解' : '✗ 不正解'}</div>` +
+    `<div class="q-meta">${q.secs}秒</div>` +
+    `<div class="q-formula">${q.a} × ${q.b} = ${prod}</div>` +
+    (q.answer ? `<div class="q-meta">あなたの答え: ${Number(q.answer).toLocaleString()}</div>` : '') +
+    _quickMulExplainHTML(q) +
+    `<div class="q-row">` +
+      `<button class="q-btn q-main" data-main onclick="quickNext()"${lock}>次の問題（${MUL_KINDS[quickCfg.mk]}）</button>` +
+      `<button class="q-btn q-sub" onclick="quickFlip()"${lock}>✏ 判定を直す</button>` +
+    `</div>` +
+    (ok ? '' : '<div class="q-hint">この問題は不正解リストに入りました（「不正解問題を表示」で復習できます）</div>');
+}
+/** モードを切り替えた時：出題中の問題を閉じる（記録は各モードの判定時に済んでいる） */
+function quickOnModeChange() {
+  _quickStopTimer();
+  quickQ = null;
+  quickRender();
+}
 
 function quickSetStyle(s) {
   if (s !== 'self' && s !== 'tap') return;
@@ -2451,14 +2588,14 @@ function quickSetSmooth(on) { quickCfg.smooth = !!on; saveQuickCfg(); quickRende
 
 /** 自分で採点：答えを見る */
 function quickReveal() {
-  if (_quickLocked || !quickQ || quickQ.state !== 'question' || quickQ.style !== 'self') return;
+  if (_quickLocked || !quickQ || quickQ.mode !== appMode || quickQ.state !== 'question' || quickQ.style !== 'self') return;
   quickQ.state = 'revealed';
   quickRender(true);
 }
 
 /** 結果を記録（既存の judge() と同じ集計経路） */
 function quickJudge(verdict) {
-  if (_quickLocked || !quickQ || quickQ.verdict) return;
+  if (_quickLocked || !quickQ || quickQ.verdict || quickQ.mode !== appMode) return;
   if (verdict !== 'correct' && verdict !== 'incorrect') return;
   const q = quickQ;
   _quickStopTimer();
@@ -2466,32 +2603,32 @@ function quickJudge(verdict) {
   const t = loadToday(), a = loadAllTime();
   t.total++; a.total++;
   if (verdict === 'correct') { t.correct++; a.correct++; removeWrong(q.numStr); }
-  else addWrong({ num: q.numStr, formula: q.formula, prime: q.prime });
+  else addWrong(q.wrong);
   saveToday(t); saveAllTime(a); updateStats();
   scheduleAutoSave();
 
-  q.prevStreak = qs.streak; q.prevBest = qs.best;
-  qs.n++;
-  if (verdict === 'correct') { qs.c++; qs.streak++; qs.best = Math.max(qs.best, qs.streak); }
-  else qs.streak = 0;
-  q.verdict = verdict; q.state = 'judged';
+  q.prevStreak = QS().streak; q.prevBest = QS().best;
+  QS().n++;
+  if (verdict === 'correct') { QS().c++; QS().streak++; QS().best = Math.max(QS().best, QS().streak); }
+  else QS().streak = 0;
+  q.verdict = verdict; q.state = 'judged'; q.judgedAt = Date.now();
   quickRender(true);
 }
 
 /** 判定を直す（正解⇄不正解。既存の「回答を修正する」と同じ考え方） */
 function quickFlip() {
-  if (_quickLocked || !quickQ || !quickQ.verdict) return;
+  if (_quickLocked || !quickQ || !quickQ.verdict || quickQ.mode !== appMode) return;
   const q = quickQ;
   const t = loadToday(), a = loadAllTime();
   if (q.verdict === 'correct') {
     t.correct = Math.max(0, t.correct - 1); a.correct = Math.max(0, a.correct - 1);
-    addWrong({ num: q.numStr, formula: q.formula, prime: q.prime });
-    qs.c = Math.max(0, qs.c - 1); qs.streak = 0; qs.best = q.prevBest;
+    addWrong(q.wrong);
+    QS().c = Math.max(0, QS().c - 1); QS().streak = 0; QS().best = q.prevBest;
     q.verdict = 'incorrect';
   } else {
     t.correct = Math.min(t.total, t.correct + 1); a.correct = Math.min(a.total, a.correct + 1);
     removeWrong(q.numStr);
-    qs.c++; qs.streak = q.prevStreak + 1; qs.best = Math.max(qs.best, qs.streak);
+    QS().c++; QS().streak = q.prevStreak + 1; QS().best = Math.max(QS().best, QS().streak);
     q.verdict = 'correct';
   }
   saveToday(t); saveAllTime(a); updateStats();
@@ -2551,9 +2688,9 @@ function studyDayStreak() {
 }
 
 function _quickSessionRender() {
-  document.getElementById('qsN').textContent      = qs.n;
-  document.getElementById('qsRate').textContent   = fmtRate(qs.n, qs.c);
-  document.getElementById('qsStreak').textContent = qs.best > 0 ? `${qs.streak}（最高${qs.best}）` : `${qs.streak}`;
+  document.getElementById('qsN').textContent      = QS().n;
+  document.getElementById('qsRate').textContent   = fmtRate(QS().n, QS().c);
+  document.getElementById('qsStreak').textContent = QS().best > 0 ? `${QS().streak}（最高${QS().best}）` : `${QS().streak}`;
   document.getElementById('qsDays').textContent   = `${studyDayStreak()}日`;
 }
 
@@ -2564,10 +2701,14 @@ function quickRender(focusMain) {
   const lock = _quickLocked ? ' disabled' : '';
   document.querySelectorAll('.qd-btn').forEach(b => {
     b.disabled = _quickLocked;
-    b.setAttribute('aria-pressed', String(Number(b.dataset.d) === quickCfg.d && !!quickQ));
+    const on = b.dataset.k ? (b.dataset.k === quickCfg.mk && !!quickQ && quickQ.mode === 'mul')
+                           : (Number(b.dataset.d) === quickCfg.d && !!quickQ && quickQ.mode === 'pf');
+    b.setAttribute('aria-pressed', String(on));
   });
-  document.querySelectorAll('.seg-btn').forEach(b =>
+  document.querySelectorAll('.seg-btn[data-style]').forEach(b =>
     b.setAttribute('aria-checked', String(b.dataset.style === quickCfg.style)));
+  document.querySelectorAll('.seg-btn[data-mstyle]').forEach(b =>
+    b.setAttribute('aria-checked', String(b.dataset.mstyle === quickCfg.ms)));
   const chk = document.getElementById('qSmooth'), lbl = document.getElementById('qSmoothLabel');
   chk.checked  = quickCfg.style === 'tap' ? true : quickCfg.smooth;
   chk.disabled = quickCfg.style === 'tap';
@@ -2581,12 +2722,16 @@ function quickRender(focusMain) {
     return;
   }
   if (!q) {
-    stage.innerHTML = '<div class="q-empty">上の「2桁」〜「5桁」を押すと、<br>その桁の数が1問出ます。</div>';
+    stage.innerHTML = appMode === 'mul'
+      ? '<div class="q-empty">上の「2桁×1桁」などを押すと、<br>その種類の掛け算が1問出ます。</div>'
+      : '<div class="q-empty">上の「2桁」〜「5桁」を押すと、<br>その桁の数が1問出ます。</div>';
     return;
   }
-  const num = `<div class="q-num">${q.n.toLocaleString()}</div>`;
+  const num = q.mode === 'pf' ? `<div class="q-num">${q.n.toLocaleString()}</div>` : '';
   let html = '';
-  if (q.state === 'question' && q.style === 'self') {
+  if (q.mode === 'mul') {
+    html = _quickMulHTML(q, lock);
+  } else if (q.state === 'question' && q.style === 'self') {
     html = num +
       `<div class="q-meta" id="qTimer">⏱ ${_quickElapsed()}秒</div>` +
       `<div class="q-hint">紙やノートで素因数分解してから押してください</div>` +
@@ -2635,14 +2780,15 @@ function quickRender(focusMain) {
   stage.innerHTML = html;
   if (focusMain) {
     // 答えを開いた直後は採点ボタンにフォーカスを置かない（Enter の押し続けで「正解」が記録されるのを防ぐ）
-    const m = stage.querySelector('[data-main]') || stage;
+    // 答えを入力で答え合わせした直後も「次の問題」に置かない（日本語入力の確定の Enter で結果を飛ばさない）
+    const m = (q.state === 'judged' && q.style === 'input') ? stage : (stage.querySelector('[data-main]') || stage);
     try { m.focus({ preventScroll: true }); } catch(e) { m.focus(); }
   }
 }
 
 /** キーボード操作（PC）：Enter＝答えを見る／次の問題、1＝正解、2＝不正解 */
 function quickKeydown(e) {
-  if (appMode !== 'pf' || _quickLocked || !quickQ) return;
+  if (_quickLocked || !quickQ || quickQ.mode !== appMode) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const tag = (e.target && e.target.tagName) || '';
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
@@ -2651,7 +2797,11 @@ function quickKeydown(e) {
   const q = quickQ;
   if (e.key === 'Enter') {
     if (q.state === 'question' && q.style === 'self') { quickReveal(); e.preventDefault(); }
-    else if (q.state === 'judged') { quickNext(); e.preventDefault(); }
+    else if (q.state === 'judged') {
+      e.preventDefault();
+      if (e.repeat || e.isComposing || Date.now() - (q.judgedAt || 0) < 700) return; // 押しっぱなし・判定直後の Enter では進まない
+      quickNext();
+    }
   } else if (q.state === 'revealed' && (e.key === '1' || e.key === '2')) {
     quickJudge(e.key === '1' ? 'correct' : 'incorrect'); e.preventDefault();
   }
