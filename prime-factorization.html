@@ -2545,7 +2545,7 @@ function _quickMulHTML(q, lock) {
       `<div class="q-meta" id="qTimer">⏱ ${_quickElapsed()}秒</div>` +
       `<div class="q-row q-ans-row">` +
         `<input id="qAnswer" class="q-ans" type="text" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="答えを入力" data-main` +
-        ` onkeydown="if(event.key==='Enter'){event.preventDefault();quickSubmitMul();}"${lock}>` +
+        ` onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229&&!event.repeat){event.preventDefault();quickSubmitMul();}"${lock}>` +
         `<button class="q-btn q-main" onclick="quickSubmitMul()"${lock}>答え合わせ</button>` +
       `</div>` +
       `<div class="q-msg ${q.msgKind}" role="status">${q.msg}</div>`;
@@ -2611,7 +2611,7 @@ function quickJudge(verdict) {
   QS().n++;
   if (verdict === 'correct') { QS().c++; QS().streak++; QS().best = Math.max(QS().best, QS().streak); }
   else QS().streak = 0;
-  q.verdict = verdict; q.state = 'judged';
+  q.verdict = verdict; q.state = 'judged'; q.judgedAt = Date.now();
   quickRender(true);
 }
 
@@ -2780,7 +2780,8 @@ function quickRender(focusMain) {
   stage.innerHTML = html;
   if (focusMain) {
     // 答えを開いた直後は採点ボタンにフォーカスを置かない（Enter の押し続けで「正解」が記録されるのを防ぐ）
-    const m = stage.querySelector('[data-main]') || stage;
+    // 答えを入力で答え合わせした直後も「次の問題」に置かない（日本語入力の確定の Enter で結果を飛ばさない）
+    const m = (q.state === 'judged' && q.style === 'input') ? stage : (stage.querySelector('[data-main]') || stage);
     try { m.focus({ preventScroll: true }); } catch(e) { m.focus(); }
   }
 }
@@ -2796,7 +2797,11 @@ function quickKeydown(e) {
   const q = quickQ;
   if (e.key === 'Enter') {
     if (q.state === 'question' && q.style === 'self') { quickReveal(); e.preventDefault(); }
-    else if (q.state === 'judged') { quickNext(); e.preventDefault(); }
+    else if (q.state === 'judged') {
+      e.preventDefault();
+      if (e.repeat || e.isComposing || Date.now() - (q.judgedAt || 0) < 700) return; // 押しっぱなし・判定直後の Enter では進まない
+      quickNext();
+    }
   } else if (q.state === 'revealed' && (e.key === '1' || e.key === '2')) {
     quickJudge(e.key === '1' ? 'correct' : 'incorrect'); e.preventDefault();
   }
